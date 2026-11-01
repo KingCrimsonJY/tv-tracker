@@ -12,7 +12,7 @@ type TypeFilter = 'all' | 'movie' | 'tv' | 'other';
 type SortMode = 'recent' | 'added' | 'year' | 'name';
 
 export const LibraryPage: React.FC = () => {
-  const { titles, seasonsByTitle, settings, getActiveProgress } = useTracker();
+  const { loadingData, titles, seasonsByTitle, settings, getActiveProgress } = useTracker();
   const navigate = useNavigate();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -100,10 +100,10 @@ export const LibraryPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
             {zh.library.title}
           </h1>
-          <span className="text-xs sm:text-sm text-[#9ca3af] tabular-nums">
+          <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
             共 {items.length} 部
           </span>
         </div>
@@ -120,13 +120,13 @@ export const LibraryPage: React.FC = () => {
       </header>
 
       {/* Filter & Sort Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-2 border-b border-white/[0.06]">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-2 border-b border-[var(--separator)]">
         <div className="flex flex-wrap items-center gap-2">
           {/* Status segmented control */}
           <div
             role="group"
             aria-label="按观看状态筛选"
-            className="inline-flex items-center p-1 rounded-xl bg-[#1a1a1f] border border-white/[0.06] overflow-x-auto max-w-full"
+            className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-x-auto max-w-full"
           >
             {statusTabs.map((tab) => (
               <button
@@ -135,8 +135,8 @@ export const LibraryPage: React.FC = () => {
                 onClick={() => setStatusFilter(tab.id)}
                 className={`px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                   statusFilter === tab.id
-                    ? 'bg-[#3b82f6] text-white'
-                    : 'text-[#9ca3af] hover:text-white'
+                    ? 'bg-[var(--accent)] text-[var(--accent-foreground)]'
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}
@@ -148,7 +148,7 @@ export const LibraryPage: React.FC = () => {
           <div
             role="group"
             aria-label="按影视类型筛选"
-            className="inline-flex items-center p-1 rounded-xl bg-[#1a1a1f] border border-white/[0.06]"
+            className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]"
           >
             {typeTabs.map((tab) => (
               <button
@@ -157,8 +157,8 @@ export const LibraryPage: React.FC = () => {
                 onClick={() => setTypeFilter(tab.id)}
                 className={`px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 ${
                   typeFilter === tab.id
-                    ? 'bg-white/[0.12] text-white'
-                    : 'text-[#9ca3af] hover:text-white'
+                    ? 'bg-[var(--surface-tertiary)] text-[var(--foreground)]'
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {tab.label}
@@ -169,14 +169,17 @@ export const LibraryPage: React.FC = () => {
 
         {/* Sort selector */}
         <div className="flex items-center gap-2 self-end lg:self-auto">
-          <label htmlFor="library-sort" className="text-xs text-[#9ca3af] whitespace-nowrap">
+          <label
+            htmlFor="library-sort"
+            className="text-xs text-[var(--muted)] whitespace-nowrap"
+          >
             排序方式
           </label>
           <select
             id="library-sort"
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="h-9 px-3 rounded-xl bg-[#1a1a1f] border border-white/[0.08] text-xs font-medium text-white focus:outline-none focus:border-[#3b82f6]"
+            className="h-9 px-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
           >
             <option value="recent">{zh.library.sort.recent}</option>
             <option value="added">{zh.library.sort.added}</option>
@@ -187,12 +190,24 @@ export const LibraryPage: React.FC = () => {
       </div>
 
       {/* Poster Grid: 3 columns on phone, 4-5 on tablet, 6-8 on desktop */}
-      {items.length === 0 ? (
+      {loadingData ? (
+        <div
+          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3.5 sm:gap-5"
+          aria-label="正在加载片库"
+        >
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="aspect-[2/3] rounded-xl bg-[var(--surface)] border border-[var(--border)] animate-pulse" />
+              <div className="h-4 w-3/4 rounded bg-[var(--surface-secondary)] animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
         <div className="py-16 text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-white/[0.04] flex items-center justify-center text-[#9ca3af] mx-auto">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--surface-secondary)] flex items-center justify-center text-[var(--muted)] mx-auto">
             <Film className="w-6 h-6" />
           </div>
-          <p className="text-sm text-[#9ca3af]">{zh.library.emptyFiltered}</p>
+          <p className="text-sm text-[var(--muted)]">{zh.library.emptyFiltered}</p>
           {(statusFilter !== 'all' || typeFilter !== 'all') && (
             <Button
               variant="secondary"

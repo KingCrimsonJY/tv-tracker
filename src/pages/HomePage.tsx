@@ -8,7 +8,6 @@ import {
   LogIn,
   Plus,
   Settings,
-  Sparkles,
 } from 'lucide-react';
 import { Button, Card, ProgressBar } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
@@ -19,6 +18,7 @@ import {
   computeTitleState,
   formatEpisodeBadge,
   formatSeconds,
+  getTitleContinueProgressRatio,
   resolveDisplayTitle,
 } from '../domain/progress';
 import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
@@ -27,6 +27,7 @@ import { zh } from '../i18n/zh';
 export const HomePage: React.FC = () => {
   const {
     user,
+    loadingData,
     titles,
     seasonsByTitle,
     lists,
@@ -36,7 +37,6 @@ export const HomePage: React.FC = () => {
     toggleEpisode,
     markWholeTitle,
     signIn,
-    seedDemoLibrary,
   } = useTracker();
   const navigate = useNavigate();
 
@@ -100,18 +100,18 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h2
                 id="heading-continue-watching"
-                className="text-lg sm:text-xl font-semibold text-white tracking-tight"
+                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
               >
                 {zh.home.continueWatching}
               </h2>
-              <span className="text-xs text-[#9ca3af] tabular-nums">
+              <span className="text-xs text-[var(--muted)] tabular-nums">
                 {continueWatchingItems.length} 部正在观看
               </span>
             </div>
 
             {continueWatchingItems.length === 0 ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-[#1a1a1f]/60 p-6 flex items-center justify-between gap-4">
-                <p className="text-sm text-[#9ca3af]">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 flex items-center justify-between gap-4">
+                <p className="text-sm text-[var(--muted)]">
                   当前没有正在观看的影视，从片库挑选一部或搜索新作品开始吧。
                 </p>
                 <Button
@@ -124,8 +124,9 @@ export const HomePage: React.FC = () => {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                {continueWatchingItems.map(({ title, state }) => {
+              /* Item 12: Horizontal scroll-snap row; on phone each card is ~85% width so the next one peeks */
+              <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+                {continueWatchingItems.map(({ title, seasons, state }) => {
                   const { primary } = resolveDisplayTitle(
                     title.names,
                     title.displayLang,
@@ -153,7 +154,9 @@ export const HomePage: React.FC = () => {
                     progressSubtitle = state.label;
                   }
 
-                  const pct = Math.max(8, Math.round(state.progressRatio * 100));
+                  // Item 15: Progress bar uses resume seconds ÷ (runtime × 60) for movies and resumed episodes
+                  const ratio = getTitleContinueProgressRatio(title, seasons, state);
+                  const pct = Math.max(2, Math.min(100, Math.round(ratio * 100)));
                   const detailHref = targetEpisodeKey
                     ? `/title/${title.id}?episode=${targetEpisodeKey}`
                     : `/title/${title.id}`;
@@ -171,11 +174,11 @@ export const HomePage: React.FC = () => {
                   return (
                     <div
                       key={title.id}
-                      className="group relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#1a1a1f] transition-transform duration-200 hover:scale-[1.01]"
+                      className="w-[85%] sm:w-[340px] lg:w-[380px] shrink-0 snap-start group relative rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 hover:scale-[1.01]"
                     >
                       <Link
                         to={detailHref}
-                        className="block relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6]"
+                        className="block relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                       >
                         <MediaImage
                           src={title.backdropPath || title.posterPath}
@@ -186,19 +189,19 @@ export const HomePage: React.FC = () => {
                         />
 
                         {/* Scrim overlay for contrast */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[var(--scrim-strong)] via-[var(--scrim-mid)] to-transparent" />
 
                         <div className="absolute inset-x-0 bottom-0 p-4 flex items-end justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <h3 className="text-base sm:text-lg font-semibold text-white truncate">
+                            <h3 className="text-base sm:text-lg font-semibold text-[var(--on-scrim)] truncate">
                               {primary}
                             </h3>
-                            <div className="mt-0.5 flex items-center gap-2 text-xs text-[#d1d5db] tabular-nums">
+                            <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--on-scrim-muted)] tabular-nums">
                               <span>{progressSubtitle}</span>
                               {state.hasNewEpisodes && (
                                 <>
                                   <span aria-hidden="true">·</span>
-                                  <span className="text-[#60a5fa] font-medium">
+                                  <span className="text-[var(--accent-text)] font-medium">
                                     {zh.detail.newEpisodeBadge}
                                   </span>
                                 </>
@@ -223,7 +226,7 @@ export const HomePage: React.FC = () => {
                                   ? `${zh.home.markNextWatched} ${formatEpisodeBadge(nextUp.key)}`
                                   : zh.home.markMovieWatched
                               }
-                              className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-white/15 hover:bg-[#3b82f6] text-white backdrop-blur-md flex items-center justify-center gap-1.5 text-xs font-medium transition-colors shrink-0"
+                              className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-[var(--scrim-chip)] hover:bg-[var(--accent)] text-[var(--on-scrim)] backdrop-blur-md flex items-center justify-center gap-1.5 text-xs font-medium transition-colors shrink-0"
                             >
                               <Check className="w-4 h-4" />
                               <span className="tabular-nums">
@@ -241,8 +244,8 @@ export const HomePage: React.FC = () => {
                             size="sm"
                             className="w-full"
                           >
-                            <ProgressBar.Track className="h-1 bg-white/20 overflow-hidden">
-                              <ProgressBar.Fill className="h-full bg-[#3b82f6]" />
+                            <ProgressBar.Track className="h-1 bg-[var(--scrim-track)] overflow-hidden">
+                              <ProgressBar.Fill className="h-full bg-[var(--accent)]" />
                             </ProgressBar.Track>
                           </ProgressBar>
                         </div>
@@ -266,11 +269,11 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h2
                 id="heading-new-episodes"
-                className="text-lg sm:text-xl font-semibold text-white tracking-tight"
+                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
               >
                 {zh.home.newEpisodes}
               </h2>
-              <span className="text-xs text-[#60a5fa] font-medium tabular-nums">
+              <span className="text-xs text-[var(--accent-text)] font-medium tabular-nums">
                 {newEpisodeItems.length} 部更新
               </span>
             </div>
@@ -301,13 +304,13 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h2
                 id="heading-pinned-lists"
-                className="text-lg sm:text-xl font-semibold text-white tracking-tight"
+                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
               >
                 {zh.home.pinnedLists}
               </h2>
               <Link
                 to="/lists"
-                className="text-xs text-[#9ca3af] hover:text-white flex items-center gap-1 transition-colors"
+                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 transition-colors"
               >
                 <span>全部列表</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -355,34 +358,36 @@ export const HomePage: React.FC = () => {
                   <Link
                     key={list.id}
                     to={`/lists/${list.id}`}
-                    className="group block rounded-2xl border border-white/[0.07] bg-[#1a1a1f] hover:bg-[#202027] p-5 transition-colors"
+                    className="group block rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-secondary)] p-5 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 text-xs text-[#60a5fa] font-medium">
+                        <div className="flex items-center gap-2 text-xs text-[var(--accent-text)] font-medium">
                           <ListOrdered className="w-4 h-4 shrink-0" />
                           <span>{zh.lists.orderedType}</span>
                         </div>
-                        <h3 className="mt-1.5 text-base font-semibold text-white truncate">
+                        <h3 className="mt-1.5 text-base font-semibold text-[var(--foreground)] truncate">
                           {list.name}
                         </h3>
-                        <p className="mt-1 text-sm text-[#d1d5db] truncate">
+                        <p className="mt-1 text-sm text-[var(--foreground-secondary)] truncate">
                           {nextTitleName ? (
                             <>
-                              <span className="text-[#9ca3af]">{zh.home.nextTitlePrefix}</span>
-                              <span className="font-medium text-white">{nextTitleName}</span>
+                              <span className="text-[var(--muted)]">{zh.home.nextTitlePrefix}</span>
+                              <span className="font-medium text-[var(--foreground)]">
+                                {nextTitleName}
+                              </span>
                             </>
                           ) : (
-                            <span className="text-[#9ca3af]">{zh.home.allCompleted}</span>
+                            <span className="text-[var(--muted)]">{zh.home.allCompleted}</span>
                           )}
                         </p>
                       </div>
 
                       <div className="text-right shrink-0 tabular-nums">
-                        <span className="text-sm font-semibold text-white">
+                        <span className="text-sm font-semibold text-[var(--foreground)]">
                           {listStats.completedCount}/{listStats.totalCount}
                         </span>
-                        <p className="text-xs text-[#9ca3af] mt-0.5">已看完</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">已看完</p>
                       </div>
                     </div>
 
@@ -393,8 +398,8 @@ export const HomePage: React.FC = () => {
                         size="sm"
                         className="w-full"
                       >
-                        <ProgressBar.Track className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <ProgressBar.Fill className="h-full bg-[#3b82f6] rounded-full" />
+                        <ProgressBar.Track className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
+                          <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
                         </ProgressBar.Track>
                       </ProgressBar>
                     </div>
@@ -416,13 +421,13 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h2
                 id="heading-recently-added"
-                className="text-lg sm:text-xl font-semibold text-white tracking-tight"
+                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
               >
                 {zh.home.recentlyAdded}
               </h2>
               <Link
                 to="/library"
-                className="text-xs text-[#9ca3af] hover:text-white flex items-center gap-1 transition-colors"
+                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 transition-colors"
               >
                 <span>查看片库</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -455,11 +460,11 @@ export const HomePage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h2
                 id="heading-watchlist"
-                className="text-lg sm:text-xl font-semibold text-white tracking-tight"
+                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
               >
                 {zh.home.watchlist}
               </h2>
-              <span className="text-xs text-[#9ca3af] tabular-nums">
+              <span className="text-xs text-[var(--muted)] tabular-nums">
                 {watchlistItems.length} 部待看
               </span>
             </div>
@@ -489,10 +494,10 @@ export const HomePage: React.FC = () => {
       {/* Top Header */}
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
             {zh.nav.home}
           </h1>
-          <p className="text-xs sm:text-sm text-[#9ca3af] mt-0.5">{zh.app.tagline}</p>
+          <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{zh.app.tagline}</p>
         </div>
 
         {/* Settings opens from an avatar button in the Home header, not a tab */}
@@ -514,7 +519,7 @@ export const HomePage: React.FC = () => {
             onClick={() => navigate('/settings')}
             aria-label={zh.settings.title}
             title={zh.settings.title}
-            className="min-w-[44px] min-h-[44px] px-2.5 rounded-2xl bg-[#1a1a1f] hover:bg-white/[0.08] border border-white/[0.08] flex items-center justify-center gap-2 text-white transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] px-2.5 rounded-2xl bg-[var(--surface)] hover:bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center justify-center gap-2 text-[var(--foreground)] transition-colors cursor-pointer"
           >
             {user?.photoURL ? (
               <img
@@ -524,23 +529,50 @@ export const HomePage: React.FC = () => {
                 className="w-7 h-7 rounded-full object-cover"
               />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-[#3b82f6]/20 text-[#60a5fa] flex items-center justify-center text-xs font-semibold">
+              <div className="w-7 h-7 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center text-xs font-semibold">
                 {user?.displayName ? user.displayName.slice(0, 1) : '帧'}
               </div>
             )}
-            <Settings className="w-4 h-4 text-[#9ca3af]" />
+            <Settings className="w-4 h-4 text-[var(--muted)]" />
           </button>
         </div>
       </header>
 
-      {isEmpty ? (
-        <Card className="bg-[#1a1a1f] border border-white/[0.07] rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto my-8">
+      {loadingData ? (
+        <div className="space-y-8" aria-label="正在加载数据">
+          <div className="space-y-4">
+            <div className="h-6 w-28 rounded-lg bg-[var(--surface-secondary)] animate-pulse" />
+            <div className="flex overflow-hidden gap-4">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-[85%] sm:w-[340px] lg:w-[380px] shrink-0 aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] animate-pulse"
+                />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="h-6 w-28 rounded-lg bg-[var(--surface-secondary)] animate-pulse" />
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="aspect-[2/3] rounded-xl bg-[var(--surface)] border border-[var(--border)] animate-pulse"
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : isEmpty ? (
+        <Card className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto my-8">
           <Card.Content className="flex flex-col items-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#3b82f6]/15 flex items-center justify-center text-[#60a5fa]">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)]">
               <Film className="w-7 h-7" />
             </div>
-            <h2 className="text-xl font-semibold text-white">{zh.home.emptyTitle}</h2>
-            <p className="text-sm text-[#9ca3af] leading-relaxed max-w-md">
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">
+              {zh.home.emptyTitle}
+            </h2>
+            <p className="text-sm text-[var(--muted)] leading-relaxed max-w-md">
               {zh.home.emptyDescription}
             </p>
             <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
@@ -551,14 +583,6 @@ export const HomePage: React.FC = () => {
               >
                 <Plus className="w-4 h-4" />
                 <span>{zh.home.emptyAction}</span>
-              </Button>
-              <Button
-                variant="secondary"
-                onPress={() => seedDemoLibrary()}
-                className="gap-2 font-medium"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{zh.home.seedDemoAction}</span>
               </Button>
             </div>
           </Card.Content>

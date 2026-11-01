@@ -4,23 +4,28 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
+  getDocs,
   onSnapshot,
   setDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { buildInitialDemoDataset, SEED_CATALOG } from '../data/seedCatalog';
 import { computeMovedRank, getNextRank, sortListEntries } from '../domain/ordering';
 import {
   cancelRewatch,
@@ -47,7 +52,15 @@ import type {
   TitleDoc,
   WatchListDoc,
 } from '../domain/types';
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
+import { zh } from '../i18n/zh';
+import { apiFetch } from '../lib/api';
+import {
+  auth,
+  buildFirestoreErrorInfo,
+  db,
+  googleProvider,
+  OperationType,
+} from '../lib/firebase';
 
 const DEFAULT_SETTINGS: AppSettingsDoc = {
   defaultTitleLang: 'zh',
@@ -64,6 +77,14 @@ const DEFAULT_SETTINGS: AppSettingsDoc = {
 
 function sanitizeForFirestore<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj)) as T;
+}
+
+function isStandalonePwa(): boolean {
+  if (typeof window === 'undefined') return false;
+  const isStandaloneDisplay = window.matchMedia?.('(display-mode: standalone)').matches;
+  const isIosStandalone =
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return Boolean(isStandaloneDisplay || isIosStandalone);
 }
 
 export interface CustomTitleInput {
@@ -100,8 +121,10 @@ export interface UpdateTitleDetailsInput {
 interface TrackerContextValue {
   user: User | null;
   authReady: boolean;
-  isDemoMode: boolean;
   loadingData: boolean;
+  toastMessage: string | null;
+  showToast: (message: string) => void;
+  dismissToast: () => void;
   titles: Record<string, TitleDoc>;
   seasonsByTitle: Record<string, SeasonDoc[]>;
   progressByTitle: Record<string, Record<string, ProgressDoc>>;
@@ -109,7 +132,6 @@ interface TrackerContextValue {
   entriesByList: Record<string, ListEntryDoc[]>;
   settings: AppSettingsDoc;
   signIn: () => Promise<void>;
-  enterDemoMode: () => void;
   signOut: () => Promise<void>;
   getActiveProgress: (title: TitleDoc) => ProgressDoc;
   addTitleFromTmdb: (
@@ -152,118 +174,57 @@ interface TrackerContextValue {
   reorderListEntry: (listId: string, activeEntryId: string, overEntryId: string) => Promise<void>;
   updateSettings: (partial: Partial<AppSettingsDoc>) => Promise<void>;
   exportAllDataJson: () => string;
-  seedDemoLibrary: () => Promise<void>;
 }
 
 const TrackerContext = createContext<TrackerContextValue | null>(null);
 
-const LOCAL_STORAGE_KEY = 'zhenji_demo_state_v3';
-
 export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('autostart') === '1') return true;
-    const saved = window.localStorage.getItem('zhenji_use_demo');
-    return saved !== 'false';
-  });
-  const [loadingData, setLoadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
-  const initialDemo = useMemo(() => buildInitialDemoDataset(), []);
-
-  const [titles, setTitles] = useState<Record<string, TitleDoc>>(() => {
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.titles) return parsed.titles;
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return initialDemo.titles;
-  });
-
-  const [seasonsByTitle, setSeasonsByTitle] = useState<Record<string, SeasonDoc[]>>(() => {
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.seasonsByTitle) return parsed.seasonsByTitle;
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return initialDemo.seasonsByTitle;
-  });
-
+  const [titles, setTitles] = useState<Record<string, TitleDoc>>({});
+  const [seasonsByTitle, setSeasonsByTitle] = useState<Record<string, SeasonDoc[]>>({});
   const [progressByTitle, setProgressByTitle] = useState<
     Record<string, Record<string, ProgressDoc>>
-  >(() => {
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.progressByTitle) return parsed.progressByTitle;
-        } catch {
-          // ignore
-        }
-      }
-    }
-    return initialDemo.progressByTitle;
-  });
+  >({});
+  const [lists, setLists] = useState<Record<string, WatchListDoc>>({});
+  const [entriesByList, setEntriesByList] = useState<Record<string, ListEntryDoc[]>>({});
+  const [settings, setSettings] = useState<AppSettingsDoc>(DEFAULT_SETTINGS);
 
-  const [lists, setLists] = useState<Record<string, WatchListDoc>>(() => {
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
     if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.lists) return parsed.lists;
-        } catch {
-          // ignore
-        }
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
       }
+      toastTimerRef.current = window.setTimeout(() => {
+        setToastMessage(null);
+      }, 4500);
     }
-    return initialDemo.lists;
-  });
+  }, []);
 
-  const [entriesByList, setEntriesByList] = useState<Record<string, ListEntryDoc[]>>(() => {
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.entriesByList) return parsed.entriesByList;
-        } catch {
-          // ignore
-        }
-      }
+  const dismissToast = useCallback(() => {
+    setToastMessage(null);
+    if (typeof window !== 'undefined' && toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
     }
-    return initialDemo.entriesByList;
-  });
+  }, []);
 
-  const [settings, setSettings] = useState<AppSettingsDoc>(() => {
+  // Clean up any legacy localStorage demo keys from earlier versions
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed.settings) return { ...DEFAULT_SETTINGS, ...parsed.settings };
-        } catch {
-          // ignore
-        }
+      try {
+        window.localStorage.removeItem('zhenji_demo_state_v3');
+        window.localStorage.removeItem('zhenji_use_demo');
+      } catch {
+        // ignore
       }
     }
-    return DEFAULT_SETTINGS;
-  });
+  }, []);
 
   // Apply theme (dark / light / system) to document.documentElement
   useEffect(() => {
@@ -286,33 +247,24 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [settings.theme]);
 
-  // Persist demo state to localStorage when in demo mode
+  // Complete any pending OAuth redirect flow and listen to Firebase Auth state
   useEffect(() => {
-    if (!user && isDemoMode && typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(
-          LOCAL_STORAGE_KEY,
-          JSON.stringify({
-            titles,
-            seasonsByTitle,
-            progressByTitle,
-            lists,
-            entriesByList,
-            settings,
-          })
-        );
-      } catch {
-        // ignore storage quota errors
-      }
-    }
-  }, [user, isDemoMode, titles, seasonsByTitle, progressByTitle, lists, entriesByList, settings]);
+    getRedirectResult(auth).catch((err) => {
+      console.warn('Redirect sign-in check:', err);
+    });
 
-  // Listen to Firebase Auth state
-  useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        setIsDemoMode(false);
+        setLoadingData(true);
+      } else {
+        setTitles({});
+        setSeasonsByTitle({});
+        setProgressByTitle({});
+        setLists({});
+        setEntriesByList({});
+        setSettings(DEFAULT_SETTINGS);
+        setLoadingData(false);
       }
       setAuthReady(true);
     });
@@ -343,7 +295,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           currentIds.add(id);
           nextTitles[id] = { ...data, id };
 
-          // Subscribe to seasons & progress for each title if not already subscribed
           const seasonsKey = `seasons_${id}`;
           if (!subUnsubscribers.has(seasonsKey)) {
             const sPath = `users/${uid}/titles/${id}/seasons`;
@@ -357,7 +308,9 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 sList.sort((a, b) => a.seasonNumber - b.seasonNumber);
                 setSeasonsByTitle((prev) => ({ ...prev, [id]: sList }));
               },
-              (err) => handleFirestoreError(err, OperationType.LIST, sPath)
+              (err) => {
+                buildFirestoreErrorInfo(err, OperationType.LIST, sPath);
+              }
             );
             subUnsubscribers.set(seasonsKey, unsubS);
           }
@@ -379,13 +332,14 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
                 setProgressByTitle((prev) => ({ ...prev, [id]: pMap }));
               },
-              (err) => handleFirestoreError(err, OperationType.LIST, pPath)
+              (err) => {
+                buildFirestoreErrorInfo(err, OperationType.LIST, pPath);
+              }
             );
             subUnsubscribers.set(progressKey, unsubP);
           }
         });
 
-        // Clean up removed title listeners
         for (const [key, unsubFn] of subUnsubscribers.entries()) {
           if (key.startsWith('seasons_') || key.startsWith('progress_')) {
             const tId = key.replace(/^(seasons_|progress_)/, '');
@@ -399,7 +353,11 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTitles(nextTitles);
         setLoadingData(false);
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, titlesPath)
+      (err) => {
+        buildFirestoreErrorInfo(err, OperationType.LIST, titlesPath);
+        setLoadingData(false);
+        showToast(zh.app.unauthorizedAccountToast);
+      }
     );
 
     const unsubLists = onSnapshot(
@@ -428,7 +386,9 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 eList.sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
                 setEntriesByList((prev) => ({ ...prev, [id]: eList }));
               },
-              (err) => handleFirestoreError(err, OperationType.LIST, ePath)
+              (err) => {
+                buildFirestoreErrorInfo(err, OperationType.LIST, ePath);
+              }
             );
             subUnsubscribers.set(entriesKey, unsubE);
           }
@@ -446,17 +406,21 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setLists(nextLists);
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, listsPath)
+      (err) => {
+        buildFirestoreErrorInfo(err, OperationType.LIST, listsPath);
+      }
     );
 
     const unsubSettings = onSnapshot(
       doc(db, settingsPath),
       (docSnap) => {
         if (docSnap.exists()) {
-          setSettings(docSnap.data() as AppSettingsDoc);
+          setSettings({ ...DEFAULT_SETTINGS, ...(docSnap.data() as Partial<AppSettingsDoc>) });
         }
       },
-      (err) => handleFirestoreError(err, OperationType.GET, settingsPath)
+      (err) => {
+        buildFirestoreErrorInfo(err, OperationType.GET, settingsPath);
+      }
     );
 
     return () => {
@@ -468,26 +432,34 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       subUnsubscribers.clear();
     };
-  }, [authReady, user]);
+  }, [authReady, user, showToast]);
 
   const signIn = useCallback(async () => {
-    await signInWithPopup(auth, googleProvider);
-  }, []);
-
-  const enterDemoMode = useCallback(() => {
-    setIsDemoMode(true);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('zhenji_use_demo', 'true');
+    if (isStandalonePwa()) {
+      await signInWithRedirect(auth, googleProvider);
+      return;
     }
-  }, []);
+
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      const code = (err as { code?: string })?.code || '';
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/operation-not-supported-in-this-environment'
+      ) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      showToast(err instanceof Error ? err.message : '登录失败，请重试');
+    }
+  }, [showToast]);
 
   const signOut = useCallback(async () => {
     if (user) {
       await firebaseSignOut(auth);
-    }
-    setIsDemoMode(false);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('zhenji_use_demo', 'false');
     }
   }, [user]);
 
@@ -504,52 +476,61 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [progressByTitle]
   );
 
-  const persistTitleAndProgress = useCallback(
-    async (
-      updatedTitle: TitleDoc,
-      updatedProgress: ProgressDoc,
-      updatedSeasons?: SeasonDoc[]
-    ) => {
-      // Optimistic state update
-      setTitles((prev) => ({ ...prev, [updatedTitle.id]: updatedTitle }));
+  // Used only when creating a brand-new title document + initial progress + seasons
+  const createTitleDocumentBatch = useCallback(
+    async (newTitle: TitleDoc, initialProgress: ProgressDoc, initialSeasons: SeasonDoc[]) => {
+      setTitles((prev) => ({ ...prev, [newTitle.id]: newTitle }));
       setProgressByTitle((prev) => ({
         ...prev,
-        [updatedTitle.id]: {
-          ...(prev[updatedTitle.id] || {}),
-          [updatedProgress.playthroughId]: updatedProgress,
+        [newTitle.id]: {
+          ...(prev[newTitle.id] || {}),
+          [initialProgress.playthroughId]: initialProgress,
         },
       }));
-      if (updatedSeasons) {
-        setSeasonsByTitle((prev) => ({ ...prev, [updatedTitle.id]: updatedSeasons }));
-      }
+      setSeasonsByTitle((prev) => ({ ...prev, [newTitle.id]: initialSeasons }));
 
       if (!user) return;
 
       const uid = user.uid;
-      const titlePath = `users/${uid}/titles/${updatedTitle.id}`;
-      const progressPath = `users/${uid}/titles/${updatedTitle.id}/progress/${updatedProgress.playthroughId}`;
+      const titlePath = `users/${uid}/titles/${newTitle.id}`;
+      const progressPath = `users/${uid}/titles/${newTitle.id}/progress/${initialProgress.playthroughId}`;
 
       try {
         const batch = writeBatch(db);
-        const { id: _id, ...titlePayload } = sanitizeForFirestore(updatedTitle);
+        const { id: _id, ...titlePayload } = sanitizeForFirestore(newTitle);
         batch.set(doc(db, titlePath), titlePayload);
 
-        const { playthroughId: _pid, ...progressPayload } = sanitizeForFirestore(updatedProgress);
+        const { playthroughId: _pid, ...progressPayload } = sanitizeForFirestore(initialProgress);
         batch.set(doc(db, progressPath), progressPayload);
 
-        if (updatedSeasons) {
-          for (const season of updatedSeasons) {
-            const sPath = `users/${uid}/titles/${updatedTitle.id}/seasons/s_${season.seasonNumber}`;
-            batch.set(doc(db, sPath), sanitizeForFirestore(season));
-          }
+        for (const season of initialSeasons) {
+          const sPath = `users/${uid}/titles/${newTitle.id}/seasons/s_${season.seasonNumber}`;
+          batch.set(doc(db, sPath), sanitizeForFirestore(season));
         }
 
         await batch.commit();
       } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, titlePath);
+        buildFirestoreErrorInfo(err, OperationType.CREATE, titlePath);
+        // Roll back creation
+        setTitles((prev) => {
+          const copy = { ...prev };
+          delete copy[newTitle.id];
+          return copy;
+        });
+        setProgressByTitle((prev) => {
+          const copy = { ...prev };
+          delete copy[newTitle.id];
+          return copy;
+        });
+        setSeasonsByTitle((prev) => {
+          const copy = { ...prev };
+          delete copy[newTitle.id];
+          return copy;
+        });
+        showToast(zh.app.writeRollbackToast);
       }
     },
-    [user]
+    [user, showToast]
   );
 
   const addTitleFromTmdb = useCallback(
@@ -562,51 +543,27 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let titleDoc = titles[existingId];
 
       if (!titleDoc) {
-        let fetchedTitle: TitleDoc | null = null;
-        let fetchedSeasons: SeasonDoc[] = [];
-
-        try {
-          const res = await fetch(`/api/tmdb/${mediaType}/${sourceId}`, {
-            headers: { Accept: 'application/json' },
-          });
-          const contentType = res.headers.get('content-type') || '';
-          if (res.ok && contentType.includes('application/json')) {
-            const data = (await res.json()) as { title: TitleDoc; seasons: SeasonDoc[] };
-            fetchedTitle = data.title;
-            fetchedSeasons = data.seasons || [];
+        const res = await apiFetch(`/api/tmdb/${mediaType}/${sourceId}`, {
+          headers: { Accept: 'application/json' },
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok || !contentType.includes('application/json')) {
+          let errMsg = '获取 TMDB 影视详情失败';
+          if (contentType.includes('application/json')) {
+            const errJson = (await res.json()) as { error?: string };
+            if (errJson.error) errMsg = errJson.error;
           }
-        } catch {
-          // Fall back to local SEED_CATALOG below if needed
+          showToast(errMsg);
+          throw new Error(errMsg);
         }
 
-        if (!fetchedTitle) {
-          const seedMatch = SEED_CATALOG.find(
-            (c) => c.mediaType === mediaType && c.tmdbId === sourceId
-          );
-          if (!seedMatch) {
-            throw new Error('获取影视详情失败');
-          }
-          const now = Date.now();
-          fetchedTitle = {
-            ...structuredClone(seedMatch.title),
-            resume: null,
-            manualState: null,
-            playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
-            activePlaythroughId: 'p1',
-            metaFetchedAt: now,
-            addedAt: now,
-            updatedAt: now,
-            lastActivityAt: now,
-          };
-          fetchedSeasons = structuredClone(seedMatch.seasons);
-        }
-
-        titleDoc = fetchedTitle;
+        const data = (await res.json()) as { title: TitleDoc; seasons: SeasonDoc[] };
+        titleDoc = data.title;
         const initialProgress: ProgressDoc = {
           playthroughId: titleDoc.activePlaythroughId,
           watched: {},
         };
-        await persistTitleAndProgress(titleDoc, initialProgress, fetchedSeasons);
+        await createTitleDocumentBatch(titleDoc, initialProgress, data.seasons || []);
       }
 
       if (targetListId && lists[targetListId]) {
@@ -620,6 +577,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             rank,
             addedAt: now,
           };
+          const prevListEntries = currentEntries;
           setEntriesByList((prev) => ({
             ...prev,
             [targetListId]: [...(prev[targetListId] || []), newEntry],
@@ -631,7 +589,12 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const { id: _id, ...payload } = sanitizeForFirestore(newEntry);
               await setDoc(doc(db, entryPath), payload);
             } catch (err) {
-              handleFirestoreError(err, OperationType.CREATE, entryPath);
+              buildFirestoreErrorInfo(err, OperationType.CREATE, entryPath);
+              setEntriesByList((prev) => ({
+                ...prev,
+                [targetListId]: prevListEntries,
+              }));
+              showToast(zh.app.writeRollbackToast);
             }
           }
         }
@@ -639,9 +602,10 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       return titleDoc;
     },
-    [titles, lists, entriesByList, persistTitleAndProgress, user]
+    [titles, lists, entriesByList, createTitleDocumentBatch, user, showToast]
   );
 
+  // Item 3: Metadata refresh must never touch manualState, resume, playthroughs or progress
   const refreshTitleMetadata = useCallback(
     async (titleId: string) => {
       const current = titles[titleId];
@@ -649,47 +613,111 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (current.mediaType !== 'movie' && current.mediaType !== 'tv') return;
 
       try {
-        const res = await fetch(`/api/tmdb/${current.mediaType}/${current.sourceId}`, {
+        const res = await apiFetch(`/api/tmdb/${current.mediaType}/${current.sourceId}`, {
           headers: { Accept: 'application/json' },
         });
         const contentType = res.headers.get('content-type') || '';
         if (!res.ok || !contentType.includes('application/json')) return;
         const data = (await res.json()) as { title: TitleDoc; seasons: SeasonDoc[] };
         const now = Date.now();
-        const mergedTitle: TitleDoc = {
-          ...current,
-          names: {
-            ...data.title.names,
-            zh:
-              data.title.names.zh && data.title.names.zh !== data.title.names.original
-                ? data.title.names.zh
-                : current.names.zh || data.title.names.zh,
-            ...(current.names.custom ? { custom: current.names.custom } : {}),
-          },
-          year: data.title.year ?? current.year,
-          runtimeMin: data.title.runtimeMin ?? current.runtimeMin,
-          genres: data.title.genres.length > 0 ? data.title.genres : current.genres,
-          posterPath: data.title.posterPath || current.posterPath,
-          backdropPath: data.title.backdropPath || current.backdropPath,
-          overview: {
-            zh: data.title.overview.zh || current.overview.zh,
-            en: data.title.overview.en || current.overview.en,
-          },
-          showStatus: data.title.showStatus || current.showStatus,
-          metaFetchedAt: now,
-          updatedAt: now,
+
+        const nextZh =
+          data.title.names.zh && data.title.names.zh !== data.title.names.original
+            ? data.title.names.zh
+            : current.names.zh || data.title.names.zh;
+        const nextYear = data.title.year ?? current.year;
+        const nextRuntime = data.title.runtimeMin ?? current.runtimeMin;
+        const nextGenres = data.title.genres.length > 0 ? data.title.genres : current.genres;
+        const nextPoster = data.title.posterPath || current.posterPath;
+        const nextBackdrop = data.title.backdropPath || current.backdropPath;
+        const nextOverview = {
+          zh: data.title.overview.zh || current.overview.zh,
+          en: data.title.overview.en || current.overview.en,
         };
-        const activeProgress = getActiveProgress(current);
-        await persistTitleAndProgress(mergedTitle, activeProgress, data.seasons);
+        const nextShowStatus = data.title.showStatus || current.showStatus;
+
+        const prevTitle = current;
+        const prevSeasons = seasonsByTitle[titleId] || [];
+
+        setTitles((prev) => {
+          const latest = prev[titleId];
+          if (!latest) return prev;
+          return {
+            ...prev,
+            [titleId]: {
+              ...latest,
+              names: {
+                ...latest.names,
+                original: data.title.names.original,
+                zh: nextZh,
+                en: data.title.names.en,
+              },
+              year: nextYear,
+              runtimeMin: nextRuntime,
+              genres: nextGenres,
+              posterPath: nextPoster,
+              backdropPath: nextBackdrop,
+              overview: nextOverview,
+              showStatus: nextShowStatus,
+              metaFetchedAt: now,
+              updatedAt: now,
+            },
+          };
+        });
+        setSeasonsByTitle((prev) => ({ ...prev, [titleId]: data.seasons }));
+
+        if (user) {
+          const uid = user.uid;
+          const titlePath = `users/${uid}/titles/${titleId}`;
+          try {
+            const batch = writeBatch(db);
+            // Field-level update on title doc: never touches manualState, resume, playthroughs, or progress
+            batch.update(doc(db, titlePath), {
+              'names.original': data.title.names.original,
+              'names.zh': nextZh || null,
+              'names.en': data.title.names.en || null,
+              year: nextYear,
+              runtimeMin: nextRuntime,
+              genres: nextGenres,
+              posterPath: nextPoster,
+              backdropPath: nextBackdrop,
+              overview: sanitizeForFirestore(nextOverview),
+              showStatus: nextShowStatus,
+              metaFetchedAt: now,
+              updatedAt: now,
+            });
+            for (const season of data.seasons) {
+              const sPath = `users/${uid}/titles/${titleId}/seasons/s_${season.seasonNumber}`;
+              batch.set(doc(db, sPath), sanitizeForFirestore(season));
+            }
+            await batch.commit();
+          } catch (err) {
+            buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+            setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+            setSeasonsByTitle((prev) => ({ ...prev, [titleId]: prevSeasons }));
+            showToast(zh.app.writeRollbackToast);
+          }
+        }
       } catch {
-        // Ignore silent background metadata refresh failure
+        // Ignore silent background metadata fetch network failure
       }
     },
-    [titles, getActiveProgress, persistTitleAndProgress]
+    [titles, seasonsByTitle, user, showToast]
   );
 
+  // Item 4: Deleting a title also deletes its seasons and progress subcollections and removes it from every list, in one batch.
   const removeTitle = useCallback(
     async (titleId: string) => {
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
+      const prevSeasons = seasonsByTitle[titleId] || [];
+      const prevProgressMap = progressByTitle[titleId] || {};
+      const prevEntriesByList: Record<string, ListEntryDoc[]> = {};
+      for (const [listId, entries] of Object.entries(entriesByList)) {
+        prevEntriesByList[listId] = entries;
+      }
+
+      // Optimistic removal from state
       setTitles((prev) => {
         const copy = { ...prev };
         delete copy[titleId];
@@ -705,34 +733,92 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         delete copy[titleId];
         return copy;
       });
-
-      if (user) {
-        const path = `users/${user.uid}/titles/${titleId}`;
-        try {
-          await deleteDoc(doc(db, path));
-        } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, path);
+      setEntriesByList((prev) => {
+        const next: Record<string, ListEntryDoc[]> = {};
+        for (const [listId, entries] of Object.entries(prev)) {
+          next[listId] = entries.filter((e) => e.titleId !== titleId);
         }
+        return next;
+      });
+
+      if (!user) return;
+
+      const uid = user.uid;
+      const titlePath = `users/${uid}/titles/${titleId}`;
+      try {
+        const batch = writeBatch(db);
+
+        // Collect all season doc IDs (from memory + subcollection query)
+        const seasonDocIds = new Set<string>(
+          prevSeasons.map((s) => `s_${s.seasonNumber}`)
+        );
+        try {
+          const sSnap = await getDocs(collection(db, `${titlePath}/seasons`));
+          sSnap.forEach((d) => seasonDocIds.add(d.id));
+        } catch {
+          // Use in-memory set if offline
+        }
+        for (const sDocId of seasonDocIds) {
+          batch.delete(doc(db, `${titlePath}/seasons/${sDocId}`));
+        }
+
+        // Collect all progress doc IDs (from memory + playthroughs + subcollection query)
+        const progressDocIds = new Set<string>([
+          ...Object.keys(prevProgressMap),
+          ...prevTitle.playthroughs.map((p) => p.id),
+        ]);
+        try {
+          const pSnap = await getDocs(collection(db, `${titlePath}/progress`));
+          pSnap.forEach((d) => progressDocIds.add(d.id));
+        } catch {
+          // Use in-memory set if offline
+        }
+        for (const pDocId of progressDocIds) {
+          batch.delete(doc(db, `${titlePath}/progress/${pDocId}`));
+        }
+
+        // Remove matching entries across every list
+        for (const [listId, entries] of Object.entries(prevEntriesByList)) {
+          for (const entry of entries) {
+            if (entry.titleId === titleId) {
+              batch.delete(doc(db, `users/${uid}/lists/${listId}/entries/${entry.id}`));
+            }
+          }
+        }
+
+        // Delete the title document itself
+        batch.delete(doc(db, titlePath));
+
+        await batch.commit();
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.DELETE, titlePath);
+        // Roll back optimistic delete
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        setSeasonsByTitle((prev) => ({ ...prev, [titleId]: prevSeasons }));
+        setProgressByTitle((prev) => ({ ...prev, [titleId]: prevProgressMap }));
+        setEntriesByList(prevEntriesByList);
+        showToast(zh.app.writeRollbackToast);
       }
     },
-    [user]
+    [titles, seasonsByTitle, progressByTitle, entriesByList, user, showToast]
   );
 
+  // Item 3: Checking an episode updates only watched.<key> (deleteField() to uncheck) plus the changed title fields via updateDoc / batch.update
   const toggleEpisode = useCallback(
     async (titleId: string, episodeKey: string) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const seasons = seasonsByTitle[titleId] || [];
-      const activeProgress = getActiveProgress(title);
+      const prevProgress = getActiveProgress(prevTitle);
       const now = Date.now();
 
-      const res = toggleEpisodeWatched(title, seasons, activeProgress, episodeKey, {
+      const res = toggleEpisodeWatched(prevTitle, seasons, prevProgress, episodeKey, {
         includeSpecials: settings.includeSpecials,
         now,
       });
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         playthroughs: res.playthroughs,
@@ -741,23 +827,138 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastActivityAt: now,
       };
 
-      await persistTitleAndProgress(updatedTitle, res.progress);
+      // Optimistic update
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+      setProgressByTitle((prev) => ({
+        ...prev,
+        [titleId]: {
+          ...(prev[titleId] || {}),
+          [res.progress.playthroughId]: res.progress,
+        },
+      }));
+
+      if (!user) return;
+
+      const uid = user.uid;
+      const titlePath = `users/${uid}/titles/${titleId}`;
+      const progressPath = `users/${uid}/titles/${titleId}/progress/${res.progress.playthroughId}`;
+      const newWatchedVal = res.progress.watched[episodeKey];
+
+      try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, progressPath), {
+          [`watched.${episodeKey}`]: newWatchedVal !== undefined ? newWatchedVal : deleteField(),
+        });
+        batch.update(doc(db, titlePath), {
+          manualState: res.manualState,
+          resume: res.resume ? sanitizeForFirestore(res.resume) : null,
+          playthroughs: sanitizeForFirestore(res.playthroughs),
+          updatedAt: now,
+          lastActivityAt: now,
+        });
+        await batch.commit();
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        setProgressByTitle((prev) => ({
+          ...prev,
+          [titleId]: {
+            ...(prev[titleId] || {}),
+            [prevProgress.playthroughId]: prevProgress,
+          },
+        }));
+        showToast(zh.app.writeRollbackToast);
+      }
     },
-    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, persistTitleAndProgress]
+    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, user, showToast]
+  );
+
+  // Helper to build field-level progress diff for multi-episode actions (toggleSeason, markUpTo, markWholeTitle)
+  const commitFieldLevelProgressAndTitleUpdate = useCallback(
+    async (
+      prevTitle: TitleDoc,
+      prevProgress: ProgressDoc,
+      updatedTitle: TitleDoc,
+      nextProgress: ProgressDoc
+    ) => {
+      const titleId = prevTitle.id;
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+      setProgressByTitle((prev) => ({
+        ...prev,
+        [titleId]: {
+          ...(prev[titleId] || {}),
+          [nextProgress.playthroughId]: nextProgress,
+        },
+      }));
+
+      if (!user) return;
+
+      const uid = user.uid;
+      const titlePath = `users/${uid}/titles/${titleId}`;
+      const progressPath = `users/${uid}/titles/${titleId}/progress/${nextProgress.playthroughId}`;
+
+      // Compute exact field-level watched.<key> updates
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const progressUpdates: Record<string, any> = {};
+      const allKeys = new Set([
+        ...Object.keys(prevProgress.watched),
+        ...Object.keys(nextProgress.watched),
+      ]);
+      for (const k of allKeys) {
+        const beforeVal = prevProgress.watched[k];
+        const afterVal = nextProgress.watched[k];
+        if (beforeVal !== afterVal) {
+          progressUpdates[`watched.${k}`] = afterVal !== undefined ? afterVal : deleteField();
+        }
+      }
+      if (prevProgress.movieWatchedAt !== nextProgress.movieWatchedAt) {
+        progressUpdates.movieWatchedAt =
+          nextProgress.movieWatchedAt !== undefined
+            ? nextProgress.movieWatchedAt
+            : deleteField();
+      }
+
+      try {
+        const batch = writeBatch(db);
+        if (Object.keys(progressUpdates).length > 0) {
+          batch.update(doc(db, progressPath), progressUpdates);
+        }
+        batch.update(doc(db, titlePath), {
+          manualState: updatedTitle.manualState,
+          resume: updatedTitle.resume ? sanitizeForFirestore(updatedTitle.resume) : null,
+          playthroughs: sanitizeForFirestore(updatedTitle.playthroughs),
+          updatedAt: updatedTitle.updatedAt,
+          lastActivityAt: updatedTitle.lastActivityAt,
+        });
+        await batch.commit();
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        setProgressByTitle((prev) => ({
+          ...prev,
+          [titleId]: {
+            ...(prev[titleId] || {}),
+            [prevProgress.playthroughId]: prevProgress,
+          },
+        }));
+        showToast(zh.app.writeRollbackToast);
+      }
+    },
+    [user, showToast]
   );
 
   const toggleSeason = useCallback(
     async (titleId: string, seasonNumber: number, markWatched: boolean) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const seasons = seasonsByTitle[titleId] || [];
-      const activeProgress = getActiveProgress(title);
+      const prevProgress = getActiveProgress(prevTitle);
       const now = Date.now();
 
       const res = setSeasonWatched(
-        title,
+        prevTitle,
         seasons,
-        activeProgress,
+        prevProgress,
         seasonNumber,
         markWatched,
         {
@@ -767,7 +968,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         playthroughs: res.playthroughs,
@@ -776,26 +977,37 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastActivityAt: now,
       };
 
-      await persistTitleAndProgress(updatedTitle, res.progress);
+      await commitFieldLevelProgressAndTitleUpdate(
+        prevTitle,
+        prevProgress,
+        updatedTitle,
+        res.progress
+      );
     },
-    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, persistTitleAndProgress]
+    [
+      titles,
+      seasonsByTitle,
+      getActiveProgress,
+      settings.includeSpecials,
+      commitFieldLevelProgressAndTitleUpdate,
+    ]
   );
 
   const markUpTo = useCallback(
     async (titleId: string, episodeKey: string) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const seasons = seasonsByTitle[titleId] || [];
-      const activeProgress = getActiveProgress(title);
+      const prevProgress = getActiveProgress(prevTitle);
       const now = Date.now();
 
-      const res = markUpToEpisode(title, seasons, activeProgress, episodeKey, {
+      const res = markUpToEpisode(prevTitle, seasons, prevProgress, episodeKey, {
         includeSpecials: settings.includeSpecials,
         now,
       });
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         playthroughs: res.playthroughs,
@@ -804,26 +1016,37 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastActivityAt: now,
       };
 
-      await persistTitleAndProgress(updatedTitle, res.progress);
+      await commitFieldLevelProgressAndTitleUpdate(
+        prevTitle,
+        prevProgress,
+        updatedTitle,
+        res.progress
+      );
     },
-    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, persistTitleAndProgress]
+    [
+      titles,
+      seasonsByTitle,
+      getActiveProgress,
+      settings.includeSpecials,
+      commitFieldLevelProgressAndTitleUpdate,
+    ]
   );
 
   const markWholeTitle = useCallback(
     async (titleId: string, markWatched: boolean) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const seasons = seasonsByTitle[titleId] || [];
-      const activeProgress = getActiveProgress(title);
+      const prevProgress = getActiveProgress(prevTitle);
       const now = Date.now();
 
-      const res = markWholeTitleWatched(title, seasons, activeProgress, markWatched, {
+      const res = markWholeTitleWatched(prevTitle, seasons, prevProgress, markWatched, {
         includeSpecials: settings.includeSpecials,
         now,
       });
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         playthroughs: res.playthroughs,
@@ -832,9 +1055,20 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastActivityAt: now,
       };
 
-      await persistTitleAndProgress(updatedTitle, res.progress);
+      await commitFieldLevelProgressAndTitleUpdate(
+        prevTitle,
+        prevProgress,
+        updatedTitle,
+        res.progress
+      );
     },
-    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, persistTitleAndProgress]
+    [
+      titles,
+      seasonsByTitle,
+      getActiveProgress,
+      settings.includeSpecials,
+      commitFieldLevelProgressAndTitleUpdate,
+    ]
   );
 
   const saveResume = useCallback(
@@ -842,38 +1076,53 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       titleId: string,
       resume: { episodeKey: string | null; seconds: number } | null
     ) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const now = Date.now();
-      const res = setResumePoint(title, resume, now);
+      const res = setResumePoint(prevTitle, resume, now);
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         updatedAt: now,
         lastActivityAt: now,
       };
-      const activeProgress = getActiveProgress(title);
-      await persistTitleAndProgress(updatedTitle, activeProgress);
+
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+
+      if (!user) return;
+      const titlePath = `users/${user.uid}/titles/${titleId}`;
+      try {
+        await updateDoc(doc(db, titlePath), {
+          manualState: res.manualState,
+          resume: res.resume ? sanitizeForFirestore(res.resume) : null,
+          updatedAt: now,
+          lastActivityAt: now,
+        });
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        showToast(zh.app.writeRollbackToast);
+      }
     },
-    [titles, getActiveProgress, persistTitleAndProgress]
+    [titles, user, showToast]
   );
 
   const startTitleRewatch = useCallback(
     async (titleId: string) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const seasons = seasonsByTitle[titleId] || [];
-      const activeProgress = getActiveProgress(title);
+      const activeProgress = getActiveProgress(prevTitle);
       const now = Date.now();
 
-      const res = startRewatch(title, seasons, activeProgress, {
+      const res = startRewatch(prevTitle, seasons, activeProgress, {
         includeSpecials: settings.includeSpecials,
         now,
       });
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         playthroughs: res.playthroughs,
@@ -882,21 +1131,58 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastActivityAt: now,
       };
 
-      await persistTitleAndProgress(updatedTitle, res.progress);
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+      setProgressByTitle((prev) => ({
+        ...prev,
+        [titleId]: {
+          ...(prev[titleId] || {}),
+          [res.progress.playthroughId]: res.progress,
+        },
+      }));
+
+      if (!user) return;
+      const uid = user.uid;
+      const titlePath = `users/${uid}/titles/${titleId}`;
+      const newProgressPath = `users/${uid}/titles/${titleId}/progress/${res.progress.playthroughId}`;
+
+      try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, titlePath), {
+          manualState: res.manualState,
+          resume: res.resume ? sanitizeForFirestore(res.resume) : null,
+          playthroughs: sanitizeForFirestore(res.playthroughs),
+          activePlaythroughId: res.activePlaythroughId,
+          updatedAt: now,
+          lastActivityAt: now,
+        });
+        const { playthroughId: _pid, ...progressPayload } = sanitizeForFirestore(res.progress);
+        batch.set(doc(db, newProgressPath), progressPayload);
+        await batch.commit();
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        setProgressByTitle((prev) => {
+          const copy = { ...(prev[titleId] || {}) };
+          delete copy[res.progress.playthroughId];
+          return { ...prev, [titleId]: copy };
+        });
+        showToast(zh.app.writeRollbackToast);
+      }
     },
-    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, persistTitleAndProgress]
+    [titles, seasonsByTitle, getActiveProgress, settings.includeSpecials, user, showToast]
   );
 
   const cancelTitleRewatch = useCallback(
     async (titleId: string) => {
-      const title = titles[titleId];
-      if (!title || title.playthroughs.length <= 1) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle || prevTitle.playthroughs.length <= 1) return;
+      const prevProgressMap = progressByTitle[titleId] || {};
       const now = Date.now();
-      const res = cancelRewatch(title, progressByTitle[titleId] || {});
+      const res = cancelRewatch(prevTitle, prevProgressMap);
       if (!res.removedPlaythroughId) return;
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState: res.manualState,
         resume: res.resume,
         playthroughs: res.playthroughs,
@@ -912,48 +1198,69 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return { ...prev, [titleId]: copy };
       });
 
-      if (user) {
-        const uid = user.uid;
-        const titlePath = `users/${uid}/titles/${titleId}`;
-        const removedProgressPath = `users/${uid}/titles/${titleId}/progress/${res.removedPlaythroughId}`;
-        try {
-          const batch = writeBatch(db);
-          const { id: _id, ...titlePayload } = sanitizeForFirestore(updatedTitle);
-          batch.set(doc(db, titlePath), titlePayload);
-          batch.delete(doc(db, removedProgressPath));
-          await batch.commit();
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, titlePath);
-        }
+      if (!user) return;
+      const uid = user.uid;
+      const titlePath = `users/${uid}/titles/${titleId}`;
+      const removedProgressPath = `users/${uid}/titles/${titleId}/progress/${res.removedPlaythroughId}`;
+      try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, titlePath), {
+          manualState: res.manualState,
+          resume: res.resume ? sanitizeForFirestore(res.resume) : null,
+          playthroughs: sanitizeForFirestore(res.playthroughs),
+          activePlaythroughId: res.activePlaythroughId,
+          updatedAt: now,
+          lastActivityAt: now,
+        });
+        batch.delete(doc(db, removedProgressPath));
+        await batch.commit();
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        setProgressByTitle((prev) => ({ ...prev, [titleId]: prevProgressMap }));
+        showToast(zh.app.writeRollbackToast);
       }
     },
-    [titles, progressByTitle, user]
+    [titles, progressByTitle, user, showToast]
   );
 
   const setTitleManualState = useCallback(
     async (titleId: string, manualState: ManualState) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const now = Date.now();
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         manualState,
         updatedAt: now,
         lastActivityAt: now,
       };
-      const activeProgress = getActiveProgress(title);
-      await persistTitleAndProgress(updatedTitle, activeProgress);
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+
+      if (!user) return;
+      const titlePath = `users/${user.uid}/titles/${titleId}`;
+      try {
+        await updateDoc(doc(db, titlePath), {
+          manualState,
+          updatedAt: now,
+          lastActivityAt: now,
+        });
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        showToast(zh.app.writeRollbackToast);
+      }
     },
-    [titles, getActiveProgress, persistTitleAndProgress]
+    [titles, user, showToast]
   );
 
   const updateTitleLanguage = useCallback(
     async (titleId: string, displayLang: DisplayLang | null, customName?: string) => {
-      const title = titles[titleId];
-      if (!title) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
       const now = Date.now();
       const trimmedCustom = customName?.trim();
-      const updatedNames = { ...title.names };
+      const updatedNames = { ...prevTitle.names };
       if (trimmedCustom) {
         updatedNames.custom = trimmedCustom;
       } else if (customName !== undefined) {
@@ -961,17 +1268,37 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       const updatedTitle: TitleDoc = {
-        ...title,
+        ...prevTitle,
         names: updatedNames,
         displayLang,
         updatedAt: now,
       };
-      const activeProgress = getActiveProgress(title);
-      await persistTitleAndProgress(updatedTitle, activeProgress);
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+
+      if (!user) return;
+      const titlePath = `users/${user.uid}/titles/${titleId}`;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updatePayload: Record<string, any> = {
+          displayLang,
+          updatedAt: now,
+        };
+        if (trimmedCustom) {
+          updatePayload['names.custom'] = trimmedCustom;
+        } else if (customName !== undefined) {
+          updatePayload['names.custom'] = deleteField();
+        }
+        await updateDoc(doc(db, titlePath), updatePayload);
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        showToast(zh.app.writeRollbackToast);
+      }
     },
-    [titles, getActiveProgress, persistTitleAndProgress]
+    [titles, user, showToast]
   );
 
+  // Item 3: Ratings refresh must never touch manualState, resume, playthroughs or progress
   const fetchAndCacheTitleRatings = useCallback(
     async (titleId: string) => {
       const current = titles[titleId];
@@ -993,7 +1320,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (doubanId) params.set('doubanId', doubanId);
 
       try {
-        const res = await fetch(`/api/ratings?${params.toString()}`, {
+        const res = await apiFetch(`/api/ratings?${params.toString()}`, {
           headers: { Accept: 'application/json' },
         });
         const contentType = res.headers.get('content-type') || '';
@@ -1010,7 +1337,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           ...(data.ratings?.imdbVotes ? { imdbVotes: data.ratings.imdbVotes } : {}),
           ...(data.ratings?.rottenTomatoes ? { rottenTomatoes: data.ratings.rottenTomatoes } : {}),
           ...(data.ratings?.metacritic ? { metacritic: data.ratings.metacritic } : {}),
-          // Keep manual Douban score if automatic lookup didn't find one
           ...(data.ratings?.douban
             ? { douban: data.ratings.douban }
             : current.ratings?.douban
@@ -1026,19 +1352,40 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : {}),
         };
 
-        const updatedTitle: TitleDoc = {
-          ...current,
-          ratings: mergedRatings,
-          externalIds: mergedExternalIds,
-          updatedAt: now,
-        };
-        const activeProgress = getActiveProgress(current);
-        await persistTitleAndProgress(updatedTitle, activeProgress);
+        const prevTitle = current;
+        setTitles((prev) => {
+          const latest = prev[titleId];
+          if (!latest) return prev;
+          return {
+            ...prev,
+            [titleId]: {
+              ...latest,
+              ratings: mergedRatings,
+              externalIds: mergedExternalIds,
+              updatedAt: now,
+            },
+          };
+        });
+
+        if (user) {
+          const titlePath = `users/${user.uid}/titles/${titleId}`;
+          try {
+            await updateDoc(doc(db, titlePath), {
+              ratings: sanitizeForFirestore(mergedRatings),
+              externalIds: sanitizeForFirestore(mergedExternalIds),
+              updatedAt: now,
+            });
+          } catch (err) {
+            buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+            setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+            showToast(zh.app.writeRollbackToast);
+          }
+        }
       } catch {
         // Silently ignore ratings fetch error
       }
     },
-    [titles, getActiveProgress, persistTitleAndProgress]
+    [titles, user, showToast]
   );
 
   const createCustomOrLinkTitle = useCallback(
@@ -1125,7 +1472,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         watched: {},
       };
 
-      await persistTitleAndProgress(newTitle, initialProgress, seasons);
+      await createTitleDocumentBatch(newTitle, initialProgress, seasons);
 
       if (input.targetListId && lists[input.targetListId]) {
         const listId = input.targetListId;
@@ -1138,6 +1485,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             rank,
             addedAt: now,
           };
+          const prevListEntries = currentEntries;
           setEntriesByList((prev) => ({
             ...prev,
             [listId]: [...(prev[listId] || []), newEntry],
@@ -1148,7 +1496,12 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const { id: _id, ...payload } = sanitizeForFirestore(newEntry);
               await setDoc(doc(db, entryPath), payload);
             } catch (err) {
-              handleFirestoreError(err, OperationType.CREATE, entryPath);
+              buildFirestoreErrorInfo(err, OperationType.CREATE, entryPath);
+              setEntriesByList((prev) => ({
+                ...prev,
+                [listId]: prevListEntries,
+              }));
+              showToast(zh.app.writeRollbackToast);
             }
           }
         }
@@ -1156,43 +1509,45 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       return newTitle;
     },
-    [persistTitleAndProgress, lists, entriesByList, user]
+    [createTitleDocumentBatch, lists, entriesByList, user, showToast]
   );
 
   const updateTitleDetails = useCallback(
     async (titleId: string, input: UpdateTitleDetailsInput) => {
-      const current = titles[titleId];
-      if (!current) return;
+      const prevTitle = titles[titleId];
+      if (!prevTitle) return;
+      const prevSeasons = seasonsByTitle[titleId] || [];
       const now = Date.now();
 
-      const nextZh = input.name !== undefined ? input.name.trim() || current.names.zh : current.names.zh;
+      const nextZh =
+        input.name !== undefined ? input.name.trim() || prevTitle.names.zh : prevTitle.names.zh;
       const nextOrig =
         input.originalName !== undefined
-          ? input.originalName.trim() || nextZh || current.names.original
-          : current.names.original;
+          ? input.originalName.trim() || nextZh || prevTitle.names.original
+          : prevTitle.names.original;
 
       const posterUrl =
         input.posterPath !== undefined
           ? input.posterPath?.trim()
             ? input.posterPath.trim().slice(0, 500)
             : null
-          : current.posterPath;
+          : prevTitle.posterPath;
 
       let doubanField =
-        input.doubanUrl !== undefined ? input.doubanUrl.trim() : current.externalIds?.douban;
+        input.doubanUrl !== undefined ? input.doubanUrl.trim() : prevTitle.externalIds?.douban;
       if (doubanField && doubanField.includes('douban.com/subject/')) {
         const m = doubanField.match(/subject\/(\d+)/);
         if (m) doubanField = m[1];
       }
 
-      const nextExternalIds = { ...current.externalIds };
+      const nextExternalIds = { ...prevTitle.externalIds };
       if (doubanField) {
         nextExternalIds.douban = doubanField;
       } else if (input.doubanUrl !== undefined) {
         delete nextExternalIds.douban;
       }
 
-      const nextRatings = { ...current.ratings };
+      const nextRatings = { ...prevTitle.ratings };
       if (input.doubanScore !== undefined) {
         const s = input.doubanScore.trim();
         if (s) {
@@ -1202,23 +1557,26 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
+      const nextBackdrop =
+        prevTitle.source !== 'tmdb' ? posterUrl || prevTitle.backdropPath : prevTitle.backdropPath;
+      const nextOverview = {
+        ...prevTitle.overview,
+        ...(input.overview !== undefined ? { zh: input.overview.trim() } : {}),
+      };
+
       const updatedTitle: TitleDoc = {
-        ...current,
-        mediaType: input.mediaType ?? current.mediaType,
+        ...prevTitle,
+        mediaType: input.mediaType ?? prevTitle.mediaType,
         names: {
-          ...current.names,
+          ...prevTitle.names,
           original: nextOrig,
           zh: nextZh,
         },
-        year: input.year !== undefined ? input.year : current.year,
-        runtimeMin: input.runtimeMin !== undefined ? input.runtimeMin : current.runtimeMin,
+        year: input.year !== undefined ? input.year : prevTitle.year,
+        runtimeMin: input.runtimeMin !== undefined ? input.runtimeMin : prevTitle.runtimeMin,
         posterPath: posterUrl,
-        backdropPath:
-          current.source !== 'tmdb' ? posterUrl || current.backdropPath : current.backdropPath,
-        overview: {
-          ...current.overview,
-          ...(input.overview !== undefined ? { zh: input.overview.trim() } : {}),
-        },
+        backdropPath: nextBackdrop,
+        overview: nextOverview,
         externalIds: nextExternalIds,
         ratings: nextRatings,
         updatedAt: now,
@@ -1227,7 +1585,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       let updatedSeasons: SeasonDoc[] | undefined = undefined;
       if (
-        (current.source === 'custom' || current.source === 'url') &&
+        (prevTitle.source === 'custom' || prevTitle.source === 'url') &&
         input.episodeCount !== undefined
       ) {
         const epCount =
@@ -1235,7 +1593,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ? Math.min(2000, Math.floor(input.episodeCount))
             : 0;
         if (epCount > 0) {
-          const existingS1 = (seasonsByTitle[titleId] || []).find((s) => s.seasonNumber === 1);
+          const existingS1 = prevSeasons.find((s) => s.seasonNumber === 1);
           const episodes: EpisodeMeta[] = Array.from({ length: epCount }, (_, idx) => {
             const epNum = idx + 1;
             const prevEp = existingS1?.episodes.find((e) => e.number === epNum);
@@ -1263,14 +1621,60 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
-      const activeProgress = getActiveProgress(current);
-      await persistTitleAndProgress(updatedTitle, activeProgress, updatedSeasons);
+      setTitles((prev) => ({ ...prev, [titleId]: updatedTitle }));
+      if (updatedSeasons !== undefined) {
+        setSeasonsByTitle((prev) => ({ ...prev, [titleId]: updatedSeasons! }));
+      }
+
+      if (!user) return;
+      const uid = user.uid;
+      const titlePath = `users/${uid}/titles/${titleId}`;
+      try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, titlePath), {
+          mediaType: updatedTitle.mediaType,
+          'names.original': nextOrig,
+          'names.zh': nextZh || null,
+          year: updatedTitle.year,
+          runtimeMin: updatedTitle.runtimeMin,
+          posterPath: posterUrl,
+          backdropPath: nextBackdrop,
+          overview: sanitizeForFirestore(nextOverview),
+          externalIds: sanitizeForFirestore(nextExternalIds),
+          ratings: sanitizeForFirestore(nextRatings),
+          updatedAt: now,
+          lastActivityAt: now,
+        });
+
+        if (updatedSeasons !== undefined) {
+          if (updatedSeasons.length === 0) {
+            batch.delete(doc(db, `${titlePath}/seasons/s_1`));
+          } else {
+            for (const season of updatedSeasons) {
+              batch.set(
+                doc(db, `${titlePath}/seasons/s_${season.seasonNumber}`),
+                sanitizeForFirestore(season)
+              );
+            }
+          }
+        }
+
+        await batch.commit();
+      } catch (err) {
+        buildFirestoreErrorInfo(err, OperationType.UPDATE, titlePath);
+        setTitles((prev) => ({ ...prev, [titleId]: prevTitle }));
+        if (updatedSeasons !== undefined) {
+          setSeasonsByTitle((prev) => ({ ...prev, [titleId]: prevSeasons }));
+        }
+        showToast(zh.app.writeRollbackToast);
+      }
     },
-    [titles, seasonsByTitle, getActiveProgress, persistTitleAndProgress]
+    [titles, seasonsByTitle, user, showToast]
   );
 
   const updateSettings = useCallback(
     async (partial: Partial<AppSettingsDoc>) => {
+      const prevSettings = settings;
       const nextSettings: AppSettingsDoc = {
         ...settings,
         ...partial,
@@ -1280,13 +1684,15 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (user) {
         const settingsPath = `users/${user.uid}/settings/app`;
         try {
-          await setDoc(doc(db, settingsPath), sanitizeForFirestore(nextSettings));
+          await setDoc(doc(db, settingsPath), sanitizeForFirestore(nextSettings), { merge: true });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, settingsPath);
+          buildFirestoreErrorInfo(err, OperationType.UPDATE, settingsPath);
+          setSettings(prevSettings);
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [settings, user]
+    [settings, user, showToast]
   );
 
   const exportAllDataJson = useCallback((): string => {
@@ -1336,17 +1742,32 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const { id: _id, ...payload } = sanitizeForFirestore(newList);
           await setDoc(doc(db, listPath), payload);
         } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, listPath);
+          buildFirestoreErrorInfo(err, OperationType.CREATE, listPath);
+          setLists((prev) => {
+            const copy = { ...prev };
+            delete copy[newList.id];
+            return copy;
+          });
+          setEntriesByList((prev) => {
+            const copy = { ...prev };
+            delete copy[newList.id];
+            return copy;
+          });
+          showToast(zh.app.writeRollbackToast);
         }
       }
 
       return newList;
     },
-    [lists, user]
+    [lists, user, showToast]
   );
 
   const deleteList = useCallback(
     async (listId: string) => {
+      const prevList = lists[listId];
+      if (!prevList) return;
+      const prevEntries = entriesByList[listId] || [];
+
       setLists((prev) => {
         const copy = { ...prev };
         delete copy[listId];
@@ -1359,46 +1780,57 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
 
       if (user) {
-        const listPath = `users/${user.uid}/lists/${listId}`;
+        const uid = user.uid;
+        const listPath = `users/${uid}/lists/${listId}`;
         try {
-          await deleteDoc(doc(db, listPath));
+          const batch = writeBatch(db);
+          for (const entry of prevEntries) {
+            batch.delete(doc(db, `${listPath}/entries/${entry.id}`));
+          }
+          batch.delete(doc(db, listPath));
+          await batch.commit();
         } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, listPath);
+          buildFirestoreErrorInfo(err, OperationType.DELETE, listPath);
+          setLists((prev) => ({ ...prev, [listId]: prevList }));
+          setEntriesByList((prev) => ({ ...prev, [listId]: prevEntries }));
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [user]
+    [lists, entriesByList, user, showToast]
   );
 
   const togglePinList = useCallback(
     async (listId: string) => {
-      const list = lists[listId];
-      if (!list) return;
+      const prevList = lists[listId];
+      if (!prevList) return;
+      const nextPinned = !prevList.pinned;
       const updated: WatchListDoc = {
-        ...list,
-        pinned: !list.pinned,
+        ...prevList,
+        pinned: nextPinned,
       };
       setLists((prev) => ({ ...prev, [listId]: updated }));
 
       if (user) {
         const listPath = `users/${user.uid}/lists/${listId}`;
         try {
-          const { id: _id, ...payload } = sanitizeForFirestore(updated);
-          await setDoc(doc(db, listPath), payload);
+          await updateDoc(doc(db, listPath), { pinned: nextPinned });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, listPath);
+          buildFirestoreErrorInfo(err, OperationType.UPDATE, listPath);
+          setLists((prev) => ({ ...prev, [listId]: prevList }));
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [lists, user]
+    [lists, user, showToast]
   );
 
   const updateCollectionSort = useCallback(
     async (listId: string, sort: CollectionSort) => {
-      const list = lists[listId];
-      if (!list) return;
+      const prevList = lists[listId];
+      if (!prevList) return;
       const updated: WatchListDoc = {
-        ...list,
+        ...prevList,
         collectionSort: sort,
       };
       setLists((prev) => ({ ...prev, [listId]: updated }));
@@ -1406,22 +1838,23 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (user) {
         const listPath = `users/${user.uid}/lists/${listId}`;
         try {
-          const { id: _id, ...payload } = sanitizeForFirestore(updated);
-          await setDoc(doc(db, listPath), payload);
+          await updateDoc(doc(db, listPath), { collectionSort: sort });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, listPath);
+          buildFirestoreErrorInfo(err, OperationType.UPDATE, listPath);
+          setLists((prev) => ({ ...prev, [listId]: prevList }));
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [lists, user]
+    [lists, user, showToast]
   );
 
   const addTitleToList = useCallback(
     async (listId: string, titleId: string) => {
-      const currentEntries = entriesByList[listId] || [];
-      if (currentEntries.some((e) => e.titleId === titleId)) return;
+      const prevEntries = entriesByList[listId] || [];
+      if (prevEntries.some((e) => e.titleId === titleId)) return;
 
-      const rank = getNextRank(currentEntries.map((e) => e.rank));
+      const rank = getNextRank(prevEntries.map((e) => e.rank));
       const now = Date.now();
       const newEntry: ListEntryDoc = {
         id: `entry_${now}`,
@@ -1441,15 +1874,21 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const { id: _id, ...payload } = sanitizeForFirestore(newEntry);
           await setDoc(doc(db, entryPath), payload);
         } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, entryPath);
+          buildFirestoreErrorInfo(err, OperationType.CREATE, entryPath);
+          setEntriesByList((prev) => ({
+            ...prev,
+            [listId]: prevEntries,
+          }));
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [entriesByList, user]
+    [entriesByList, user, showToast]
   );
 
   const removeEntryFromList = useCallback(
     async (listId: string, entryId: string) => {
+      const prevEntries = entriesByList[listId] || [];
       setEntriesByList((prev) => ({
         ...prev,
         [listId]: (prev[listId] || []).filter((e) => e.id !== entryId),
@@ -1460,11 +1899,16 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
           await deleteDoc(doc(db, entryPath));
         } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, entryPath);
+          buildFirestoreErrorInfo(err, OperationType.DELETE, entryPath);
+          setEntriesByList((prev) => ({
+            ...prev,
+            [listId]: prevEntries,
+          }));
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [user]
+    [entriesByList, user, showToast]
   );
 
   const reorderListEntry = useCallback(
@@ -1473,8 +1917,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const list = lists[listId];
       if (!list) return;
 
-      const rawEntries = entriesByList[listId] || [];
-      const hydrated = rawEntries
+      const prevEntries = entriesByList[listId] || [];
+      const hydrated = prevEntries
         .map((entry) => ({ entry, title: titles[entry.titleId] }))
         .filter((item): item is { entry: ListEntryDoc; title: TitleDoc } => Boolean(item.title));
 
@@ -1501,73 +1945,32 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return { ...prev, [listId]: next };
       });
 
-      // Single document write thanks to fractional-indexing!
+      // Single field-level document write thanks to fractional-indexing!
       if (user) {
         const entryPath = `users/${user.uid}/lists/${listId}/entries/${updatedEntry.id}`;
         try {
-          const { id: _id, ...payload } = sanitizeForFirestore(updatedEntry);
-          await setDoc(doc(db, entryPath), payload);
+          await updateDoc(doc(db, entryPath), { rank: newRank });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, entryPath);
+          buildFirestoreErrorInfo(err, OperationType.UPDATE, entryPath);
+          setEntriesByList((prev) => ({
+            ...prev,
+            [listId]: prevEntries,
+          }));
+          showToast(zh.app.writeRollbackToast);
         }
       }
     },
-    [lists, entriesByList, titles, settings.defaultTitleLang, user]
+    [lists, entriesByList, titles, settings.defaultTitleLang, user, showToast]
   );
-
-  const seedDemoLibrary = useCallback(async () => {
-    const demo = buildInitialDemoDataset();
-    setTitles(demo.titles);
-    setSeasonsByTitle(demo.seasonsByTitle);
-    setProgressByTitle(demo.progressByTitle);
-    setLists(demo.lists);
-    setEntriesByList(demo.entriesByList);
-
-    if (user) {
-      const uid = user.uid;
-      try {
-        const batch = writeBatch(db);
-        for (const t of Object.values(demo.titles)) {
-          const { id: _id, ...tPayload } = sanitizeForFirestore(t);
-          batch.set(doc(db, `users/${uid}/titles/${t.id}`), tPayload);
-          const seasons = demo.seasonsByTitle[t.id] || [];
-          for (const s of seasons) {
-            batch.set(
-              doc(db, `users/${uid}/titles/${t.id}/seasons/s_${s.seasonNumber}`),
-              sanitizeForFirestore(s)
-            );
-          }
-          const pMap = demo.progressByTitle[t.id] || {};
-          for (const p of Object.values(pMap)) {
-            const { playthroughId: _pid, ...pPayload } = sanitizeForFirestore(p);
-            batch.set(
-              doc(db, `users/${uid}/titles/${t.id}/progress/${p.playthroughId}`),
-              pPayload
-            );
-          }
-        }
-        for (const l of Object.values(demo.lists)) {
-          const { id: _id, ...lPayload } = sanitizeForFirestore(l);
-          batch.set(doc(db, `users/${uid}/lists/${l.id}`), lPayload);
-          const entries = demo.entriesByList[l.id] || [];
-          for (const e of entries) {
-            const { id: _eid, ...ePayload } = sanitizeForFirestore(e);
-            batch.set(doc(db, `users/${uid}/lists/${l.id}/entries/${e.id}`), ePayload);
-          }
-        }
-        await batch.commit();
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
-      }
-    }
-  }, [user]);
 
   const value = useMemo<TrackerContextValue>(
     () => ({
       user,
       authReady,
-      isDemoMode,
       loadingData,
+      toastMessage,
+      showToast,
+      dismissToast,
       titles,
       seasonsByTitle,
       progressByTitle,
@@ -1575,7 +1978,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       entriesByList,
       settings,
       signIn,
-      enterDemoMode,
       signOut,
       getActiveProgress,
       addTitleFromTmdb,
@@ -1602,13 +2004,14 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       reorderListEntry,
       updateSettings,
       exportAllDataJson,
-      seedDemoLibrary,
     }),
     [
       user,
       authReady,
-      isDemoMode,
       loadingData,
+      toastMessage,
+      showToast,
+      dismissToast,
       titles,
       seasonsByTitle,
       progressByTitle,
@@ -1616,7 +2019,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       entriesByList,
       settings,
       signIn,
-      enterDemoMode,
       signOut,
       getActiveProgress,
       addTitleFromTmdb,
@@ -1643,7 +2045,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       reorderListEntry,
       updateSettings,
       exportAllDataJson,
-      seedDemoLibrary,
     ]
   );
 

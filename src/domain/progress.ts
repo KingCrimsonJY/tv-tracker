@@ -89,22 +89,6 @@ export function toLocalDateString(dateOrTs: Date | number = new Date()): string 
 }
 
 /**
- * Definition: aired(ep) -> has an airDate and airDate <= today (user's local date).
- * Custom items with episodes treat every episode as aired.
- */
-export function isEpisodeAired(
-  ep: Pick<EpisodeMeta, 'airDate'>,
-  todayStr: string = toLocalDateString(),
-  treatAllAsAired: boolean = false
-): boolean {
-  if (treatAllAsAired) return true;
-  if (!ep.airDate || typeof ep.airDate !== 'string') return false;
-  const trimmed = ep.airDate.trim();
-  if (!trimmed) return false;
-  return trimmed <= todayStr;
-}
-
-/**
  * Returns whether a show's status counts as permanently finished (Ended or Canceled).
  * Custom items with episodes are also treated as ended.
  */
@@ -116,6 +100,37 @@ export function isShowEnded(
   if (!showStatus) return false;
   const normalized = showStatus.trim().toLowerCase();
   return normalized === 'ended' || normalized === 'canceled' || normalized === 'cancelled';
+}
+
+/**
+ * Returns true if the episode has a non-empty explicit airDate string.
+ */
+function hasExplicitAirDate(ep: Pick<EpisodeMeta, 'airDate'>): boolean {
+  return Boolean(ep.airDate && typeof ep.airDate === 'string' && ep.airDate.trim().length > 0);
+}
+
+/**
+ * Definition:
+ * - Has an explicit airDate and airDate <= today (user's local date).
+ * - If an episode has NO airDate, treat it as aired if:
+ *   1. `treatAllAsAired` is true (custom/url item), OR
+ *   2. the show is Ended/Canceled (`showEnded`), OR
+ *   3. any later episode has aired (`laterEpisodeAired`).
+ */
+export function isEpisodeAired(
+  ep: Pick<EpisodeMeta, 'airDate'>,
+  todayStr: string = toLocalDateString(),
+  treatAllAsAired: boolean = false,
+  options: {
+    showEnded?: boolean;
+    laterEpisodeAired?: boolean;
+  } = {}
+): boolean {
+  if (treatAllAsAired) return true;
+  if (hasExplicitAirDate(ep)) {
+    return ep.airDate!.trim() <= todayStr;
+  }
+  return Boolean(options.showEnded || options.laterEpisodeAired);
 }
 
 /**
@@ -131,6 +146,119 @@ export function sortSeasons(seasons: SeasonDoc[]): SeasonDoc[] {
 }
 
 /**
+ * Builds the set of episode keys (`s{season}e{ep}`) that are considered aired
+ * across a list of seasons, applying the missing-airDate rule:
+ * An episode with no airDate is treated as aired if the show is Ended/Canceled
+ * or any later episode has aired.
+ */
+export function buildAiredEpisodeKeySet(
+  seasons: SeasonDoc[],
+  options: {
+    todayStr?: string;
+    treatAllAsAired?: boolean;
+    showEnded?: boolean;
+  } = {}
+): Set<string> {
+  const {
+    todayStr = toLocalDateString(),
+    treatAllAsAired = false,
+    showEnded = false,
+  } = options;
+
+  const sorted = sortSeasons(seasons);
+  const airedKeys = new Set<string>();
+
+  // Process regular seasons (>= 1) in reverse order so we know if any later episode has aired
+  const regularSeasons = sorted.filter((s) => s.seasonNumber >= 1);
+  let seenLaterAiredInShow = false;
+
+  for (let sIdx = regularSeasons.length - 1; sIdx >= 0; sIdx--) {
+    const season = regularSeasons[sIdx];
+    for (let eIdx = season.episodes.length - 1; eIdx >= 0; eIdx--) {
+      const ep = season.episodes[eIdx];
+      const key = ep.key || makeEpisodeKey(season.seasonNumber, ep.number);
+      const aired = isEpisodeAired(ep, todayStr, treatAllAsAired, {
+        showEnded,
+        laterEpisodeAired: seenLaterAiredInShow,
+      });
+      if (aired) {
+        airedKeys.add(key);
+        if (hasExplicitAirDate(ep) || treatAllAsAired) {
+          seenLaterAiredInShow = true;
+        }
+      }
+    }
+  }
+
+  // Process specials (season 0) independently in reverse order within season 0
+  const specialSeasons = sorted.filter((s) => s.seasonNumber === 0);
+  for (const season of specialSeasons) {
+    let seenLaterAiredInSpecials = false;
+    for (let eIdx = season.episodes.length - 1; eIdx >= 0; eIdx--) {
+      const ep = season.episodes[eIdx];
+      const key = ep.key || makeEpisodeKey(season.seasonNumber, ep.number);
+      const aired = isEpisodeAired(ep, todayStr, treatAllAsAired, {
+        showEnded,
+        laterEpisodeAired: seenLaterAiredInSpecials,
+      });
+      if (aired) {
+        airedKeys.add(key);
+        if (hasExplicitAirDate(ep) || treatAllAsAired) {
+          seenLaterAiredInSpecials = true;
+        }
+      }
+    }
+  }
+
+  return airedKeys;
+}
+
+/**
+ * Computes `resume.seconds / (runtimeMinutes * 60)` clamped to [0, 1].
+ */
+export function computeResumeRatio(
+  seconds: number | null | undefined,
+  runtimeMinutes: number | null | undefined
+): number {
+  if (!seconds || seconds <= 0) return 0;
+  if (!runtimeMinutes || runtimeMinutes <= 0) return 0;
+  return Math.min(1, Math.max(0, seconds / (runtimeMinutes * 60)));
+}
+
+/**
+ * Returns the progress bar ratio (0..1) for a title when displayed in Continue Watching or cards.
+ * For movies and resumed episodes, uses `resume.seconds / (runtime * 60)`.
+ */
+export function getTitleContinueProgressRatio(
+  title: Pick<TitleDoc, 'mediaType' | 'runtimeMin' | 'resume'>,
+  seasons: SeasonDoc[],
+  fallbackProgressRatio: number
+): number {
+  if (title.resume && title.resume.seconds > 0) {
+    if (title.resume.episodeKey) {
+      let epRuntime: number | null | undefined = null;
+      for (const s of seasons) {
+        for (const ep of s.episodes) {
+          const key = ep.key || makeEpisodeKey(s.seasonNumber, ep.number);
+          if (key === title.resume.episodeKey) {
+            epRuntime = ep.runtime;
+            break;
+          }
+        }
+        if (epRuntime !== null && epRuntime !== undefined) break;
+      }
+      const effectiveRuntime = epRuntime || title.runtimeMin;
+      if (effectiveRuntime && effectiveRuntime > 0) {
+        return computeResumeRatio(title.resume.seconds, effectiveRuntime);
+      }
+    } else if (title.runtimeMin && title.runtimeMin > 0) {
+      return computeResumeRatio(title.resume.seconds, title.runtimeMin);
+    }
+  }
+  return fallbackProgressRatio;
+}
+
+/**
  * Returns all countable episodes in order:
  * aired episodes in seasons >= 1 (or season 0 if includeSpecials is true).
  */
@@ -140,15 +268,22 @@ export function getCountableEpisodes(
     includeSpecials?: boolean;
     todayStr?: string;
     treatAllAsAired?: boolean;
+    showEnded?: boolean;
   } = {}
 ): CountableEpisode[] {
   const {
     includeSpecials = false,
     todayStr = toLocalDateString(),
     treatAllAsAired = false,
+    showEnded = false,
   } = options;
 
   const sorted = sortSeasons(seasons);
+  const airedKeys = buildAiredEpisodeKeySet(sorted, {
+    todayStr,
+    treatAllAsAired,
+    showEnded,
+  });
   const result: CountableEpisode[] = [];
 
   for (const season of sorted) {
@@ -156,10 +291,11 @@ export function getCountableEpisodes(
     if (season.seasonNumber === 0 && !includeSpecials) continue;
 
     for (const ep of season.episodes) {
-      if (isEpisodeAired(ep, todayStr, treatAllAsAired)) {
+      const key = ep.key || makeEpisodeKey(season.seasonNumber, ep.number);
+      if (airedKeys.has(key)) {
         result.push({
           ...ep,
-          key: ep.key || makeEpisodeKey(season.seasonNumber, ep.number),
+          key,
           seasonNumber: season.seasonNumber,
         });
       }
@@ -179,15 +315,29 @@ export function computeSeasonState(
   options: {
     todayStr?: string;
     treatAllAsAired?: boolean;
+    showEnded?: boolean;
+    allSeasons?: SeasonDoc[];
   } = {}
 ): ComputedSeasonState {
-  const { todayStr = toLocalDateString(), treatAllAsAired = false } = options;
+  const {
+    todayStr = toLocalDateString(),
+    treatAllAsAired = false,
+    showEnded = false,
+    allSeasons,
+  } = options;
   const watchedMap = progress?.watched ?? {};
   const totalEpisodes = season.episodes.length;
 
-  const airedEpisodes = season.episodes.filter((ep) =>
-    isEpisodeAired(ep, todayStr, treatAllAsAired)
-  );
+  const airedKeys = buildAiredEpisodeKeySet(allSeasons ?? [season], {
+    todayStr,
+    treatAllAsAired,
+    showEnded,
+  });
+
+  const airedEpisodes = season.episodes.filter((ep) => {
+    const key = ep.key || makeEpisodeKey(season.seasonNumber, ep.number);
+    return airedKeys.has(key);
+  });
   const airedCount = airedEpisodes.length;
 
   let watchedCount = 0;
@@ -229,7 +379,7 @@ export function computeTitleState(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  >,
+  > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc | undefined | null,
   options: {
@@ -239,6 +389,7 @@ export function computeTitleState(
 ): ComputedTitleState {
   const { includeSpecials = false, todayStr = toLocalDateString() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
+  const showEnded = isShowEnded(title.showStatus, title.source);
   const hasSeasons =
     title.mediaType === 'tv' ||
     (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
@@ -260,7 +411,10 @@ export function computeTitleState(
   if (!hasSeasons) {
     const isWatched = Boolean(progress?.movieWatchedAt);
     const hasResume = Boolean(title.resume && title.resume.seconds > 0);
-    const progressRatio = isWatched ? 1 : hasResume ? 0.5 : 0;
+    const movieResumeRatio = hasResume
+      ? computeResumeRatio(title.resume!.seconds, title.runtimeMin)
+      : 0;
+    const progressRatio = isWatched ? 1 : movieResumeRatio;
 
     if (title.manualState === 'dropped') {
       return {
@@ -314,7 +468,7 @@ export function computeTitleState(
         hasNewEpisodes: false,
         countableCount: 1,
         watchedCount: 0,
-        progressRatio: 0.5,
+        progressRatio: movieResumeRatio,
         nextUp: null,
         isRewatching,
         playthroughNumber: activePlaythrough.number,
@@ -341,6 +495,7 @@ export function computeTitleState(
     includeSpecials,
     todayStr,
     treatAllAsAired,
+    showEnded,
   });
 
   const watchedMap = progress?.watched ?? {};
@@ -357,7 +512,21 @@ export function computeTitleState(
 
   const countableCount = countable.length;
   const watchedCount = watchedEpisodes.length;
-  const progressRatio = countableCount > 0 ? watchedCount / countableCount : 0;
+
+  // Include fractional episode resume progress if a resume point is set on an unwatched episode
+  let resumeEpisodeFraction = 0;
+  if (title.resume && title.resume.seconds > 0 && title.resume.episodeKey) {
+    const resumedEp = countable.find((ep) => ep.key === title.resume!.episodeKey);
+    if (resumedEp && watchedMap[resumedEp.key] === undefined) {
+      const epRuntime = resumedEp.runtime ?? title.runtimeMin;
+      resumeEpisodeFraction = computeResumeRatio(title.resume.seconds, epRuntime);
+    }
+  }
+
+  const progressRatio =
+    countableCount > 0
+      ? Math.min(1, (watchedCount + resumeEpisodeFraction) / countableCount)
+      : 0;
   const nextUp = unwatchedEpisodes[0] ?? null;
 
   // 1. manualState is dropped -> 弃剧; paused -> 暂停
@@ -392,10 +561,12 @@ export function computeTitleState(
   }
 
   // 2. Show has no aired episodes yet -> 未开播
-  const anyAiredAcrossAllSeasons = seasons.some((s) =>
-    s.episodes.some((ep) => isEpisodeAired(ep, todayStr, treatAllAsAired))
-  );
-  if (countableCount === 0 && !anyAiredAcrossAllSeasons) {
+  const allAiredKeys = buildAiredEpisodeKeySet(seasons, {
+    todayStr,
+    treatAllAsAired,
+    showEnded,
+  });
+  if (countableCount === 0 && allAiredKeys.size === 0) {
     return {
       status: 'unaired',
       label: STATUS_LABELS.unaired,
@@ -429,8 +600,8 @@ export function computeTitleState(
 
   // 4. All countable episodes watched
   if (countableCount > 0 && watchedCount === countableCount) {
-    const ended = isShowEnded(title.showStatus, title.source);
-    const status: TitleStatusCode = ended ? 'completed' : 'caught_up';
+    const status: TitleStatusCode = showEnded ? 'completed' : 'caught_up';
+    // When a rewatch playthrough (number > 1) reaches 已追平 or 已看完, stop showing 二刷中
     return {
       status,
       label: STATUS_LABELS[status],
@@ -439,11 +610,12 @@ export function computeTitleState(
       watchedCount,
       progressRatio: 1,
       nextUp: null,
-      isRewatching: ended ? false : isRewatching,
+      isRewatching: false,
       playthroughNumber: activePlaythrough.number,
-      completedPlaythroughCount: ended
-        ? Math.max(1, completedPlaythroughCount)
-        : completedPlaythroughCount,
+      completedPlaythroughCount:
+        showEnded || activePlaythrough.number > 1
+          ? Math.max(activePlaythrough.number > 1 ? 2 : 1, completedPlaythroughCount)
+          : completedPlaythroughCount,
     };
   }
 
@@ -491,9 +663,10 @@ export interface MutationResult {
 
 /**
  * Internal helper to sync `completedAt` on the active playthrough after a progress change.
+ * Sets `completedAt` when status becomes `completed` OR when a rewatch playthrough (`number > 1`) reaches `caught_up` (已追平).
  */
 function syncPlaythroughCompletion(
-  title: Pick<TitleDoc, 'source' | 'mediaType' | 'showStatus'>,
+  title: Pick<TitleDoc, 'source' | 'mediaType' | 'showStatus'> & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   manualState: ManualState,
   resume: ResumePoint | null,
@@ -508,6 +681,7 @@ function syncPlaythroughCompletion(
       source: title.source,
       mediaType: title.mediaType,
       showStatus: title.showStatus,
+      runtimeMin: title.runtimeMin,
       manualState,
       resume,
       playthroughs,
@@ -520,7 +694,10 @@ function syncPlaythroughCompletion(
 
   return playthroughs.map((p) => {
     if (p.id !== activePlaythroughId) return p;
-    if (computed.status === 'completed') {
+    if (
+      computed.status === 'completed' ||
+      (computed.status === 'caught_up' && p.number > 1)
+    ) {
       return {
         ...p,
         completedAt: p.completedAt ?? now,
@@ -537,7 +714,7 @@ function syncPlaythroughCompletion(
  * - Only aired episodes can be checked. Unaired episodes are ignored.
  * - Checking any episode clears `manualState` automatically.
  * - Marking an episode watched clears `resume` if `resume.episodeKey` is that episode.
- * - Updates `completedAt` on the active playthrough when status becomes `已看完` (or clears it when unchecked).
+ * - Updates `completedAt` on the active playthrough when status becomes `已看完` (or `已追平` on rewatch).
  */
 export function toggleEpisodeWatched(
   title: Pick<
@@ -549,7 +726,7 @@ export function toggleEpisodeWatched(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  >,
+  > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   episodeKey: string,
@@ -561,6 +738,7 @@ export function toggleEpisodeWatched(
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
+  const showEnded = isShowEnded(title.showStatus, title.source);
 
   const isCurrentlyWatched = progress.watched[episodeKey] !== undefined;
 
@@ -590,20 +768,13 @@ export function toggleEpisodeWatched(
     };
   }
 
-  // Find the episode to verify it has aired
-  let foundEp: EpisodeMeta | null = null;
-  for (const s of seasons) {
-    for (const ep of s.episodes) {
-      const key = ep.key || makeEpisodeKey(s.seasonNumber, ep.number);
-      if (key === episodeKey) {
-        foundEp = ep;
-        break;
-      }
-    }
-    if (foundEp) break;
-  }
+  const airedKeys = buildAiredEpisodeKeySet(seasons, {
+    todayStr,
+    treatAllAsAired,
+    showEnded,
+  });
 
-  if (!foundEp || !isEpisodeAired(foundEp, todayStr, treatAllAsAired)) {
+  if (!airedKeys.has(episodeKey)) {
     // Unaired or non-existent episodes cannot be checked
     return {
       manualState: title.manualState,
@@ -661,7 +832,7 @@ export function setSeasonWatched(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  >,
+  > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   seasonNumber: number,
@@ -674,6 +845,7 @@ export function setSeasonWatched(
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
+  const showEnded = isShowEnded(title.showStatus, title.source);
   const targetSeason = seasons.find((s) => s.seasonNumber === seasonNumber);
 
   if (!targetSeason) {
@@ -686,13 +858,19 @@ export function setSeasonWatched(
     };
   }
 
+  const airedKeys = buildAiredEpisodeKeySet(seasons, {
+    todayStr,
+    treatAllAsAired,
+    showEnded,
+  });
+
   const nextWatched = { ...progress.watched };
   const checkedKeys = new Set<string>();
 
   if (markWatched) {
     for (const ep of targetSeason.episodes) {
-      if (isEpisodeAired(ep, todayStr, treatAllAsAired)) {
-        const key = ep.key || makeEpisodeKey(targetSeason.seasonNumber, ep.number);
+      const key = ep.key || makeEpisodeKey(targetSeason.seasonNumber, ep.number);
+      if (airedKeys.has(key)) {
         if (nextWatched[key] === undefined) {
           nextWatched[key] = now;
         }
@@ -753,7 +931,7 @@ export function markUpToEpisode(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  >,
+  > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   targetEpisodeKey: string,
@@ -765,11 +943,13 @@ export function markUpToEpisode(
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
+  const showEnded = isShowEnded(title.showStatus, title.source);
 
   const countable = getCountableEpisodes(seasons, {
     includeSpecials,
     todayStr,
     treatAllAsAired,
+    showEnded,
   });
 
   const targetIdx = countable.findIndex((ep) => ep.key === targetEpisodeKey);
@@ -838,7 +1018,7 @@ export function markWholeTitleWatched(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  >,
+  > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   markWatched: boolean = true,
@@ -850,6 +1030,7 @@ export function markWholeTitleWatched(
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
+  const showEnded = isShowEnded(title.showStatus, title.source);
   const hasSeasons =
     title.mediaType === 'tv' ||
     (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
@@ -889,6 +1070,7 @@ export function markWholeTitleWatched(
     includeSpecials,
     todayStr,
     treatAllAsAired,
+    showEnded,
   });
 
   const nextWatched = markWatched ? { ...progress.watched } : {};
@@ -968,7 +1150,7 @@ export function startRewatch(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  >,
+  > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
   currentProgress: ProgressDoc,
   options: {

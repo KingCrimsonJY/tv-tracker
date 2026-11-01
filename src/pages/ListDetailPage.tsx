@@ -93,16 +93,16 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
       style={style}
       className={`flex items-center gap-3 sm:gap-4 p-3 rounded-2xl border transition-colors ${
         isDragging
-          ? 'bg-[#252530] border-[#3b82f6] shadow-2xl'
+          ? 'bg-[var(--surface-tertiary)] border-[var(--accent)] shadow-2xl'
           : isNextUp
-            ? 'bg-[#3b82f6]/[0.09] border-[#3b82f6]/40'
-            : 'bg-[#1a1a1f] border-white/[0.06] hover:bg-[#202027]'
+            ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/40'
+            : 'bg-[var(--surface)] border-[var(--border)] hover:bg-[var(--surface-secondary)]'
       }`}
     >
       {/* Order number */}
       <span
         className={`w-7 text-center text-sm font-semibold tabular-nums shrink-0 ${
-          isNextUp ? 'text-[#60a5fa]' : 'text-[#9ca3af]'
+          isNextUp ? 'text-[var(--accent-text)]' : 'text-[var(--muted)]'
         }`}
       >
         {String(index + 1).padStart(2, '0')}
@@ -111,7 +111,7 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
       {/* Poster thumbnail */}
       <Link
         to={`/title/${item.title.id}`}
-        className="w-12 sm:w-14 shrink-0 rounded-lg overflow-hidden border border-white/[0.08]"
+        className="w-12 sm:w-14 shrink-0 rounded-lg overflow-hidden border border-[var(--border)]"
       >
         <MediaImage
           src={item.title.posterPath}
@@ -124,16 +124,16 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
       {/* Title, Year & Status */}
       <Link to={`/title/${item.title.id}`} className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm sm:text-base font-medium text-white truncate">
+          <h3 className="text-sm sm:text-base font-medium text-[var(--foreground)] truncate">
             {primary}
           </h3>
           {isNextUp && (
-            <span className="text-xs font-medium text-[#60a5fa] shrink-0">
+            <span className="text-xs font-medium text-[var(--accent-text)] shrink-0">
               · {zh.lists.nextUpHighlight}
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-[#9ca3af] tabular-nums">
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted)] tabular-nums">
           {item.title.year && <span>{item.title.year}</span>}
           {item.title.year && <span aria-hidden="true">·</span>}
           <span>{zh.detail.mediaTypes[item.title.mediaType]}</span>
@@ -141,10 +141,10 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
           <span
             className={
               state.status === 'completed'
-                ? 'text-[#10b981]'
+                ? 'text-[var(--success)]'
                 : state.status === 'watching'
-                  ? 'text-[#60a5fa]'
-                  : 'text-[#9ca3af]'
+                  ? 'text-[var(--accent-text)]'
+                  : 'text-[var(--muted)]'
             }
           >
             {state.label}
@@ -159,7 +159,7 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
             type="button"
             onClick={() => onRemove(item.entry.id)}
             aria-label={`移除 ${primary}`}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-red-400 hover:bg-red-500/10"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[var(--danger)] hover:bg-[var(--danger-subtle)]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -168,13 +168,13 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
             {...attributes}
             {...listeners}
             aria-label={`拖拽调整 ${primary} 顺序`}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[#9ca3af] hover:text-white cursor-grab active:cursor-grabbing touch-none"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--foreground)] cursor-grab active:cursor-grabbing touch-none"
           >
             <GripVertical className="w-5 h-5" />
           </button>
         </div>
       ) : (
-        <div className="text-xs text-[#9ca3af] tabular-nums pr-2 hidden sm:block">
+        <div className="text-xs text-[var(--muted)] tabular-nums pr-2 hidden sm:block">
           {state.countableCount > 1 && state.watchedCount > 0
             ? `${state.watchedCount}/${state.countableCount}`
             : state.label}
@@ -234,7 +234,7 @@ const SortableCollectionCard: React.FC<SortableCollectionCardProps> = ({
             type="button"
             onClick={() => onRemove(item.entry.id)}
             aria-label={`移除 ${primary}`}
-            className="min-w-[38px] min-h-[38px] rounded-xl bg-black/75 text-red-400 backdrop-blur-md flex items-center justify-center border border-white/15"
+            className="min-w-[38px] min-h-[38px] rounded-xl bg-[var(--scrim-chip)] text-[var(--danger)] backdrop-blur-md flex items-center justify-center border border-[var(--border)]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -243,7 +243,7 @@ const SortableCollectionCard: React.FC<SortableCollectionCardProps> = ({
             {...attributes}
             {...listeners}
             aria-label={`拖拽排序 ${primary}`}
-            className="min-w-[38px] min-h-[38px] rounded-xl bg-black/75 text-white backdrop-blur-md flex items-center justify-center border border-white/15 cursor-grab active:cursor-grabbing touch-none"
+            className="min-w-[38px] min-h-[38px] rounded-xl bg-[var(--scrim-chip)] text-[var(--on-scrim)] backdrop-blur-md flex items-center justify-center border border-[var(--border)] cursor-grab active:cursor-grabbing touch-none"
           >
             <GripVertical className="w-4 h-4" />
           </button>
@@ -258,6 +258,7 @@ export const ListDetailPage: React.FC = () => {
   const navigate = useNavigate();
 
   const {
+    loadingData,
     titles,
     seasonsByTitle,
     lists,
@@ -297,10 +298,27 @@ export const ListDetailPage: React.FC = () => {
     return map;
   }, [titles, getActiveProgress]);
 
+  if (loadingData && !list) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6" aria-label="正在加载列表详情">
+        <div className="h-10 w-28 rounded-xl bg-[var(--surface)] animate-pulse" />
+        <div className="h-36 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse" />
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-20 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (!list) {
     return (
       <div className="px-6 py-16 text-center space-y-4">
-        <p className="text-base text-[#9ca3af]">未找到该列表</p>
+        <p className="text-base text-[var(--muted)]">未找到该列表</p>
         <Button variant="secondary" onPress={() => navigate('/lists')}>
           返回列表页
         </Button>
@@ -350,7 +368,7 @@ export const ListDetailPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/lists')}
-          className="min-h-[44px] px-3 rounded-xl bg-[#1a1a1f] hover:bg-[#22222a] border border-white/[0.08] text-xs font-medium text-white flex items-center gap-1.5 transition-colors"
+          className="min-h-[44px] px-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--surface-secondary)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)] flex items-center gap-1.5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>所有列表</span>
@@ -383,10 +401,10 @@ export const ListDetailPage: React.FC = () => {
       </div>
 
       {/* List Header Info & Progress */}
-      <header className="rounded-2xl border border-white/[0.07] bg-[#1a1a1f] p-5 sm:p-6 space-y-4">
+      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs font-medium text-[#60a5fa]">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--accent-text)]">
               {list.kind === 'ordered' ? (
                 <ListOrdered className="w-4 h-4" />
               ) : (
@@ -396,9 +414,11 @@ export const ListDetailPage: React.FC = () => {
                 {list.kind === 'ordered' ? zh.lists.orderedType : zh.lists.collectionType}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">{list.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">
+              {list.name}
+            </h1>
             {list.description && (
-              <p className="text-sm text-[#9ca3af]">{list.description}</p>
+              <p className="text-sm text-[var(--muted)]">{list.description}</p>
             )}
           </div>
 
@@ -415,7 +435,7 @@ export const ListDetailPage: React.FC = () => {
                     setIsReordering(true);
                   }
                 }}
-                className="h-9 px-3 rounded-xl bg-[#141418] border border-white/10 text-xs font-medium text-white"
+                className="h-9 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)]"
               >
                 <option value="added">{zh.lists.sortOptions.added}</option>
                 <option value="name">{zh.lists.sortOptions.name}</option>
@@ -458,7 +478,7 @@ export const ListDetailPage: React.FC = () => {
         </div>
 
         <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-xs text-[#9ca3af] tabular-nums">
+          <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
             <span>
               已看完 {stats.completedCount} / {stats.totalCount} 部
             </span>
@@ -470,8 +490,8 @@ export const ListDetailPage: React.FC = () => {
             size="sm"
             className="w-full"
           >
-            <ProgressBar.Track className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <ProgressBar.Fill className="h-full bg-[#3b82f6] rounded-full" />
+            <ProgressBar.Track className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
+              <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
             </ProgressBar.Track>
           </ProgressBar>
         </div>
@@ -480,7 +500,7 @@ export const ListDetailPage: React.FC = () => {
       {/* Entries Content */}
       {sortedEntries.length === 0 ? (
         <div className="py-16 text-center space-y-4">
-          <p className="text-sm text-[#9ca3af]">{zh.lists.emptyEntries}</p>
+          <p className="text-sm text-[var(--muted)]">{zh.lists.emptyEntries}</p>
           <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
             {zh.lists.addTitlesToList}
           </Button>
@@ -544,7 +564,7 @@ export const ListDetailPage: React.FC = () => {
       {/* Modal to Add Titles from Library into this List */}
       <Modal.Backdrop isOpen={addModalOpen} onOpenChange={setAddModalOpen} isDismissable>
         <Modal.Container size="md" placement="center">
-          <Modal.Dialog className="bg-[#1e1e24] border border-white/10 rounded-2xl p-6 text-white outline-none">
+          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
             <Modal.Header>
               <Modal.Heading className="text-base font-semibold">
                 添加作品到「{list.name}」
@@ -563,7 +583,7 @@ export const ListDetailPage: React.FC = () => {
                 return (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#141418] border border-white/[0.06]"
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)]"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 shrink-0 rounded overflow-hidden">
@@ -575,8 +595,10 @@ export const ListDetailPage: React.FC = () => {
                         />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{primary}</p>
-                        <p className="text-xs text-[#9ca3af] tabular-nums">
+                        <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                          {primary}
+                        </p>
+                        <p className="text-xs text-[var(--muted)] tabular-nums">
                           {t.year || ''} · {zh.detail.mediaTypes[t.mediaType]}
                         </p>
                       </div>

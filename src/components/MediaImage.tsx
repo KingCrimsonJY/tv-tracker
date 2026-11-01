@@ -31,14 +31,14 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   if (!src || failed) {
     return (
       <div
-        className={`relative overflow-hidden bg-gradient-to-br from-[#1f2430] via-[#171922] to-[#101116] flex flex-col items-center justify-center p-3 text-center select-none ${aspectClass} ${className}`}
+        className={`relative overflow-hidden bg-gradient-to-br from-[var(--surface-tertiary)] via-[var(--surface-secondary)] to-[var(--surface)] flex flex-col items-center justify-center p-3 text-center select-none ${aspectClass} ${className}`}
         role="img"
         aria-label={alt}
       >
-        <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-[#9ca3af] mb-2">
+        <div className="w-9 h-9 rounded-full bg-[var(--surface)]/60 flex items-center justify-center text-[var(--muted)] mb-2">
           {mediaType === 'tv' ? <Tv className="w-4 h-4" /> : <Film className="w-4 h-4" />}
         </div>
-        <span className="text-xs font-medium text-[#d1d5db] line-clamp-2 px-1 leading-snug">
+        <span className="text-xs font-medium text-[var(--foreground-secondary)] line-clamp-2 px-1 leading-snug">
           {alt}
         </span>
       </div>
@@ -47,7 +47,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
 
   return (
     <div
-      className={`relative overflow-hidden bg-[#1a1a1f] ${aspectClass} ${className}`}
+      className={`relative overflow-hidden bg-[var(--surface)] ${aspectClass} ${className}`}
     >
       <img
         src={src}

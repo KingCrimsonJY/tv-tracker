@@ -1,7 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ProgressBar } from '@heroui/react';
-import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
+import {
+  computeTitleState,
+  getTitleContinueProgressRatio,
+  resolveDisplayTitle,
+} from '../domain/progress';
 import type { ProgressDoc, SeasonDoc, TitleDoc } from '../domain/types';
 import { zh } from '../i18n/zh';
 import { MediaImage } from './MediaImage';
@@ -30,14 +34,15 @@ export const PosterCard: React.FC<PosterCardProps> = ({
   const state = computeTitleState(title, seasons, progress, { includeSpecials });
 
   const isWatching = state.status === 'watching';
-  const pct = Math.round(state.progressRatio * 100);
+  const ratio = getTitleContinueProgressRatio(title, seasons, state);
+  const pct = Math.max(2, Math.min(100, Math.round(ratio * 100)));
 
   return (
     <Link
       to={`/title/${title.id}`}
-      className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] rounded-xl"
+      className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded-xl"
     >
-      <div className="relative rounded-xl overflow-hidden border border-white/[0.07] bg-[#1a1a1f] transition-transform duration-200 group-hover:scale-[1.02]">
+      <div className="relative rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 group-hover:scale-[1.02]">
         <MediaImage
           src={title.posterPath}
           alt={primary}
@@ -48,15 +53,15 @@ export const PosterCard: React.FC<PosterCardProps> = ({
 
         {/* Thin progress bar at bottom of poster while watching */}
         {isWatching && (
-          <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/85 via-black/40 to-transparent">
+          <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-[var(--scrim-strong)] via-[var(--scrim-mid)] to-transparent">
             <ProgressBar
               aria-label={`${primary} 观看进度`}
-              value={Math.max(6, pct)}
+              value={pct}
               size="sm"
               className="w-full"
             >
-              <ProgressBar.Track className="h-1 bg-white/20 rounded-full overflow-hidden">
-                <ProgressBar.Fill className="h-full bg-[#3b82f6] rounded-full" />
+              <ProgressBar.Track className="h-1 bg-[var(--scrim-track)] rounded-full overflow-hidden">
+                <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
               </ProgressBar.Track>
             </ProgressBar>
           </div>
@@ -64,12 +69,14 @@ export const PosterCard: React.FC<PosterCardProps> = ({
       </div>
 
       <div className="mt-2 px-0.5">
-        <h3 className="text-sm font-medium text-[#f4f4f6] line-clamp-2 leading-snug group-hover:text-white transition-colors">
+        <h3 className="text-sm font-medium text-[var(--foreground)] line-clamp-2 leading-snug group-hover:text-[var(--accent-text)] transition-colors">
           {primary}
         </h3>
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-[#9ca3af] tabular-nums">
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted)] tabular-nums">
           {state.hasNewEpisodes ? (
-            <span className="text-[#3b82f6] font-medium">{zh.detail.newEpisodeBadge}</span>
+            <span className="text-[var(--accent-text)] font-medium">
+              {zh.detail.newEpisodeBadge}
+            </span>
           ) : (
             <span>{state.label}</span>
           )}

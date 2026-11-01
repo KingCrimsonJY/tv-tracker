@@ -3,13 +3,13 @@ export const zh = {
     name: '帧迹',
     tagline: '私人观影与剧集进度追踪',
     signInWithGoogle: '使用 Google 账号登录',
-    enterDemoMode: '先体验本地演示片库',
-    demoModeBanner: '本地演示模式 · 登录 Google 即可跨设备云端同步',
     signOut: '退出登录',
     installApp: '安装应用',
     installIosGuideTitle: '安装到主屏幕',
     installIosGuideBody: '在 Safari 底部工具栏轻点「分享」图标，然后选择「添加到主屏幕」。',
     close: '关闭',
+    writeRollbackToast: '保存失败，已回滚修改，请检查网络或权限后重试。',
+    unauthorizedAccountToast: '当前登录账号无权访问此私人片库。',
   },
   nav: {
     home: '首页',
@@ -32,7 +32,6 @@ export const zh = {
     emptyTitle: '你的私人放映室还是空的',
     emptyDescription: '通过 TMDB 搜索添加你正在追的剧集或电影，精准记录每一集的观看进度与时间戳。',
     emptyAction: '前往搜索添加影视',
-    seedDemoAction: '载入精选示例片单',
   },
   library: {
     title: '片库',
@@ -210,9 +209,8 @@ export const zh = {
     inLibrary: '已在片库',
     addToList: '加入列表',
     noResults: '未找到匹配的影视作品',
-    tokenMissingTitle: '未检测到 TMDB_READ_TOKEN 密钥',
-    tokenMissingHint: '请在 AI Studio 密钥面板配置 TMDB_READ_TOKEN，当前为你展示内置精选影视库供搜索与添加。',
-    featuredHeading: '热门精选推荐',
+    emptyQueryPrompt: '输入片名关键字搜索 TMDB 影视库，或通过上方按钮导入链接与手动条目。',
+    tmdbErrorTitle: 'TMDB 搜索服务异常',
     importByLink: '通过链接添加',
     addManualItem: '手动添加',
     linkModal: {
@@ -260,4 +258,3 @@ export const zh = {
     signOutButton: '退出当前账号',
   },
 } as const;
-

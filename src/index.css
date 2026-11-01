@@ -5,32 +5,70 @@
   :root,
   .dark,
   [data-theme="dark"] {
-    --background: #121215;
-    --surface: #1a1a1f;
-    --surface-secondary: #222228;
-    --surface-tertiary: #2a2a32;
-    --overlay: #1e1e24;
-    --foreground: #f4f4f6;
-    --muted: #9ca3af;
-    --accent: #3b82f6;
-    --accent-foreground: #ffffff;
-    --border: rgba(255, 255, 255, 0.08);
-    --separator: rgba(255, 255, 255, 0.06);
+    --background: rgb(18 18 21);
+    --surface: rgb(26 26 31);
+    --surface-secondary: rgb(34 34 40);
+    --surface-tertiary: rgb(42 42 50);
+    --surface-glass: rgb(22 22 26 / 0.94);
+    --overlay: rgb(30 30 36);
+    --foreground: rgb(244 244 246);
+    --foreground-secondary: rgb(209 213 219);
+    --muted: rgb(156 163 175);
+    --accent: rgb(59 130 246);
+    --accent-hover: rgb(37 99 235);
+    --accent-subtle: rgb(59 130 246 / 0.16);
+    --accent-text: rgb(96 165 250);
+    --accent-foreground: rgb(255 255 255);
+    --border: rgb(255 255 255 / 0.08);
+    --separator: rgb(255 255 255 / 0.06);
+    --success: rgb(16 185 129);
+    --success-subtle: rgb(16 185 129 / 0.16);
+    --warning: rgb(245 158 11);
+    --warning-subtle: rgb(245 158 11 / 0.16);
+    --danger: rgb(239 68 68);
+    --danger-subtle: rgb(239 68 68 / 0.16);
+    --on-scrim: rgb(248 250 252);
+    --on-scrim-muted: rgb(203 213 225);
+    --scrim-strong: rgb(9 9 12 / 0.88);
+    --scrim-mid: rgb(9 9 12 / 0.45);
+    --scrim-soft: rgb(9 9 12 / 0.18);
+    --scrim-chip: rgb(15 15 20 / 0.65);
+    --scrim-track: rgb(255 255 255 / 0.25);
+    --backdrop-scrim: rgb(9 9 12 / 0.72);
   }
 
   .light,
   [data-theme="light"] {
-    --background: #f5f5f8;
-    --surface: #ffffff;
-    --surface-secondary: #f0f1f5;
-    --surface-tertiary: #e5e7eb;
-    --overlay: #ffffff;
-    --foreground: #141417;
-    --muted: #64748b;
-    --accent: #2563eb;
-    --accent-foreground: #ffffff;
-    --border: rgba(15, 23, 42, 0.09);
-    --separator: rgba(15, 23, 42, 0.07);
+    --background: rgb(245 245 248);
+    --surface: rgb(255 255 255);
+    --surface-secondary: rgb(238 240 245);
+    --surface-tertiary: rgb(226 230 238);
+    --surface-glass: rgb(255 255 255 / 0.94);
+    --overlay: rgb(255 255 255);
+    --foreground: rgb(20 20 24);
+    --foreground-secondary: rgb(51 65 85);
+    --muted: rgb(100 116 139);
+    --accent: rgb(37 99 235);
+    --accent-hover: rgb(29 78 216);
+    --accent-subtle: rgb(37 99 235 / 0.12);
+    --accent-text: rgb(37 99 235);
+    --accent-foreground: rgb(255 255 255);
+    --border: rgb(15 23 42 / 0.1);
+    --separator: rgb(15 23 42 / 0.07);
+    --success: rgb(5 150 105);
+    --success-subtle: rgb(5 150 105 / 0.12);
+    --warning: rgb(217 119 6);
+    --warning-subtle: rgb(217 119 6 / 0.12);
+    --danger: rgb(220 38 38);
+    --danger-subtle: rgb(220 38 38 / 0.12);
+    --on-scrim: rgb(248 250 252);
+    --on-scrim-muted: rgb(226 232 240);
+    --scrim-strong: rgb(9 9 12 / 0.85);
+    --scrim-mid: rgb(9 9 12 / 0.42);
+    --scrim-soft: rgb(9 9 12 / 0.16);
+    --scrim-chip: rgb(15 15 20 / 0.65);
+    --scrim-track: rgb(255 255 255 / 0.28);
+    --backdrop-scrim: rgb(15 23 42 / 0.55);
     color-scheme: light;
   }
 
@@ -50,20 +88,6 @@
     color: var(--foreground);
     min-height: 100dvh;
     overflow-x: hidden;
-  }
-
-  html.light .bg-\[\#121215\] {
-    background-color: var(--background);
-    color: var(--foreground);
-  }
-
-  html.light .bg-\[\#16161a\],
-  html.light .bg-\[\#1a1a1f\],
-  html.light .bg-\[\#1e1e24\],
-  html.light .bg-\[\#141418\] {
-    background-color: var(--surface);
-    color: var(--foreground);
-    border-color: var(--border);
   }
 }
 

@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import nodeTest from 'node:test';
 import {
   cancelRewatch,
+  computeResumeRatio,
   computeSeasonState,
   computeTitleState,
   formatSeconds,
+  getTitleContinueProgressRatio,
   markUpToEpisode,
   markWholeTitleWatched,
   parseTimeInput,
@@ -12,8 +14,9 @@ import {
   setSeasonWatched,
   startRewatch,
   toggleEpisodeWatched,
-} from './progress';
-import type { ProgressDoc, SeasonDoc, TitleDoc } from './types';
+} from './progress.ts';
+import type { ProgressDoc, SeasonDoc, TitleDoc } from './types.ts';
+import { assertSafePublicUrl, isPrivateOrReservedIp } from '../../server/security/ssrf.ts';
 
 // Support both Vitest (`npx vitest run`) and Node's test runner (`npx --yes tsx --test`)
 const vitestModule = process.env.VITEST ? await import('vitest') : null;
@@ -430,4 +433,206 @@ registerTest('10. Whole title mark watched works for both movies and TV shows', 
   );
   assert.equal(watchedState.status, 'completed');
   assert.equal(watchedState.label, '已看完');
+});
+
+registerTest('11. Missing air dates: episode with no airDate is treated as aired if show is Ended/Canceled or any later episode has aired', () => {
+  const seasonsWithMissingAirDates: SeasonDoc[] = [
+    {
+      seasonNumber: 1,
+      name: '第 1 季',
+      episodes: [
+        {
+          number: 1,
+          key: 's1e1',
+          name: '缺少日期但后续已播',
+          airDate: null,
+          runtime: 45,
+          stillPath: null,
+          overview: {},
+        },
+        {
+          number: 2,
+          key: 's1e2',
+          name: '已播出剧集',
+          airDate: '2026-10-01',
+          runtime: 45,
+          stillPath: null,
+          overview: {},
+        },
+        {
+          number: 3,
+          key: 's1e3',
+          name: '缺少日期且后续无已播',
+          airDate: null,
+          runtime: 45,
+          stillPath: null,
+          overview: {},
+        },
+      ],
+    },
+  ];
+
+  // Case A: Ongoing show (Returning Series) -> s1e1 is treated as aired (since s1e2 aired), s1e3 is NOT aired
+  const ongoingTitle = makeBaseTvTitle({ showStatus: 'Returning Series' });
+  const ongoingState = computeTitleState(
+    ongoingTitle,
+    seasonsWithMissingAirDates,
+    { playthroughId: 'p1', watched: {} },
+    { todayStr: TODAY }
+  );
+  assert.equal(ongoingState.countableCount, 2); // s1e1 and s1e2
+  assert.equal(ongoingState.nextUp?.key, 's1e1');
+
+  // Checking s1e1 succeeds because a later episode (s1e2) has aired
+  const afterCheckS1E1 = toggleEpisodeWatched(
+    ongoingTitle,
+    seasonsWithMissingAirDates,
+    { playthroughId: 'p1', watched: {} },
+    's1e1',
+    { todayStr: TODAY, now: 1000 }
+  );
+  assert.equal(afterCheckS1E1.progress.watched.s1e1, 1000);
+
+  // Checking s1e3 on ongoing show fails because no later episode has aired
+  const afterCheckS1E3Ongoing = toggleEpisodeWatched(
+    ongoingTitle,
+    seasonsWithMissingAirDates,
+    afterCheckS1E1.progress,
+    's1e3',
+    { todayStr: TODAY, now: 2000 }
+  );
+  assert.equal(afterCheckS1E3Ongoing.progress.watched.s1e3, undefined);
+
+  // Case B: Ended or Canceled show -> all episodes with missing airDate (including s1e3) are treated as aired
+  const endedTitle = makeBaseTvTitle({ showStatus: 'Ended' });
+  const endedState = computeTitleState(
+    endedTitle,
+    seasonsWithMissingAirDates,
+    { playthroughId: 'p1', watched: {} },
+    { todayStr: TODAY }
+  );
+  assert.equal(endedState.countableCount, 3); // s1e1, s1e2, s1e3
+
+  const afterCheckS1E3Ended = toggleEpisodeWatched(
+    endedTitle,
+    seasonsWithMissingAirDates,
+    { playthroughId: 'p1', watched: {} },
+    's1e3',
+    { todayStr: TODAY, now: 3000 }
+  );
+  assert.equal(afterCheckS1E3Ended.progress.watched.s1e3, 3000);
+});
+
+registerTest('12. Rewatch of an ongoing show: reaching 已追平 sets completedAt and stops showing 二刷中', () => {
+  const ongoingTitle = makeBaseTvTitle({
+    showStatus: 'Returning Series',
+    playthroughs: [{ id: 'p1', number: 1, startedAt: 1000 }],
+    activePlaythroughId: 'p1',
+  });
+  const seasons = makeSampleSeasons(); // 5 countable episodes (s1e1..3, s2e1..2) plus s2e3 unaired
+  const caughtUpProgressP1: ProgressDoc = {
+    playthroughId: 'p1',
+    watched: {
+      s1e1: 1000,
+      s1e2: 2000,
+      s1e3: 3000,
+      s2e1: 4000,
+      s2e2: 5000,
+    },
+  };
+
+  // Start rewatch from 已追平
+  const rewatchStarted = startRewatch(ongoingTitle, seasons, caughtUpProgressP1, {
+    todayStr: TODAY,
+    now: 10000,
+    newPlaythroughId: 'p2',
+  });
+  assert.equal(rewatchStarted.activePlaythroughId, 'p2');
+  assert.equal(rewatchStarted.playthroughs.length, 2);
+
+  // During rewatch (partially watched), isRewatching is true
+  const midRewatchTitle: TitleDoc = {
+    ...ongoingTitle,
+    playthroughs: rewatchStarted.playthroughs,
+    activePlaythroughId: rewatchStarted.activePlaythroughId,
+  };
+  const step1 = setSeasonWatched(midRewatchTitle, seasons, rewatchStarted.progress, 1, true, {
+    todayStr: TODAY,
+    now: 15000,
+  });
+  const midState = computeTitleState(
+    { ...midRewatchTitle, playthroughs: step1.playthroughs },
+    seasons,
+    step1.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(midState.status, 'watching');
+  assert.equal(midState.isRewatching, true);
+  assert.equal(step1.playthroughs[1].completedAt, undefined);
+
+  // Finish all aired episodes of Season 2 -> reaches 已追平 on playthrough #2
+  const step2 = setSeasonWatched(
+    { ...midRewatchTitle, playthroughs: step1.playthroughs },
+    seasons,
+    step1.progress,
+    2,
+    true,
+    { todayStr: TODAY, now: 20000 }
+  );
+  assert.equal(step2.playthroughs[1].completedAt, 20000);
+
+  const caughtUpRewatchState = computeTitleState(
+    { ...midRewatchTitle, playthroughs: step2.playthroughs },
+    seasons,
+    step2.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(caughtUpRewatchState.status, 'caught_up');
+  assert.equal(caughtUpRewatchState.label, '已追平');
+  assert.equal(caughtUpRewatchState.isRewatching, false);
+});
+
+registerTest('13. Progress ratio for movies and resumed episodes uses resume seconds / (runtime * 60)', () => {
+  const movie = makeBaseTvTitle({
+    id: 'tmdb_movie_2',
+    mediaType: 'movie',
+    runtimeMin: 120, // 7200 seconds
+    resume: { episodeKey: null, seconds: 1800, updatedAt: 1000 }, // 25%
+  });
+  const state = computeTitleState(movie, [], { playthroughId: 'p1', watched: {} }, { todayStr: TODAY });
+  assert.equal(state.status, 'watching');
+  assert.equal(state.progressRatio, 0.25);
+
+  const tvWithResume = makeBaseTvTitle({
+    runtimeMin: 50,
+    resume: { episodeKey: 's1e2', seconds: 1410, updatedAt: 1000 }, // s1e2 runtime is 47m = 2820s -> 0.5
+  });
+  const seasons = makeSampleSeasons();
+  const epContinueRatio = getTitleContinueProgressRatio(tvWithResume, seasons, 0.2);
+  assert.equal(epContinueRatio, 0.5);
+  assert.equal(computeResumeRatio(900, 60), 0.25);
+});
+
+registerTest('14. SSRF protection rejects private, loopback, link-local IPs and non-http protocols', async () => {
+  assert.equal(isPrivateOrReservedIp('127.0.0.1'), true);
+  assert.equal(isPrivateOrReservedIp('10.0.0.1'), true);
+  assert.equal(isPrivateOrReservedIp('172.16.5.4'), true);
+  assert.equal(isPrivateOrReservedIp('192.168.1.1'), true);
+  assert.equal(isPrivateOrReservedIp('169.254.169.254'), true);
+  assert.equal(isPrivateOrReservedIp('::1'), true);
+  assert.equal(isPrivateOrReservedIp('fe80::1'), true);
+  assert.equal(isPrivateOrReservedIp('fc00::1'), true);
+  assert.equal(isPrivateOrReservedIp('::ffff:127.0.0.1'), true);
+  assert.equal(isPrivateOrReservedIp('93.184.216.34'), false);
+
+  await assert.rejects(() => assertSafePublicUrl('file:///etc/passwd'));
+  await assert.rejects(() => assertSafePublicUrl('http://127.0.0.1:8080/test'));
+  await assert.rejects(() => assertSafePublicUrl('http://169.254.169.254/latest/meta-data/'));
+  await assert.rejects(() =>
+    assertSafePublicUrl('https://evil.example.com/video', async () => [{ address: '10.1.2.3' }])
+  );
+  const valid = await assertSafePublicUrl('https://www.bilibili.com/video/BV1xx411c7mD', async () => [
+    { address: '93.184.216.34' },
+  ]);
+  assert.equal(valid.hostname, 'www.bilibili.com');
 });

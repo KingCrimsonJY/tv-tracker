@@ -1,9 +1,12 @@
 import dotenv from 'dotenv';
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import { getApps, initializeApp as initializeAdminApp } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import fs from 'fs';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { lookupDoubanBestEffort } from './server/providers/douban.ts';
-import { SEED_CATALOG } from './src/data/seedCatalog.ts';
+import { assertSafePublicUrl, safeFetchFollowingRedirects } from './server/security/ssrf.ts';
 import { makeEpisodeKey } from './src/domain/progress.ts';
 import type { EpisodeMeta, Ratings, SeasonDoc, TitleDoc } from './src/domain/types.ts';
 
@@ -11,6 +14,42 @@ dotenv.config();
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p';
+const DEFAULT_OWNER_UID = 'BRjV75Gl00W97gDNfwyxjS1G5Yt1';
+
+function getFirebaseProjectId(): string {
+  try {
+    const cfgPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    const raw = fs.readFileSync(cfgPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { projectId?: string };
+    if (parsed.projectId) return parsed.projectId;
+  } catch {
+    // Fall back to known project ID
+  }
+  return 'googly-airport-f61jg';
+}
+
+if (getApps().length === 0) {
+  initializeAdminApp({
+    projectId: getFirebaseProjectId(),
+  });
+}
+
+function getExpectedOwnerUid(): string {
+  const raw = (process.env.OWNER_UID || '').trim().replace(/^['"]|['"]$/g, '').trim();
+  if (
+    !raw ||
+    raw === 'MY_OWNER_UID' ||
+    raw === 'YOUR_OWNER_UID' ||
+    raw.startsWith('MY_') ||
+    raw.startsWith('YOUR_') ||
+    raw.startsWith('<') ||
+    raw === 'undefined' ||
+    raw === 'null'
+  ) {
+    return DEFAULT_OWNER_UID;
+  }
+  return raw;
+}
 
 function getOmdbKey(): string {
   const raw = (process.env.OMDB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '').trim();
@@ -82,7 +121,6 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
     return (await res.json()) as T;
   }
 
-  // Try v4 Bearer auth first
   const res = await fetch(url.toString(), {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -91,7 +129,6 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
   });
 
   if (res.status === 401) {
-    // Fallback attempt as v3 api_key parameter in case a v3 key was provided
     const fallbackUrl = new URL(url.toString());
     fallbackUrl.searchParams.set('api_key', token);
     const retryRes = await fetch(fallbackUrl.toString(), {
@@ -142,31 +179,36 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&#x27;/gi, "'");
 }
 
-function buildFallbackSearchResults(query: string): SearchResultDto[] {
-  const qLower = query.trim().toLowerCase();
-  const items = !qLower
-    ? SEED_CATALOG
-    : SEED_CATALOG.filter((item) => {
-        const zh = (item.title.names.zh || '').toLowerCase();
-        const orig = (item.title.names.original || '').toLowerCase();
-        const en = (item.title.names.en || '').toLowerCase();
-        return zh.includes(qLower) || orig.includes(qLower) || en.includes(qLower);
-      });
+async function requireOwnerAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match?.[1]) {
+    res.status(401).json({ error: '缺少身份验证令牌 (Authorization: Bearer)' });
+    return;
+  }
 
-  return items.map((item) => ({
-    sourceId: item.tmdbId,
-    mediaType: item.mediaType,
-    titleZh: item.title.names.zh || item.title.names.original,
-    titleOriginal: item.title.names.original,
-    year: item.title.year,
-    posterUrl: item.title.posterPath,
-    overview: item.title.overview.zh || item.title.overview.en || '',
-  }));
+  const idToken = match[1].trim();
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
+    const expectedUid = getExpectedOwnerUid();
+    if (decoded.uid !== expectedUid) {
+      res.status(403).json({ error: '无权访问：仅限应用所有者账号调用' });
+      return;
+    }
+    next();
+  } catch (err) {
+    res.status(401).json({
+      error: err instanceof Error ? `身份令牌验证失败: ${err.message}` : '身份令牌验证失败',
+    });
+  }
 }
 
 async function startServer() {
   const app = express();
   app.use(express.json());
+
+  // Protect every /api route with Firebase ID token verification & OWNER_UID check
+  app.use('/api', requireOwnerAuth);
 
   app.get('/api/tmdb/status', (_req, res) => {
     res.json({
@@ -179,11 +221,15 @@ async function startServer() {
     const query = String(req.query.q || '').trim();
     const token = getTmdbToken();
 
-    if (!query || !token) {
-      res.json({
-        results: buildFallbackSearchResults(query),
-        fromFallback: !token,
+    if (!token) {
+      res.status(503).json({
+        error: '服务端未配置有效的 TMDB_READ_TOKEN 密钥，请在 AI Studio Secrets 中配置后重试。',
       });
+      return;
+    }
+
+    if (!query) {
+      res.json({ results: [] });
       return;
     }
 
@@ -217,42 +263,26 @@ async function startServer() {
           };
         });
 
-      res.json({ results, fromFallback: false });
-    } catch {
-      // Fall back gracefully to seed catalog if TMDB token is invalid or network fails
-      res.json({
-        results: buildFallbackSearchResults(query),
-        fromFallback: true,
+      res.json({ results });
+    } catch (error) {
+      res.status(502).json({
+        error:
+          error instanceof Error
+            ? `TMDB 搜索请求失败: ${error.message}`
+            : 'TMDB 搜索请求失败，请检查密钥或网络连接。',
       });
     }
   });
 
-  // Fetch full title + seasons metadata from TMDB (or seed catalog fallback)
+  // Fetch full title + seasons metadata from TMDB
   app.get('/api/tmdb/:mediaType/:id', async (req, res) => {
     const mediaType = req.params.mediaType === 'tv' ? 'tv' : 'movie';
     const sourceId = String(req.params.id);
     const token = getTmdbToken();
 
-    const seedMatch = SEED_CATALOG.find(
-      (c) => c.mediaType === mediaType && c.tmdbId === sourceId
-    );
-
-    if (!token && seedMatch) {
-      const now = Date.now();
-      const titleDoc: TitleDoc = {
-        ...structuredClone(seedMatch.title),
-        resume: null,
-        manualState: null,
-        playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
-        activePlaythroughId: 'p1',
-        metaFetchedAt: now,
-        addedAt: now,
-        updatedAt: now,
-        lastActivityAt: now,
-      };
-      res.json({
-        title: titleDoc,
-        seasons: structuredClone(seedMatch.seasons),
+    if (!token) {
+      res.status(503).json({
+        error: '服务端未配置有效的 TMDB_READ_TOKEN 密钥，无法获取 TMDB 详情。',
       });
       return;
     }
@@ -295,11 +325,11 @@ async function startServer() {
       const transLocalized =
         zhTrans?.data?.title || zhTrans?.data?.name || '';
       const zhName =
-        (primaryLocalized && primaryLocalized !== originalName
+        primaryLocalized && primaryLocalized !== originalName
           ? primaryLocalized
           : transLocalized && transLocalized !== originalName
             ? transLocalized
-            : seedMatch?.title.names.zh || primaryLocalized || originalName);
+            : primaryLocalized || originalName;
       const enName =
         enTrans?.data?.title ||
         enTrans?.data?.name ||
@@ -408,26 +438,8 @@ async function startServer() {
 
       res.json({ title: titleDoc, seasons });
     } catch (error) {
-      if (seedMatch) {
-        const now = Date.now();
-        res.json({
-          title: {
-            ...structuredClone(seedMatch.title),
-            resume: null,
-            manualState: null,
-            playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
-            activePlaythroughId: 'p1',
-            metaFetchedAt: now,
-            addedAt: now,
-            updatedAt: now,
-            lastActivityAt: now,
-          },
-          seasons: structuredClone(seedMatch.seasons),
-        });
-        return;
-      }
       res.status(502).json({
-        error: error instanceof Error ? error.message : 'Failed to fetch TMDB details',
+        error: error instanceof Error ? error.message : '获取 TMDB 详情失败',
       });
     }
   });
@@ -509,22 +521,25 @@ async function startServer() {
   });
 
   // Link import endpoint: YouTube via oEmbed, other URLs (Bilibili, etc.) via Open Graph tags
+  // Enforces SSRF protection (http/https only, DNS IP verification, and safe redirect checking)
   app.post('/api/import/link', async (req, res) => {
     const rawUrl = String(req.body?.url || '').trim();
-    if (!rawUrl || !/^https?:\/\//i.test(rawUrl)) {
+    if (!rawUrl) {
       res.status(400).json({ error: '请输入有效的 http:// 或 https:// 链接' });
       return;
     }
 
-    let parsedUrl: URL;
+    let safeInitialUrl: URL;
     try {
-      parsedUrl = new URL(rawUrl);
-    } catch {
-      res.status(400).json({ error: '链接格式无效' });
+      safeInitialUrl = await assertSafePublicUrl(rawUrl);
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : '链接不安全或格式无效',
+      });
       return;
     }
 
-    const hostname = parsedUrl.hostname.toLowerCase();
+    const hostname = safeInitialUrl.hostname.toLowerCase();
     const isYouTube =
       hostname.includes('youtube.com') || hostname === 'youtu.be' || hostname.endsWith('.youtu.be');
 
@@ -534,9 +549,11 @@ async function startServer() {
     try {
       if (isYouTube) {
         const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(
-          rawUrl
+          safeInitialUrl.toString()
         )}&format=json`;
-        const ytRes = await fetch(oembedUrl, { signal: controller.signal });
+        const { response: ytRes } = await safeFetchFollowingRedirects(oembedUrl, {
+          signal: controller.signal,
+        });
         if (ytRes.ok) {
           const ytData = (await ytRes.json()) as {
             title?: string;
@@ -544,25 +561,28 @@ async function startServer() {
             thumbnail_url?: string;
           };
           res.json({
-            title: ytData.title || parsedUrl.hostname,
+            title: ytData.title || safeInitialUrl.hostname,
             posterUrl: ytData.thumbnail_url || null,
             overview: ytData.author_name ? `YouTube · ${ytData.author_name}` : '通过 YouTube 链接导入',
-            sourceUrl: rawUrl,
+            sourceUrl: safeInitialUrl.toString(),
           });
           return;
         }
       }
 
-      // Open Graph scrape for Bilibili and any other URL
-      const htmlRes = await fetch(rawUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        },
-      });
+      // Open Graph scrape for Bilibili and any other URL with redirect SSRF checks
+      const { response: htmlRes, finalUrl } = await safeFetchFollowingRedirects(
+        safeInitialUrl.toString(),
+        {
+          signal: controller.signal,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          },
+        }
+      );
 
       if (htmlRes.ok) {
         const html = (await htmlRes.text()).slice(0, 180000);
@@ -585,7 +605,7 @@ async function startServer() {
           extractMeta('og:title') ||
           extractMeta('twitter:title') ||
           (titleMatch?.[1] ? decodeHtmlEntities(titleMatch[1].trim()) : null) ||
-          rawUrl;
+          finalUrl.toString();
 
         const cleanedTitle = ogTitle
           .replace(/_哔哩哔哩_bilibili$/i, '')
@@ -596,7 +616,7 @@ async function startServer() {
         if (ogImage && ogImage.startsWith('//')) {
           ogImage = `https:${ogImage}`;
         } else if (ogImage && ogImage.startsWith('/')) {
-          ogImage = `${parsedUrl.origin}${ogImage}`;
+          ogImage = `${finalUrl.origin}${ogImage}`;
         }
 
         const ogDesc =
@@ -606,24 +626,33 @@ async function startServer() {
           '';
 
         res.json({
-          title: cleanedTitle || parsedUrl.hostname,
+          title: cleanedTitle || finalUrl.hostname,
           posterUrl: ogImage,
           overview: ogDesc,
-          sourceUrl: rawUrl,
+          sourceUrl: finalUrl.toString(),
         });
         return;
       }
-    } catch {
-      // Fall back to basic URL metadata so the user can still edit and save it
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message.includes('仅允许') ||
+          err.message.includes('禁止访问') ||
+          err.message.includes('重定向'))
+      ) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      // Fall back to basic URL metadata for transient upstream HTTP errors
     } finally {
       clearTimeout(timeout);
     }
 
     res.json({
-      title: parsedUrl.hostname + parsedUrl.pathname,
+      title: safeInitialUrl.hostname + safeInitialUrl.pathname,
       posterUrl: null,
-      overview: `来自链接：${rawUrl}`,
-      sourceUrl: rawUrl,
+      overview: `来自链接：${safeInitialUrl.toString()}`,
+      sourceUrl: safeInitialUrl.toString(),
     });
   });
 

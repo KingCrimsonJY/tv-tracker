@@ -10,6 +10,7 @@ import { zh } from '../i18n/zh';
 
 export const ListsPage: React.FC = () => {
   const {
+    loadingData,
     titles,
     seasonsByTitle,
     lists,
@@ -59,10 +60,10 @@ export const ListsPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
       <header className="flex items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
             {zh.lists.title}
           </h1>
-          <span className="text-xs sm:text-sm text-[#9ca3af] tabular-nums">
+          <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
             共 {sortedLists.length} 个
           </span>
         </div>
@@ -78,13 +79,27 @@ export const ListsPage: React.FC = () => {
         </Button>
       </header>
 
-      {sortedLists.length === 0 ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-[#1a1a1f] p-10 text-center max-w-lg mx-auto my-8 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#3b82f6]/15 text-[#60a5fa] flex items-center justify-center mx-auto">
+      {loadingData ? (
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+          aria-label="正在加载列表"
+        >
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-56 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse"
+            />
+          ))}
+        </div>
+      ) : sortedLists.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 text-center max-w-lg mx-auto my-8 space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center mx-auto">
             <Layers className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-semibold text-white">{zh.lists.emptyListsTitle}</h2>
-          <p className="text-sm text-[#9ca3af] leading-relaxed">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">
+            {zh.lists.emptyListsTitle}
+          </h2>
+          <p className="text-sm text-[var(--muted)] leading-relaxed">
             {zh.lists.emptyListsDescription}
           </p>
           <Button variant="primary" onPress={() => setCreateOpen(true)} className="gap-2">
@@ -127,16 +142,16 @@ export const ListsPage: React.FC = () => {
               <Link
                 key={list.id}
                 to={`/lists/${list.id}`}
-                className="group flex flex-col rounded-2xl border border-white/[0.07] bg-[#1a1a1f] hover:bg-[#202027] overflow-hidden transition-colors"
+                className="group flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-secondary)] overflow-hidden transition-colors"
               >
                 {/* 4-Poster Collage */}
-                <div className="grid grid-cols-4 gap-1 p-3 bg-[#151519] border-b border-white/[0.05]">
+                <div className="grid grid-cols-4 gap-1 p-3 bg-[var(--surface-secondary)] border-b border-[var(--separator)]">
                   {[0, 1, 2, 3].map((slot) => {
                     const item = collageTitles[slot];
                     return (
                       <div
                         key={slot}
-                        className="aspect-[2/3] rounded-lg overflow-hidden bg-[#1e1e24] border border-white/[0.05]"
+                        className="aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
                       >
                         {item ? (
                           <MediaImage
@@ -146,7 +161,7 @@ export const ListsPage: React.FC = () => {
                             mediaType={item.mediaType}
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/10">
+                          <div className="w-full h-full flex items-center justify-center text-[var(--muted)]/40">
                             <Film className="w-4 h-4" />
                           </div>
                         )}
@@ -158,8 +173,8 @@ export const ListsPage: React.FC = () => {
                 {/* Card Body */}
                 <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-xs text-[#9ca3af]">
-                      <span className="flex items-center gap-1.5 font-medium text-[#60a5fa]">
+                    <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                      <span className="flex items-center gap-1.5 font-medium text-[var(--accent-text)]">
                         {list.kind === 'ordered' ? (
                           <ListOrdered className="w-3.5 h-3.5" />
                         ) : (
@@ -173,26 +188,26 @@ export const ListsPage: React.FC = () => {
                       </span>
 
                       {list.pinned && (
-                        <span className="flex items-center gap-1 text-[#9ca3af]">
+                        <span className="flex items-center gap-1 text-[var(--muted)]">
                           <Pin className="w-3 h-3" />
                           <span>{zh.lists.pinnedBadge}</span>
                         </span>
                       )}
                     </div>
 
-                    <h2 className="text-base font-semibold text-white group-hover:text-[#60a5fa] transition-colors truncate">
+                    <h2 className="text-base font-semibold text-[var(--foreground)] group-hover:text-[var(--accent-text)] transition-colors truncate">
                       {list.name}
                     </h2>
 
                     {list.description && (
-                      <p className="text-xs text-[#9ca3af] line-clamp-1">
+                      <p className="text-xs text-[var(--muted)] line-clamp-1">
                         {list.description}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-[#9ca3af] tabular-nums">
+                    <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
                       <span>共 {stats.totalCount} 部作品</span>
                       <span>
                         已看 {stats.completedCount}/{stats.totalCount}
@@ -205,8 +220,8 @@ export const ListsPage: React.FC = () => {
                       size="sm"
                       className="w-full"
                     >
-                      <ProgressBar.Track className="h-1 bg-white/10 rounded-full overflow-hidden">
-                        <ProgressBar.Fill className="h-full bg-[#3b82f6] rounded-full" />
+                      <ProgressBar.Track className="h-1 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
+                        <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
                       </ProgressBar.Track>
                     </ProgressBar>
                   </div>
@@ -220,7 +235,7 @@ export const ListsPage: React.FC = () => {
       {/* Create List Modal */}
       <Modal.Backdrop isOpen={createOpen} onOpenChange={setCreateOpen} isDismissable>
         <Modal.Container size="md" placement="center">
-          <Modal.Dialog className="bg-[#1e1e24] border border-white/10 rounded-2xl p-6 text-white outline-none">
+          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
             <Modal.Header>
               <Modal.Heading className="text-lg font-semibold">
                 {zh.lists.createModal.title}
@@ -229,7 +244,7 @@ export const ListsPage: React.FC = () => {
 
             <form onSubmit={handleCreateSubmit} className="mt-4 space-y-4">
               <div className="space-y-1.5">
-                <label htmlFor="new-list-name" className="block text-xs text-[#9ca3af]">
+                <label htmlFor="new-list-name" className="block text-xs text-[var(--muted)]">
                   {zh.lists.createModal.nameLabel}
                 </label>
                 <input
@@ -241,13 +256,13 @@ export const ListsPage: React.FC = () => {
                     setNameError(null);
                   }}
                   placeholder={zh.lists.createModal.namePlaceholder}
-                  className="w-full h-10 px-3.5 rounded-xl bg-[#141418] border border-white/10 text-sm text-white focus:outline-none focus:border-[#3b82f6]"
+                  className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
                 />
-                {nameError && <p className="text-xs text-red-400">{nameError}</p>}
+                {nameError && <p className="text-xs text-[var(--danger)]">{nameError}</p>}
               </div>
 
               <div className="space-y-2">
-                <span className="block text-xs text-[#9ca3af]">
+                <span className="block text-xs text-[var(--muted)]">
                   {zh.lists.createModal.kindLabel}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -256,15 +271,15 @@ export const ListsPage: React.FC = () => {
                     onClick={() => setKind('ordered')}
                     className={`p-3 rounded-xl border text-left transition-colors ${
                       kind === 'ordered'
-                        ? 'bg-[#3b82f6]/15 border-[#3b82f6] text-white'
-                        : 'bg-[#141418] border-white/10 text-[#9ca3af]'
+                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--foreground)]'
+                        : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)]'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm font-medium text-white">
-                      <ListOrdered className="w-4 h-4 text-[#60a5fa]" />
+                    <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+                      <ListOrdered className="w-4 h-4 text-[var(--accent-text)]" />
                       <span>{zh.lists.orderedType}</span>
                     </div>
-                    <p className="mt-1 text-xs text-[#9ca3af] leading-snug">
+                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug">
                       按顺序编号排列，自动高亮下一部待看
                     </p>
                   </button>
@@ -274,15 +289,15 @@ export const ListsPage: React.FC = () => {
                     onClick={() => setKind('collection')}
                     className={`p-3 rounded-xl border text-left transition-colors ${
                       kind === 'collection'
-                        ? 'bg-[#3b82f6]/15 border-[#3b82f6] text-white'
-                        : 'bg-[#141418] border-white/10 text-[#9ca3af]'
+                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--foreground)]'
+                        : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)]'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sm font-medium text-white">
-                      <Bookmark className="w-4 h-4 text-[#60a5fa]" />
+                    <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+                      <Bookmark className="w-4 h-4 text-[var(--accent-text)]" />
                       <span>{zh.lists.collectionType}</span>
                     </div>
-                    <p className="mt-1 text-xs text-[#9ca3af] leading-snug">
+                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug">
                       海报墙视图，支持多种排序与手动拖拽
                     </p>
                   </button>
@@ -290,7 +305,7 @@ export const ListsPage: React.FC = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="new-list-desc" className="block text-xs text-[#9ca3af]">
+                <label htmlFor="new-list-desc" className="block text-xs text-[var(--muted)]">
                   {zh.lists.createModal.descriptionLabel}
                 </label>
                 <input
@@ -299,7 +314,7 @@ export const ListsPage: React.FC = () => {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={zh.lists.createModal.descriptionPlaceholder}
-                  className="w-full h-10 px-3.5 rounded-xl bg-[#141418] border border-white/10 text-sm text-white focus:outline-none focus:border-[#3b82f6]"
+                  className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
                 />
               </div>
 
@@ -308,9 +323,9 @@ export const ListsPage: React.FC = () => {
                   type="checkbox"
                   checked={pinned}
                   onChange={(e) => setPinned(e.target.checked)}
-                  className="w-4 h-4 rounded accent-[#3b82f6]"
+                  className="w-4 h-4 rounded accent-[var(--accent)]"
                 />
-                <span className="text-sm text-[#d1d5db]">
+                <span className="text-sm text-[var(--foreground-secondary)]">
                   {zh.lists.createModal.pinnedLabel}
                 </span>
               </label>
