@@ -239,9 +239,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         </div>
       </aside>
 
-      {/* Main Content Area: bottom padding matches 64px + env(safe-area-inset-bottom) on phone */}
+      {/* Main Content Area: bottom padding = 64px + safe-area + 16px on phone */}
       <div className="flex-1 sm:pl-20 lg:pl-64 flex flex-col min-w-0">
-        <main className="flex-1 w-full max-w-[1400px] mx-auto pb-[calc(64px+env(safe-area-inset-bottom,0px))] sm:pb-12">
+        <main className="flex-1 w-full max-w-[1400px] mx-auto pb-[calc(64px+env(safe-area-inset-bottom,0px)+16px)] sm:pb-12">
           {children}
         </main>
       </div>
@@ -251,7 +251,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-[calc(76px+env(safe-area-inset-bottom,0px))] sm:bottom-6 right-4 left-4 sm:left-auto sm:max-w-sm z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-[var(--overlay)] border border-[var(--danger)] text-[var(--foreground)] shadow-xl"
+          className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] sm:bottom-6 right-4 left-4 sm:left-auto sm:max-w-sm z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-[var(--overlay)] border border-[var(--danger)] text-[var(--foreground)] shadow-xl"
         >
           <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium min-w-0">
             <AlertCircle className="w-4 h-4 shrink-0 text-[var(--danger)]" />

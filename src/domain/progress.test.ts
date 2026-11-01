@@ -636,3 +636,47 @@ registerTest('14. SSRF protection rejects private, loopback, link-local IPs and 
   ]);
   assert.equal(valid.hostname, 'www.bilibili.com');
 });
+
+registerTest('15. computeSeasonState with allSeasons accounts for later aired episodes across seasons', () => {
+  const seasons: SeasonDoc[] = [
+    {
+      seasonNumber: 1,
+      name: '第 1 季',
+      episodes: [
+        {
+          number: 1,
+          key: 's1e1',
+          name: '第 1 集',
+          airDate: null, // no airDate, but Season 2 Episode 1 has aired
+          runtime: 45,
+          stillPath: null,
+          overview: {},
+        },
+      ],
+    },
+    {
+      seasonNumber: 2,
+      name: '第 2 季',
+      episodes: [
+        {
+          number: 1,
+          key: 's2e1',
+          name: '第 1 集',
+          airDate: '2024-01-01',
+          runtime: 45,
+          stillPath: null,
+          overview: {},
+        },
+      ],
+    },
+  ];
+
+  const s1State = computeSeasonState(seasons[0], { playthroughId: 'p1', watched: {} }, {
+    todayStr: '2026-11-01',
+    allSeasons: seasons,
+  });
+  // Since S2E1 has aired, S1E1 is treated as aired too
+  assert.equal(s1State.airedCount, 1);
+  assert.equal(s1State.state, 'none');
+});
+

@@ -585,6 +585,7 @@ async function startServer() {
       );
 
       if (htmlRes.ok) {
+        const finalUrlObj = new URL(finalUrl);
         const html = (await htmlRes.text()).slice(0, 180000);
 
         const extractMeta = (prop: string): string | null => {
@@ -605,7 +606,7 @@ async function startServer() {
           extractMeta('og:title') ||
           extractMeta('twitter:title') ||
           (titleMatch?.[1] ? decodeHtmlEntities(titleMatch[1].trim()) : null) ||
-          finalUrl.toString();
+          finalUrlObj.toString();
 
         const cleanedTitle = ogTitle
           .replace(/_哔哩哔哩_bilibili$/i, '')
@@ -616,7 +617,7 @@ async function startServer() {
         if (ogImage && ogImage.startsWith('//')) {
           ogImage = `https:${ogImage}`;
         } else if (ogImage && ogImage.startsWith('/')) {
-          ogImage = `${finalUrl.origin}${ogImage}`;
+          ogImage = `${finalUrlObj.origin}${ogImage}`;
         }
 
         const ogDesc =
@@ -626,10 +627,10 @@ async function startServer() {
           '';
 
         res.json({
-          title: cleanedTitle || finalUrl.hostname,
+          title: cleanedTitle || finalUrlObj.hostname,
           posterUrl: ogImage,
           overview: ogDesc,
-          sourceUrl: finalUrl.toString(),
+          sourceUrl: finalUrlObj.toString(),
         });
         return;
       }

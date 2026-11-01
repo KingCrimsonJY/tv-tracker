@@ -846,9 +846,15 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       try {
         const batch = writeBatch(db);
-        batch.update(doc(db, progressPath), {
-          [`watched.${episodeKey}`]: newWatchedVal !== undefined ? newWatchedVal : deleteField(),
-        });
+        batch.set(
+          doc(db, progressPath),
+          {
+            watched: {
+              [episodeKey]: newWatchedVal !== undefined ? newWatchedVal : deleteField(),
+            },
+          },
+          { merge: true }
+        );
         batch.update(doc(db, titlePath), {
           manualState: res.manualState,
           resume: res.resume ? sanitizeForFirestore(res.resume) : null,
@@ -897,9 +903,9 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const titlePath = `users/${uid}/titles/${titleId}`;
       const progressPath = `users/${uid}/titles/${titleId}/progress/${nextProgress.playthroughId}`;
 
-      // Compute exact field-level watched.<key> updates
+      // Compute exact field-level nested watched map updates
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const progressUpdates: Record<string, any> = {};
+      const watchedUpdates: Record<string, any> = {};
       const allKeys = new Set([
         ...Object.keys(prevProgress.watched),
         ...Object.keys(nextProgress.watched),
@@ -908,11 +914,16 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const beforeVal = prevProgress.watched[k];
         const afterVal = nextProgress.watched[k];
         if (beforeVal !== afterVal) {
-          progressUpdates[`watched.${k}`] = afterVal !== undefined ? afterVal : deleteField();
+          watchedUpdates[k] = afterVal !== undefined ? afterVal : deleteField();
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const progressPayload: Record<string, any> = {};
+      if (Object.keys(watchedUpdates).length > 0) {
+        progressPayload.watched = watchedUpdates;
+      }
       if (prevProgress.movieWatchedAt !== nextProgress.movieWatchedAt) {
-        progressUpdates.movieWatchedAt =
+        progressPayload.movieWatchedAt =
           nextProgress.movieWatchedAt !== undefined
             ? nextProgress.movieWatchedAt
             : deleteField();
@@ -920,8 +931,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       try {
         const batch = writeBatch(db);
-        if (Object.keys(progressUpdates).length > 0) {
-          batch.update(doc(db, progressPath), progressUpdates);
+        if (Object.keys(progressPayload).length > 0) {
+          batch.set(doc(db, progressPath), progressPayload, { merge: true });
         }
         batch.update(doc(db, titlePath), {
           manualState: updatedTitle.manualState,

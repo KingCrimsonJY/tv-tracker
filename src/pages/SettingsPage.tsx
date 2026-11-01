@@ -126,6 +126,7 @@ export const SettingsPage: React.FC = () => {
     if (oldIndex < 0 || newIndex < 0) return;
 
     const newRank = computeMovedRank(orderedSections, oldIndex, newIndex);
+    if (!newRank) return;
     const next = orderedSections.map((s) =>
       s.id === active.id ? { ...s, rank: newRank } : s
     );

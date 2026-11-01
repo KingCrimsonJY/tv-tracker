@@ -132,8 +132,15 @@ export interface ListEntryDoc {
   addedAt: number;
 }
 
+export type HomeSectionId =
+  | 'continue_watching'
+  | 'new_episodes'
+  | 'pinned_lists'
+  | 'recently_added'
+  | 'watchlist';
+
 export interface HomeSectionConfig {
-  id: 'continue_watching' | 'new_episodes' | 'pinned_lists' | 'recently_added' | 'watchlist';
+  id: HomeSectionId;
   enabled: boolean;
   rank: string;
 }

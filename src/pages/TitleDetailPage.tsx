@@ -29,7 +29,6 @@ import {
   computeTitleState,
   formatEpisodeBadge,
   formatSeconds,
-  isEpisodeAired,
   isShowEnded,
   makeEpisodeKey,
   parseEpisodeKey,
@@ -75,14 +74,15 @@ export const TitleDetailPage: React.FC = () => {
     () => (titleId ? seasonsByTitle[titleId] || [] : []),
     [titleId, seasonsByTitle]
   );
-  const sortedSeasons = useMemo(() => sortSeasons(rawSeasons), [rawSeasons]);
+  const seasons = useMemo(() => sortSeasons(rawSeasons), [rawSeasons]);
+  const sortedSeasons = seasons;
   const regularSeasons = useMemo(
-    () => sortedSeasons.filter((s) => s.seasonNumber >= 1),
-    [sortedSeasons]
+    () => seasons.filter((s) => s.seasonNumber >= 1),
+    [seasons]
   );
   const specialsSeason = useMemo(
-    () => sortedSeasons.find((s) => s.seasonNumber === 0) || null,
-    [sortedSeasons]
+    () => seasons.find((s) => s.seasonNumber === 0) || null,
+    [seasons]
   );
 
   const treatAllAsAired = title?.source === 'custom' || title?.source === 'url';
@@ -91,11 +91,11 @@ export const TitleDetailPage: React.FC = () => {
   // Item 1: Build aired episode key set that treats episodes with no airDate as aired if the show is Ended/Canceled or any later episode has aired
   const airedKeySet = useMemo(
     () =>
-      buildAiredEpisodeKeySet(sortedSeasons, {
+      buildAiredEpisodeKeySet(seasons, {
         treatAllAsAired,
         showEnded,
       }),
-    [sortedSeasons, treatAllAsAired, showEnded]
+    [seasons, treatAllAsAired, showEnded]
   );
 
   const progress = title ? getActiveProgress(title) : undefined;
@@ -383,7 +383,7 @@ export const TitleDetailPage: React.FC = () => {
     ? computeSeasonState(currentSeason, progress, {
         treatAllAsAired,
         showEnded,
-        airedKeySet,
+        allSeasons: seasons,
       })
     : null;
 
@@ -410,7 +410,7 @@ export const TitleDetailPage: React.FC = () => {
     }
   ) => {
     const epKey = ep.key || makeEpisodeKey(seasonNumber, ep.number);
-    const aired = isEpisodeAired(ep, undefined, treatAllAsAired, airedKeySet);
+    const aired = airedKeySet.has(epKey);
     const isWatched = Boolean(progress?.watched[epKey]);
     const isNextUp = state.nextUp?.key === epKey;
     const hasResumeOnThis = title.resume?.episodeKey === epKey && title.resume.seconds > 0;
@@ -1201,9 +1201,10 @@ export const TitleDetailPage: React.FC = () => {
                   >
                     {regularSeasons.map((s) =>
                       s.episodes
-                        .filter((ep) =>
-                          isEpisodeAired(ep, undefined, treatAllAsAired, airedKeySet)
-                        )
+                        .filter((ep) => {
+                          const k = ep.key || makeEpisodeKey(s.seasonNumber, ep.number);
+                          return airedKeySet.has(k);
+                        })
                         .map((ep) => {
                           const k = ep.key || makeEpisodeKey(s.seasonNumber, ep.number);
                           return (

@@ -155,7 +155,7 @@ export const HomePage: React.FC = () => {
                   }
 
                   // Item 15: Progress bar uses resume seconds ÷ (runtime × 60) for movies and resumed episodes
-                  const ratio = getTitleContinueProgressRatio(title, seasons, state);
+                  const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
                   const pct = Math.max(2, Math.min(100, Math.round(ratio * 100)));
                   const detailHref = targetEpisodeKey
                     ? `/title/${title.id}?episode=${targetEpisodeKey}`
