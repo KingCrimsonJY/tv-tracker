@@ -162,16 +162,27 @@ export const SearchPage: React.FC = () => {
         },
         body: JSON.stringify({ url: rawUrl }),
       });
-      const data = (await res.json()) as {
+
+      let data: {
         sourceUrl?: string;
         title?: string;
         posterUrl?: string | null;
         overview?: string;
         suggestedMediaType?: MediaType;
         error?: string;
-      };
+      } = {};
+
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          data = (await res.json()) as typeof data;
+        } catch {
+          // ignore JSON parse error
+        }
+      }
+
       if (!res.ok) {
-        setLinkError(data.error || '无法解析该链接，请直接手动填写');
+        setLinkError(data.error || `解析失败 (HTTP ${res.status})，请检查链接或改用手动添加`);
         return;
       }
 
@@ -188,8 +199,12 @@ export const SearchPage: React.FC = () => {
       setCustomOverview(data.overview || '');
       setCustomTargetListId('');
       setCustomModalOpen(true);
-    } catch {
-      setLinkError('解析失败，请检查链接格式或改用手动添加');
+    } catch (err) {
+      setLinkError(
+        err instanceof Error && err.message
+          ? `解析失败: ${err.message}`
+          : '解析失败，请检查链接格式或改用手动添加'
+      );
     } finally {
       setLinkFetching(false);
     }

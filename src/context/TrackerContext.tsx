@@ -125,6 +125,8 @@ interface TrackerContextValue {
   toastMessage: string | null;
   showToast: (message: string) => void;
   dismissToast: () => void;
+  authServiceNotice: string | null;
+  dismissAuthServiceNotice: () => void;
   titles: Record<string, TitleDoc>;
   seasonsByTitle: Record<string, SeasonDoc[]>;
   progressByTitle: Record<string, Record<string, ProgressDoc>>;
@@ -212,6 +214,11 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
     }
+  }, []);
+
+  const [authServiceNotice, setAuthServiceNotice] = useState<string | null>(null);
+  const dismissAuthServiceNotice = useCallback(() => {
+    setAuthServiceNotice(null);
   }, []);
 
   // Clean up any legacy localStorage demo keys from earlier versions
@@ -356,7 +363,17 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       (err) => {
         buildFirestoreErrorInfo(err, OperationType.LIST, titlesPath);
         setLoadingData(false);
-        showToast(zh.app.unauthorizedAccountToast);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (
+          msg.includes('token-service-api-has-not-been-used') ||
+          msg.includes('Fetching auth token failed')
+        ) {
+          setAuthServiceNotice(
+            'Google 账号授权凭据已过期或项目未启用 Secure Token API，导致数据库离线。请点击重新登录刷新凭据，或前往 Google Cloud 控制台启用该 API。'
+          );
+        } else {
+          showToast(zh.app.unauthorizedAccountToast);
+        }
       }
     );
 
@@ -408,6 +425,15 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
       (err) => {
         buildFirestoreErrorInfo(err, OperationType.LIST, listsPath);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (
+          msg.includes('token-service-api-has-not-been-used') ||
+          msg.includes('Fetching auth token failed')
+        ) {
+          setAuthServiceNotice(
+            'Google 账号授权凭据已过期或项目未启用 Secure Token API，导致数据库离线。请点击重新登录刷新凭据，或前往 Google Cloud 控制台启用该 API。'
+          );
+        }
       }
     );
 
@@ -420,6 +446,15 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
       (err) => {
         buildFirestoreErrorInfo(err, OperationType.GET, settingsPath);
+        const msg = err instanceof Error ? err.message : String(err);
+        if (
+          msg.includes('token-service-api-has-not-been-used') ||
+          msg.includes('Fetching auth token failed')
+        ) {
+          setAuthServiceNotice(
+            'Google 账号授权凭据已过期或项目未启用 Secure Token API，导致数据库离线。请点击重新登录刷新凭据，或前往 Google Cloud 控制台启用该 API。'
+          );
+        }
       }
     );
 
@@ -1982,6 +2017,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       toastMessage,
       showToast,
       dismissToast,
+      authServiceNotice,
+      dismissAuthServiceNotice,
       titles,
       seasonsByTitle,
       progressByTitle,
@@ -2023,6 +2060,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       toastMessage,
       showToast,
       dismissToast,
+      authServiceNotice,
+      dismissAuthServiceNotice,
       titles,
       seasonsByTitle,
       progressByTitle,

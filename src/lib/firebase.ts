@@ -91,7 +91,12 @@ async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (
+      msg.includes('the client is offline') &&
+      !msg.includes('token-service-api-has-not-been-used') &&
+      !msg.includes('Fetching auth token failed')
+    ) {
       console.error('Please check your Firebase configuration.');
     }
   }

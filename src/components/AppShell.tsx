@@ -27,7 +27,16 @@ const NAV_ITEMS = [
 ];
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, lists, toastMessage, dismissToast, signIn, signOut } = useTracker();
+  const {
+    user,
+    lists,
+    toastMessage,
+    dismissToast,
+    authServiceNotice,
+    dismissAuthServiceNotice,
+    signIn,
+    signOut,
+  } = useTracker();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -241,6 +250,42 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Main Content Area: bottom padding = 64px + safe-area + 16px on phone */}
       <div className="flex-1 sm:pl-20 lg:pl-64 flex flex-col min-w-0">
+        {authServiceNotice && (
+          <div
+            role="alert"
+            className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm z-40 sticky top-0 backdrop-blur-md"
+          >
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span className="leading-relaxed">{authServiceNotice}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleSignIn}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 transition-colors text-xs shadow-sm"
+              >
+                重新授权登录
+              </button>
+              <a
+                href="https://console.developers.google.com/apis/api/securetoken.googleapis.com/overview?project=335869385733"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-colors text-xs font-medium"
+              >
+                启用 API
+              </a>
+              <button
+                type="button"
+                onClick={dismissAuthServiceNotice}
+                aria-label="关闭提示"
+                className="p-1 rounded-md text-amber-400/80 hover:text-amber-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
         <main className="flex-1 w-full max-w-[1400px] mx-auto pb-[calc(64px+env(safe-area-inset-bottom,0px)+16px)] sm:pb-12">
           {children}
         </main>
