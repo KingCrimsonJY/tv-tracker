@@ -1,0 +1,159 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isSignedIn() &&
+        request.auth.uid == userId &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidTitle(data) {
+      return data.keys().hasAll([
+          'source', 'mediaType', 'names', 'playthroughs',
+          'activePlaythroughId', 'addedAt', 'updatedAt', 'lastActivityAt'
+        ]) &&
+        data.keys().hasOnly([
+          'source', 'sourceId', 'mediaType', 'names', 'displayLang',
+          'year', 'runtimeMin', 'genres', 'posterPath', 'backdropPath',
+          'overview', 'showStatus', 'externalIds', 'ratings',
+          'manualState', 'playthroughs', 'activePlaythroughId',
+          'resume', 'metaFetchedAt', 'addedAt', 'updatedAt', 'lastActivityAt'
+        ]) &&
+        data.source in ['tmdb', 'url', 'custom'] &&
+        (!('sourceId' in data) || data.sourceId == null || (data.sourceId is string && data.sourceId.size() <= 128)) &&
+        data.mediaType in ['movie', 'tv', 'other'] &&
+        data.names is map &&
+        (!('displayLang' in data) || data.displayLang == null || data.displayLang in ['zh', 'original', 'en', 'custom']) &&
+        (!('year' in data) || data.year == null || data.year is number) &&
+        (!('runtimeMin' in data) || data.runtimeMin == null || data.runtimeMin is number) &&
+        (!('genres' in data) || (data.genres is list && data.genres.size() <= 30)) &&
+        (!('posterPath' in data) || data.posterPath == null || (data.posterPath is string && data.posterPath.size() <= 512)) &&
+        (!('backdropPath' in data) || data.backdropPath == null || (data.backdropPath is string && data.backdropPath.size() <= 512)) &&
+        (!('overview' in data) || data.overview is map) &&
+        (!('showStatus' in data) || data.showStatus == null || (data.showStatus is string && data.showStatus.size() <= 64)) &&
+        (!('externalIds' in data) || data.externalIds is map) &&
+        (!('ratings' in data) || data.ratings is map) &&
+        (!('manualState' in data) || data.manualState == null || data.manualState in ['paused', 'dropped']) &&
+        data.playthroughs is list && data.playthroughs.size() >= 1 && data.playthroughs.size() <= 50 &&
+        data.activePlaythroughId is string && data.activePlaythroughId.size() >= 1 && data.activePlaythroughId.size() <= 128 &&
+        (!('resume' in data) || data.resume == null || data.resume is map) &&
+        (!('metaFetchedAt' in data) || data.metaFetchedAt == null || data.metaFetchedAt is number) &&
+        data.addedAt is number &&
+        data.updatedAt is number &&
+        data.lastActivityAt is number;
+    }
+
+    function isValidSeason(data) {
+      return data.keys().hasAll(['seasonNumber', 'name', 'episodes']) &&
+        data.keys().hasOnly(['seasonNumber', 'name', 'episodes']) &&
+        data.seasonNumber is number &&
+        data.name is string && data.name.size() <= 256 &&
+        data.episodes is list && data.episodes.size() <= 2000;
+    }
+
+    function isValidProgress(data) {
+      return data.keys().hasAll(['watched']) &&
+        data.keys().hasOnly(['watched', 'movieWatchedAt']) &&
+        data.watched is map &&
+        (!('movieWatchedAt' in data) || data.movieWatchedAt == null || data.movieWatchedAt is number);
+    }
+
+    function isValidWatchList(data) {
+      return data.keys().hasAll(['name', 'kind', 'pinned', 'rank', 'collectionSort', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'kind', 'description', 'pinned', 'rank', 'collectionSort', 'createdAt']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.kind in ['ordered', 'collection'] &&
+        (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 1000)) &&
+        data.pinned is bool &&
+        data.rank is string && data.rank.size() >= 1 && data.rank.size() <= 128 &&
+        data.collectionSort in ['added', 'name', 'year', 'rating', 'manual'] &&
+        data.createdAt is number;
+    }
+
+    function isValidListEntry(data) {
+      return data.keys().hasAll(['titleId', 'rank', 'addedAt']) &&
+        data.keys().hasOnly(['titleId', 'rank', 'note', 'addedAt']) &&
+        data.titleId is string && data.titleId.size() >= 1 && data.titleId.size() <= 128 &&
+        data.rank is string && data.rank.size() >= 1 && data.rank.size() <= 128 &&
+        (!('note' in data) || data.note == null || (data.note is string && data.note.size() <= 500)) &&
+        data.addedAt is number;
+    }
+
+    function isValidAppSettings(data) {
+      return data.keys().hasAll(['defaultTitleLang', 'includeSpecials', 'homeSections', 'theme']) &&
+        data.keys().hasOnly(['defaultTitleLang', 'includeSpecials', 'homeSections', 'theme']) &&
+        data.defaultTitleLang in ['zh', 'original', 'en'] &&
+        data.includeSpecials is bool &&
+        data.homeSections is list && data.homeSections.size() <= 20 &&
+        data.theme in ['dark', 'light', 'system'];
+    }
+
+    match /users/{userId} {
+      match /titles/{titleId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(titleId);
+        allow list: if isVerifiedOwner(userId);
+        allow create: if isVerifiedOwner(userId) && isValidId(titleId) && isValidTitle(incoming());
+        allow update: if isVerifiedOwner(userId) && isValidId(titleId) && isValidTitle(incoming());
+        allow delete: if isVerifiedOwner(userId) && isValidId(titleId);
+
+        match /seasons/{seasonNumber} {
+          allow get: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(seasonNumber);
+          allow list: if isVerifiedOwner(userId);
+          allow create: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(seasonNumber) && isValidSeason(incoming());
+          allow update: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(seasonNumber) && isValidSeason(incoming());
+          allow delete: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(seasonNumber);
+        }
+
+        match /progress/{playthroughId} {
+          allow get: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(playthroughId);
+          allow list: if isVerifiedOwner(userId);
+          allow create: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(playthroughId) && isValidProgress(incoming());
+          allow update: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(playthroughId) && isValidProgress(incoming());
+          allow delete: if isVerifiedOwner(userId) && isValidId(titleId) && isValidId(playthroughId);
+        }
+      }
+
+      match /lists/{listId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(listId);
+        allow list: if isVerifiedOwner(userId);
+        allow create: if isVerifiedOwner(userId) && isValidId(listId) && isValidWatchList(incoming());
+        allow update: if isVerifiedOwner(userId) && isValidId(listId) && isValidWatchList(incoming());
+        allow delete: if isVerifiedOwner(userId) && isValidId(listId);
+
+        match /entries/{entryId} {
+          allow get: if isVerifiedOwner(userId) && isValidId(listId) && isValidId(entryId);
+          allow list: if isVerifiedOwner(userId);
+          allow create: if isVerifiedOwner(userId) && isValidId(listId) && isValidId(entryId) && isValidListEntry(incoming());
+          allow update: if isVerifiedOwner(userId) && isValidId(listId) && isValidId(entryId) && isValidListEntry(incoming());
+          allow delete: if isVerifiedOwner(userId) && isValidId(listId) && isValidId(entryId);
+        }
+      }
+
+      match /settings/{settingId} {
+        allow get: if isVerifiedOwner(userId) && isValidId(settingId);
+        allow list: if isVerifiedOwner(userId);
+        allow create: if isVerifiedOwner(userId) && isValidId(settingId) && isValidAppSettings(incoming());
+        allow update: if isVerifiedOwner(userId) && isValidId(settingId) && isValidAppSettings(incoming());
+        allow delete: if isVerifiedOwner(userId) && isValidId(settingId);
+      }
+    }
+  }
+}
