@@ -56,6 +56,8 @@ export function tmdbImageUrl(
   return `${TMDB_IMG_BASE}/${size}${filePath}`;
 }
 
+const TMDB_TIMEOUT_MS = 10_000;
+
 async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
   const token = getTmdbToken();
   if (!token) {
@@ -72,6 +74,7 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
     url.searchParams.set('api_key', token);
     const res = await fetch(url.toString(), {
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(`TMDB HTTP ${res.status}: ${await res.text()}`);
@@ -84,6 +87,7 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
       Authorization: `Bearer ${token}`,
       Accept: 'application/json',
     },
+    signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
   });
 
   if (res.status === 401) {
@@ -91,6 +95,7 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
     fallbackUrl.searchParams.set('api_key', token);
     const retryRes = await fetch(fallbackUrl.toString(), {
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
     });
     if (retryRes.ok) {
       return (await retryRes.json()) as T;

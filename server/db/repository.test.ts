@@ -312,4 +312,50 @@ describe('TrackerRepository (in-memory SQLite)', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('preserves pre-import safety backup when a later daily backup runs on the same day and across 14+ daily backups', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zhenji-pre-import-test-'));
+    try {
+      const fileRepo = new TrackerRepository({ dataDir: tmpDir });
+      const originalTitle = makeSampleTitle('tmdb_tv_100', '导入前的原始剧集');
+      fileRepo.putTitle(originalTitle.id, { title: originalTitle, seasons: [] });
+
+      const emptyExport = {
+        format: 'zhenji-export' as const,
+        version: 2 as const,
+        exportedAt: '2026-03-01T10:20:30.000Z',
+        settings: DEFAULT_APP_SETTINGS,
+        titles: {},
+        seasonsByTitle: {},
+        progressByTitle: {},
+        lists: {},
+        entriesByList: {},
+      };
+
+      // Import triggers pre-import backup: tracker-2026-03-01-102030-pre-import.db
+      fileRepo.importData(emptyExport, {
+        now: new Date('2026-03-01T10:20:30.000Z'),
+      });
+
+      // Run daily backup on the same day AND 15 subsequent days
+      for (let day = 1; day <= 16; day++) {
+        const dateStr = `2026-03-${String(day).padStart(2, '0')}`;
+        fileRepo.runDailyMaintenance(dateStr);
+      }
+
+      const backupDir = path.join(tmpDir, 'backups');
+      const allBackupFiles = fs.readdirSync(backupDir).sort();
+      expect(allBackupFiles).toContain('tracker-2026-03-01-102030-pre-import.db');
+
+      // Open the pre-import backup DB and verify the original title is still intact inside it
+      const restoredRepo = new TrackerRepository({
+        dbPath: path.join(backupDir, 'tracker-2026-03-01-102030-pre-import.db'),
+      });
+      expect(restoredRepo.getState().titles['tmdb_tv_100']?.names.zh).toBe('导入前的原始剧集');
+      restoredRepo.close();
+      fileRepo.close();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

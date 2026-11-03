@@ -1,7 +1,10 @@
+import compression from 'compression';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import crypto from 'node:crypto';
 import { ZodError } from 'zod';
 import {
   authPasswordRequestSchema,
+  authSetupRequestSchema,
   importPayloadSchema,
   patchListEntryRequestSchema,
   patchListRequestSchema,
@@ -28,6 +31,7 @@ import {
   SESSION_TTL_MS,
   setSessionCookie,
   verifyPassword,
+  verifySetupCode,
 } from './auth.ts';
 import { ConflictError, NotFoundError, type TrackerRepository } from './db/repository.ts';
 import { resolveLinkMetadata } from './providers/linkImport.ts';
@@ -42,9 +46,16 @@ export interface CreateAppOptions {
   repo: TrackerRepository;
   nowFn?: () => number;
   envPasswordHash?: string;
+  setupCode?: string;
   trustProxy?: boolean;
   isProduction?: boolean;
   rateLimiter?: LoginRateLimiter;
+}
+
+interface SseClient {
+  res: Response;
+  tokenHash: string;
+  close: () => void;
 }
 
 function extractAuthToken(req: Request): { token: string | null; viaCookie: boolean } {
@@ -70,24 +81,61 @@ export function createApp(options: CreateAppOptions): Express {
     repo,
     nowFn = () => Date.now(),
     envPasswordHash,
+    setupCode,
     trustProxy = process.env.TRUST_PROXY === '1',
     isProduction = process.env.NODE_ENV === 'production',
     rateLimiter = new LoginRateLimiter(),
   } = options;
 
   const app = express();
-  app.use(express.json({ limit: '10mb' }));
 
-  const sseClients = new Set<Response>();
+  // gzip responses with compression middleware, but never compress /api/events
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.path === '/api/events' || req.originalUrl.startsWith('/api/events')) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    })
+  );
+
+  // Allow request bodies up to 50 MB on POST /api/import only; keep 1 MB elsewhere
+  const json1mb = express.json({ limit: '1mb' });
+  const json50mb = express.json({ limit: '50mb' });
+  app.use((req, res, next) => {
+    if (req.method === 'POST' && req.path === '/api/import') {
+      json50mb(req, res, next);
+      return;
+    }
+    json1mb(req, res, next);
+  });
+
+  const sseClients = new Set<SseClient>();
 
   function broadcastMutation(mutation: StateMutationResult): void {
     const payload = `data: ${JSON.stringify(mutation)}\n\n`;
     for (const client of sseClients) {
       try {
-        client.write(payload);
+        client.res.write(payload);
       } catch {
-        sseClients.delete(client);
+        client.close();
       }
+    }
+  }
+
+  function closeSseClientsForSession(tokenHash: string): void {
+    for (const client of [...sseClients]) {
+      if (client.tokenHash === tokenHash) {
+        client.close();
+      }
+    }
+  }
+
+  function closeAllSseClients(): void {
+    for (const client of [...sseClients]) {
+      client.close();
     }
   }
 
@@ -100,6 +148,16 @@ export function createApp(options: CreateAppOptions): Express {
       return rawEnv;
     }
     return repo.getStoredPasswordHash();
+  }
+
+  // Generate or read one-time setup code while no password exists
+  const configuredSetupCode = (setupCode !== undefined ? setupCode : process.env.SETUP_CODE || '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+  const activeSetupCode = configuredSetupCode || crypto.randomBytes(9).toString('base64url');
+  if (!getActivePasswordHash() && !configuredSetupCode) {
+    console.log(`[Auth] First-run setup code: ${activeSetupCode}`);
   }
 
   function isSessionAuthenticated(req: Request): {
@@ -134,7 +192,7 @@ export function createApp(options: CreateAppOptions): Express {
     res.json({ needsSetup, authenticated });
   });
 
-  // First-run password setup (one-time only while no password exists)
+  // First-run password setup (one-time only while no password exists; requires setupCode and >= 10 char password)
   app.post('/api/auth/setup', (req, res, next) => {
     try {
       const activeHash = getActivePasswordHash();
@@ -143,7 +201,12 @@ export function createApp(options: CreateAppOptions): Express {
         return;
       }
 
-      const { password } = authPasswordRequestSchema.parse(req.body);
+      const { password, setupCode: providedSetupCode } = authSetupRequestSchema.parse(req.body);
+      if (!verifySetupCode(providedSetupCode, activeSetupCode)) {
+        res.status(403).json({ error: '设置码不正确，请检查服务器日志或 SETUP_CODE 环境变量' });
+        return;
+      }
+
       const now = nowFn();
       const passwordHash = hashPassword(password);
       repo.setStoredPasswordHash(passwordHash, now);
@@ -223,19 +286,21 @@ export function createApp(options: CreateAppOptions): Express {
     next();
   });
 
-  // Logout current session
+  // Logout current session (and close its SSE streams)
   app.post('/api/auth/logout', (_req, res) => {
     const tokenHash = res.locals.tokenHash as string | undefined;
     if (tokenHash) {
       repo.deleteSession(tokenHash);
+      closeSseClientsForSession(tokenHash);
     }
     clearSessionCookie(res, isProduction);
     res.json({ ok: true });
   });
 
-  // Logout all sessions
+  // Logout all sessions (and close all SSE streams)
   app.post('/api/auth/logout-all', (_req, res) => {
     repo.deleteAllSessions();
+    closeAllSseClients();
     clearSessionCookie(res, isProduction);
     res.json({ ok: true });
   });
@@ -245,8 +310,10 @@ export function createApp(options: CreateAppOptions): Express {
     res.json(repo.getState());
   });
 
-  // Server-Sent Events stream
+  // Server-Sent Events stream (10s heartbeat, tracked per session)
   app.get('/api/events', (req, res) => {
+    const tokenHash = (res.locals.tokenHash as string) || '';
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -254,20 +321,35 @@ export function createApp(options: CreateAppOptions): Express {
     res.flushHeaders?.();
 
     res.write(': connected\n\n');
-    sseClients.add(res);
 
+    let closed = false;
     const heartbeat = setInterval(() => {
       try {
         res.write(': heartbeat\n\n');
       } catch {
-        clearInterval(heartbeat);
-        sseClients.delete(res);
+        client.close();
       }
-    }, 25_000);
+    }, 10_000);
 
+    const client: SseClient = {
+      res,
+      tokenHash,
+      close: () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        sseClients.delete(client);
+        try {
+          res.end();
+        } catch {
+          // ignore
+        }
+      },
+    };
+
+    sseClients.add(client);
     req.on('close', () => {
-      clearInterval(heartbeat);
-      sseClients.delete(res);
+      client.close();
     });
   });
 
@@ -578,6 +660,11 @@ export function createApp(options: CreateAppOptions): Express {
     }
   });
 
+  // Unknown /api routes return JSON 404 (registered before SPA fallback)
+  app.use('/api', (_req: Request, res: Response) => {
+    res.status(404).json({ error: '未找到请求的 API 路径' });
+  });
+
   // Error handling middleware
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
@@ -594,6 +681,15 @@ export function createApp(options: CreateAppOptions): Express {
     }
     if (err instanceof ConflictError) {
       res.status(409).json({ error: err.message });
+      return;
+    }
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'type' in err &&
+      (err as { type?: string }).type === 'entity.too.large'
+    ) {
+      res.status(413).json({ error: '请求体过大' });
       return;
     }
     console.error('Unhandled API error:', err);

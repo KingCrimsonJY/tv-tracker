@@ -23,8 +23,10 @@ import {
   getActiveProgressFromState,
   type UpdateTitleDetailsInput,
 } from '../data/actions.ts';
+import { runOneTimeLegacyStorageCleanup } from '../data/storageCleanup.ts';
 import {
   applyMutationResult,
+  applyStateSnapshot,
   buildExportV2FromState,
   createInitialAppState,
 } from '../data/store.ts';
@@ -45,6 +47,9 @@ import type {
 
 export type { CustomTitleInput, UpdateTitleDetailsInput };
 
+const SSE_WATCHDOG_TIMEOUT_MS = 15_000;
+const OFFLINE_OVERLAY_DELAY_MS = 5_000;
+
 export interface TrackerContextValue {
   authReady: boolean;
   needsSetup: boolean;
@@ -61,7 +66,7 @@ export interface TrackerContextValue {
   lists: Record<string, WatchListDoc>;
   entriesByList: Record<string, ListEntryDoc[]>;
   settings: AppSettingsDoc;
-  setupPassword: (password: string) => Promise<void>;
+  setupPassword: (password: string, setupCode: string) => Promise<void>;
   loginWithPassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
   signOutAll: () => Promise<void>;
@@ -116,7 +121,9 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [needsSetup, setNeedsSetup] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
-  const [serverUnreachable, setServerUnreachable] = useState(false);
+  const [serverUnreachable, setServerUnreachable] = useState(() =>
+    typeof navigator !== 'undefined' && navigator.onLine === false
+  );
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
   const [state, setState] = useState<AppStateSnapshot>(() => createInitialAppState());
@@ -144,6 +151,11 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
     }
+  }, []);
+
+  // Run one-time cleanup of leftover Firebase IndexedDB & localStorage keys on app start
+  useEffect(() => {
+    void runOneTimeLegacyStorageCleanup();
   }, []);
 
   // Apply theme (dark / light / system) to document.documentElement
@@ -174,7 +186,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const refreshStateFromServer = useCallback(async () => {
     try {
       const snapshot = await fetchStateSnapshot();
-      setState(snapshot);
+      // Only replace local state with a snapshot whose version >= current local version
+      setState((prev) => applyStateSnapshot(prev, snapshot));
       setServerUnreachable(false);
       setLoadingData(false);
     } catch (err) {
@@ -213,22 +226,44 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [refreshStateFromServer]);
 
   useEffect(() => {
-    checkAuthAndLoad();
+    void checkAuthAndLoad();
   }, [checkAuthAndLoad]);
+
+  const retryConnection = useCallback(async () => {
+    await checkAuthAndLoad();
+    setReconnectTrigger((n) => n + 1);
+  }, [checkAuthAndLoad]);
+
+  // Listen to browser offline / online events: show 无法连接到服务器 immediately when offline
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOffline = () => {
+      setServerUnreachable(true);
+    };
+    const handleOnline = () => {
+      void retryConnection();
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [retryConnection]);
 
   // Refetch state when tab becomes visible again
   useEffect(() => {
     if (!authenticated || typeof document === 'undefined') return;
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        refreshStateFromServer();
+        void refreshStateFromServer();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [authenticated, refreshStateFromServer]);
 
-  // Subscribe to SSE /api/events and enforce 5s offline blocking policy
+  // Subscribe to SSE /api/events with 15s byte watchdog and 5s offline blocking policy
   useEffect(() => {
     if (!authenticated) return;
 
@@ -236,14 +271,36 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let abortController: AbortController | null = null;
     let offlineTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearWatchdog = () => {
+      if (watchdogTimer) {
+        clearTimeout(watchdogTimer);
+        watchdogTimer = null;
+      }
+    };
+
+    const resetWatchdog = () => {
+      clearWatchdog();
+      if (cancelled) return;
+      watchdogTimer = setTimeout(() => {
+        if (!cancelled) {
+          abortController?.abort();
+        }
+      }, SSE_WATCHDOG_TIMEOUT_MS);
+    };
 
     const startOfflineCountdown = () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setServerUnreachable(true);
+        return;
+      }
       if (offlineTimer || cancelled) return;
       offlineTimer = setTimeout(() => {
         if (!cancelled) {
           setServerUnreachable(true);
         }
-      }, 5000);
+      }, OFFLINE_OVERLAY_DELAY_MS);
     };
 
     const clearOfflineCountdown = () => {
@@ -251,7 +308,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         clearTimeout(offlineTimer);
         offlineTimer = null;
       }
-      if (!cancelled) {
+      if (!cancelled && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
         setServerUnreachable(false);
       }
     };
@@ -259,6 +316,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const connectEventStream = async (isReconnect: boolean) => {
       if (cancelled) return;
       abortController = new AbortController();
+      resetWatchdog();
 
       try {
         const res = await apiFetch('/api/events', {
@@ -267,6 +325,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
 
         if (res.status === 401) {
+          clearWatchdog();
           if (!cancelled) {
             setAuthenticated(false);
             setState(createInitialAppState());
@@ -279,6 +338,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
 
         clearOfflineCountdown();
+        resetWatchdog();
         if (isReconnect) {
           await refreshStateFromServer();
         }
@@ -291,6 +351,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const { value, done } = await reader.read();
           if (done) break;
           clearOfflineCountdown();
+          resetWatchdog();
 
           buffer += decoder.decode(value, { stream: true });
           const blocks = buffer.split('\n\n');
@@ -313,11 +374,13 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         }
 
+        clearWatchdog();
         if (!cancelled) {
           startOfflineCountdown();
           retryTimer = setTimeout(() => connectEventStream(true), 1500);
         }
       } catch {
+        clearWatchdog();
         if (!cancelled) {
           startOfflineCountdown();
           retryTimer = setTimeout(() => connectEventStream(true), 2000);
@@ -325,24 +388,20 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
 
-    connectEventStream(false);
+    void connectEventStream(false);
 
     return () => {
       cancelled = true;
+      clearWatchdog();
       abortController?.abort();
       if (offlineTimer) clearTimeout(offlineTimer);
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, [authenticated, reconnectTrigger, applyServerMutation, refreshStateFromServer]);
 
-  const retryConnection = useCallback(async () => {
-    await checkAuthAndLoad();
-    setReconnectTrigger((n) => n + 1);
-  }, [checkAuthAndLoad]);
-
   const setupPassword = useCallback(
-    async (password: string) => {
-      await setupPasswordApi(password);
+    async (password: string, setupCode: string) => {
+      await setupPasswordApi(password, setupCode);
       setNeedsSetup(false);
       setAuthenticated(true);
       setLoadingData(true);

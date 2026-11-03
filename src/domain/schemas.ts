@@ -155,6 +155,11 @@ export const appSettingsDocSchema = z.object({
 });
 
 // Route request schemas
+export const authSetupRequestSchema = z.object({
+  password: z.string().min(10, '密码长度至少为 10 个字符').max(256),
+  setupCode: z.string().min(1, '请输入设置码'),
+});
+
 export const authPasswordRequestSchema = z.object({
   password: z.string().min(1, '密码不能为空').max(256),
 });

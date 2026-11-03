@@ -48,19 +48,31 @@ function todayDateStr(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
 
-function pruneDirectoryKeepingNewest(dirPath: string, ext: string, keepCount = 14): void {
+function formatTimeHHmmss(now = new Date()): string {
+  return now.toISOString().slice(11, 19).replace(/:/g, '');
+}
+
+const DAILY_BACKUP_REGEX = /^tracker-\d{4}-\d{2}-\d{2}\.db$/;
+const SAFETY_BACKUP_REGEX = /^tracker-\d{4}-\d{2}-\d{2}-\d{6}-pre-(?:import|migration)(?:-\d+)?\.db$/;
+const DAILY_EXPORT_REGEX = /^zhenji-\d{4}-\d{2}-\d{2}\.json$/;
+
+function pruneMatchingFilesKeepingNewest(
+  dirPath: string,
+  pattern: RegExp,
+  keepCount: number
+): void {
   if (!fs.existsSync(dirPath)) return;
   const files = fs
     .readdirSync(dirPath)
-    .filter((f) => f.endsWith(ext))
-    .sort(); // Lexicographical sort matches YYYY-MM-DD ascending
+    .filter((f) => pattern.test(f))
+    .sort(); // Lexicographical sort matches YYYY-MM-DD(-HHmmss) ascending
   if (files.length <= keepCount) return;
   const toDelete = files.slice(0, files.length - keepCount);
   for (const file of toDelete) {
     try {
       fs.unlinkSync(path.join(dirPath, file));
-    } catch {
-      // ignore unlink failure
+    } catch (err) {
+      console.error(`Failed to prune old file ${file}:`, err);
     }
   }
 }
@@ -82,7 +94,7 @@ export class TrackerRepository {
       options.dbPath || (resolvedDataDir ? path.join(resolvedDataDir, 'tracker.db') : ':memory:');
     this.isMemory = dbPath === ':memory:';
     this.migrationsDir =
-      options.migrationsDir || path.resolve(process.cwd(), 'server/db/migrations');
+      options.migrationsDir || path.resolve(import.meta.dirname, 'migrations');
 
     if (!this.isMemory && this.dataDir) {
       fs.mkdirSync(this.dataDir, { recursive: true });
@@ -130,9 +142,9 @@ export class TrackerRepository {
 
     if (pending.length === 0) return;
 
-    // Automatic backup before applying migrations on an existing file database
+    // Automatic safety backup before applying migrations on an existing file database
     if (!this.isMemory && this.dataDir && currentVersion > 0) {
-      this.backupDatabase();
+      this.createSafetyBackup('pre-migration');
     }
 
     for (const migration of pending) {
@@ -177,12 +189,54 @@ export class TrackerRepository {
     return row?.value ? Number.parseInt(row.value, 10) || 0 : 0;
   }
 
+  public createSafetyBackup(
+    kind: 'pre-migration' | 'pre-import',
+    now = new Date()
+  ): string | null {
+    if (this.isMemory || !this.dataDir) return null;
+    const backupsDir = path.join(this.dataDir, 'backups');
+    fs.mkdirSync(backupsDir, { recursive: true });
+
+    const dateStr = todayDateStr(now);
+    const timeStr = formatTimeHHmmss(now);
+    let baseName = `tracker-${dateStr}-${timeStr}-${kind}.db`;
+    let targetPath = path.join(backupsDir, baseName);
+    let suffix = 1;
+    while (fs.existsSync(targetPath)) {
+      baseName = `tracker-${dateStr}-${timeStr}-${kind}-${suffix}.db`;
+      targetPath = path.join(backupsDir, baseName);
+      suffix++;
+    }
+
+    const tempPath = path.join(backupsDir, `.${baseName}.tmp-${process.pid}-${Date.now()}`);
+    try {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+      const escapedPath = tempPath.replace(/'/g, "''");
+      this.db.exec(`VACUUM INTO '${escapedPath}';`);
+      fs.renameSync(tempPath, targetPath);
+      pruneMatchingFilesKeepingNewest(backupsDir, SAFETY_BACKUP_REGEX, 10);
+      return targetPath;
+    } catch (err) {
+      console.error(`Failed to create ${kind} safety backup:`, err);
+      if (fs.existsSync(tempPath)) {
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {
+          // ignore
+        }
+      }
+      return null;
+    }
+  }
+
   public backupDatabase(dateStr = todayDateStr()): string | null {
     if (this.isMemory || !this.dataDir) return null;
     const backupsDir = path.join(this.dataDir, 'backups');
     fs.mkdirSync(backupsDir, { recursive: true });
     const targetPath = path.join(backupsDir, `tracker-${dateStr}.db`);
-    const tempPath = path.join(backupsDir, `tracker-${dateStr}.tmp-${Date.now()}.db`);
+    const tempPath = path.join(backupsDir, `.tracker-${dateStr}.tmp-${process.pid}-${Date.now()}.db`);
 
     try {
       if (fs.existsSync(tempPath)) {
@@ -191,9 +245,10 @@ export class TrackerRepository {
       const escapedPath = tempPath.replace(/'/g, "''");
       this.db.exec(`VACUUM INTO '${escapedPath}';`);
       fs.renameSync(tempPath, targetPath);
-      pruneDirectoryKeepingNewest(backupsDir, '.db', 14);
+      pruneMatchingFilesKeepingNewest(backupsDir, DAILY_BACKUP_REGEX, 14);
       return targetPath;
-    } catch {
+    } catch (err) {
+      console.error(`Failed to create daily database backup for ${dateStr}:`, err);
       if (fs.existsSync(tempPath)) {
         try {
           fs.unlinkSync(tempPath);
@@ -210,10 +265,25 @@ export class TrackerRepository {
     const exportsDir = path.join(this.dataDir, 'exports');
     fs.mkdirSync(exportsDir, { recursive: true });
     const targetPath = path.join(exportsDir, `zhenji-${dateStr}.json`);
-    const exported = this.exportData();
-    fs.writeFileSync(targetPath, JSON.stringify(exported, null, 2), 'utf-8');
-    pruneDirectoryKeepingNewest(exportsDir, '.json', 14);
-    return targetPath;
+    const tempPath = path.join(exportsDir, `.zhenji-${dateStr}.tmp-${process.pid}-${Date.now()}.json`);
+
+    try {
+      const exported = this.exportData();
+      fs.writeFileSync(tempPath, JSON.stringify(exported, null, 2), 'utf-8');
+      fs.renameSync(tempPath, targetPath);
+      pruneMatchingFilesKeepingNewest(exportsDir, DAILY_EXPORT_REGEX, 14);
+      return targetPath;
+    } catch (err) {
+      console.error(`Failed to write daily JSON export for ${dateStr}:`, err);
+      if (fs.existsSync(tempPath)) {
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {
+          // ignore
+        }
+      }
+      return null;
+    }
   }
 
   public runDailyMaintenance(dateStr = todayDateStr()): void {
@@ -913,11 +983,14 @@ export class TrackerRepository {
     };
   }
 
-  public importData(rawInput: unknown, options: { skipBackup?: boolean } = {}): StateMutationResult {
+  public importData(
+    rawInput: unknown,
+    options: { skipBackup?: boolean; now?: Date } = {}
+  ): StateMutationResult {
     const parsed = importPayloadSchema.parse(rawInput);
 
     if (!options.skipBackup) {
-      this.backupDatabase();
+      this.createSafetyBackup('pre-import', options.now);
     }
 
     return this.runInTransaction(() => {

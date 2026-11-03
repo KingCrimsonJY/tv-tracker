@@ -5,6 +5,10 @@ export const SESSION_COOKIE_NAME = 'zhenji_session';
 export const SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000; // 365 days
 export const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 export const RATE_LIMIT_MAX_FAILURES = 5;
+export const GLOBAL_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+export const GLOBAL_RATE_LIMIT_MAX_FAILURES = 20;
+export const GLOBAL_BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+export const MIN_PASSWORD_LENGTH = 10;
 
 const SCRYPT_KEYLEN = 64;
 
@@ -34,6 +38,15 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function verifySetupCode(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided.trim(), 'utf-8');
+  const b = Buffer.from(expected.trim(), 'utf-8');
+  if (a.length === 0 || a.length !== b.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(a, b);
 }
 
 export function hashSessionToken(token: string): string {
@@ -134,15 +147,30 @@ export function isSameOriginRequest(req: Request): boolean {
 
 export class LoginRateLimiter {
   private readonly failures = new Map<string, number[]>();
+  private globalFailures: number[] = [];
+  private globalBlockedUntil = 0;
+
   private readonly windowMs: number;
   private readonly maxFailures: number;
+  private readonly globalWindowMs: number;
+  private readonly globalMaxFailures: number;
+  private readonly globalBlockDurationMs: number;
 
-  constructor(windowMs = RATE_LIMIT_WINDOW_MS, maxFailures = RATE_LIMIT_MAX_FAILURES) {
+  constructor(
+    windowMs = RATE_LIMIT_WINDOW_MS,
+    maxFailures = RATE_LIMIT_MAX_FAILURES,
+    globalWindowMs = GLOBAL_RATE_LIMIT_WINDOW_MS,
+    globalMaxFailures = GLOBAL_RATE_LIMIT_MAX_FAILURES,
+    globalBlockDurationMs = GLOBAL_BLOCK_DURATION_MS
+  ) {
     this.windowMs = windowMs;
     this.maxFailures = maxFailures;
+    this.globalWindowMs = globalWindowMs;
+    this.globalMaxFailures = globalMaxFailures;
+    this.globalBlockDurationMs = globalBlockDurationMs;
   }
 
-  private prune(ip: string, now: number): number[] {
+  private pruneIp(ip: string, now: number): number[] {
     const list = this.failures.get(ip) || [];
     const cutoff = now - this.windowMs;
     const active = list.filter((ts) => ts > cutoff);
@@ -154,13 +182,33 @@ export class LoginRateLimiter {
     return active;
   }
 
+  private pruneGlobal(now: number): void {
+    if (this.globalBlockedUntil > 0 && now >= this.globalBlockedUntil) {
+      this.globalBlockedUntil = 0;
+      this.globalFailures = [];
+      return;
+    }
+    const cutoff = now - this.globalWindowMs;
+    this.globalFailures = this.globalFailures.filter((ts) => ts > cutoff);
+  }
+
   public isBlocked(ip: string, now = Date.now()): boolean {
-    const active = this.prune(ip, now);
+    this.pruneGlobal(now);
+    if (this.globalBlockedUntil > now) {
+      return true;
+    }
+    const active = this.pruneIp(ip, now);
     return active.length >= this.maxFailures;
   }
 
   public recordFailure(ip: string, now = Date.now()): void {
-    const active = this.prune(ip, now);
+    this.pruneGlobal(now);
+    this.globalFailures.push(now);
+    if (this.globalFailures.length >= this.globalMaxFailures) {
+      this.globalBlockedUntil = now + this.globalBlockDurationMs;
+    }
+
+    const active = this.pruneIp(ip, now);
     active.push(now);
     this.failures.set(ip, active);
   }

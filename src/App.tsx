@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AlertCircle, KeyRound, Lock, RefreshCw, WifiOff } from 'lucide-react';
+import { AlertCircle, KeyRound, Lock, RefreshCw, ShieldCheck, WifiOff } from 'lucide-react';
 import { Button, Card } from '@heroui/react';
 import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
@@ -16,13 +16,24 @@ import { TitleDetailPage } from './pages/TitleDetailPage.tsx';
 
 const AuthScreen: React.FC = () => {
   const { needsSetup, setupPassword, loginWithPassword } = useTracker();
+  const [setupCode, setSetupCode] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) {
+
+    if (needsSetup) {
+      if (!setupCode.trim()) {
+        setErrorMsg(zh.app.setupCodeRequiredError);
+        return;
+      }
+      if (password.length < 10) {
+        setErrorMsg(zh.app.passwordTooShortError);
+        return;
+      }
+    } else if (!password.trim()) {
       setErrorMsg('请输入密码');
       return;
     }
@@ -31,7 +42,7 @@ const AuthScreen: React.FC = () => {
     setErrorMsg(null);
     try {
       if (needsSetup) {
-        await setupPassword(password);
+        await setupPassword(password, setupCode.trim());
       } else {
         await loginWithPassword(password);
       }
@@ -39,7 +50,7 @@ const AuthScreen: React.FC = () => {
       if (err instanceof ApiError) {
         if (err.status === 429) {
           setErrorMsg(zh.app.tooManyAttemptsError);
-        } else if (err.status === 401) {
+        } else if (err.status === 401 && !needsSetup) {
           setErrorMsg(zh.app.wrongPasswordError);
         } else {
           setErrorMsg(err.message);
@@ -70,8 +81,42 @@ const AuthScreen: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="w-full space-y-4">
+            {needsSetup && (
+              <div>
+                <label
+                  htmlFor="auth-setup-code-input"
+                  className="block text-xs font-medium text-[var(--muted)] mb-1.5"
+                >
+                  {zh.app.setupCodeLabel}
+                </label>
+                <div className="relative">
+                  <input
+                    id="auth-setup-code-input"
+                    type="text"
+                    value={setupCode}
+                    onChange={(e) => {
+                      setSetupCode(e.target.value);
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    placeholder={zh.app.setupCodePlaceholder}
+                    autoFocus
+                    autoComplete="off"
+                    className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
+                  />
+                  <ShieldCheck className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+            )}
+
             <div>
-              <label htmlFor="auth-password-input" className="sr-only">
+              <label
+                htmlFor="auth-password-input"
+                className={
+                  needsSetup
+                    ? 'block text-xs font-medium text-[var(--muted)] mb-1.5'
+                    : 'sr-only'
+                }
+              >
                 {needsSetup ? '设置密码' : '访问密码'}
               </label>
               <div className="relative">
@@ -83,8 +128,10 @@ const AuthScreen: React.FC = () => {
                     setPassword(e.target.value);
                     if (errorMsg) setErrorMsg(null);
                   }}
-                  placeholder={zh.app.passwordPlaceholder}
-                  autoFocus
+                  placeholder={
+                    needsSetup ? zh.app.passwordPlaceholder : zh.app.loginPasswordPlaceholder
+                  }
+                  autoFocus={!needsSetup}
                   autoComplete={needsSetup ? 'new-password' : 'current-password'}
                   className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
                 />
