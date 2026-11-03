@@ -5,6 +5,7 @@ import type {
   ProgressDoc,
   SeasonDoc,
   StateMutationResult,
+  TitleAtomicActionInput,
   TitleDoc,
   WatchListDoc,
 } from '../domain/types.ts';
@@ -33,8 +34,10 @@ export function isRunningInIframe(): boolean {
 export function getIframeBearerToken(): string | null {
   if (!isRunningInIframe()) return null;
   try {
-    return window.sessionStorage.getItem(IFRAME_TOKEN_STORAGE_KEY) ||
-      window.localStorage.getItem(IFRAME_TOKEN_STORAGE_KEY);
+    return (
+      window.sessionStorage.getItem(IFRAME_TOKEN_STORAGE_KEY) ||
+      window.localStorage.getItem(IFRAME_TOKEN_STORAGE_KEY)
+    );
   } catch {
     return null;
   }
@@ -179,6 +182,16 @@ export async function patchTitleApi(
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+  });
+}
+
+export async function postTitleActionApi(
+  id: string,
+  payload: TitleAtomicActionInput
+): Promise<StateMutationResult> {
+  return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}/actions`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

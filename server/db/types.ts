@@ -1,0 +1,57 @@
+import type { DatabaseSync } from 'node:sqlite';
+import type { ListEntryDoc, TitleDoc, WatchListDoc } from '../../src/domain/types.ts';
+
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+export interface RepositoryOptions {
+  dbPath?: string;
+  dataDir?: string;
+  migrationsDir?: string;
+}
+
+export interface StoredProgressData {
+  watched: Record<string, number>;
+  movieWatchedAt?: number;
+}
+
+export interface StoredAuthData {
+  passwordHash: string;
+  updatedAt: number;
+}
+
+export interface DbContext {
+  db: DatabaseSync;
+  isMemory: boolean;
+  dataDir: string | null;
+  migrationsDir: string;
+  runInTransaction: <T>(fn: () => T) => T;
+  bumpVersionInTx: () => number;
+  getVersion: () => number;
+}
+
+export function serializeTitleData(title: TitleDoc): string {
+  const { id: _id, ...rest } = title;
+  return JSON.stringify(rest);
+}
+
+export function serializeListData(list: WatchListDoc): string {
+  const { id: _id, ...rest } = list;
+  return JSON.stringify(rest);
+}
+
+export function serializeEntryData(entry: ListEntryDoc): string {
+  const { id: _id, ...rest } = entry;
+  return JSON.stringify(rest);
+}

@@ -34,7 +34,7 @@ const AuthScreen: React.FC = () => {
         return;
       }
     } else if (!password.trim()) {
-      setErrorMsg('请输入密码');
+      setErrorMsg(zh.app.passwordRequiredError);
       return;
     }
 
@@ -56,7 +56,7 @@ const AuthScreen: React.FC = () => {
           setErrorMsg(err.message);
         }
       } else {
-        setErrorMsg(err instanceof Error ? err.message : '请求失败，请重试');
+        setErrorMsg(err instanceof Error ? err.message : zh.app.errorGeneric);
       }
     } finally {
       setSubmitting(false);
@@ -68,12 +68,12 @@ const AuthScreen: React.FC = () => {
       <Card className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8">
         <Card.Content className="flex flex-col items-center space-y-6">
           <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-2xl shadow-lg">
-            帧
+            {zh.app.logoChar}
           </div>
 
           <div className="space-y-1.5 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-              {needsSetup ? '设置密码' : '登录'}
+              {needsSetup ? zh.app.setupPasswordTitle : zh.app.loginTitle}
             </h1>
             <p className="text-sm text-[var(--muted)]">
               {needsSetup ? zh.app.setupPasswordSubtitle : zh.app.loginSubtitle}
@@ -117,7 +117,7 @@ const AuthScreen: React.FC = () => {
                     : 'sr-only'
                 }
               >
-                {needsSetup ? '设置密码' : '访问密码'}
+                {needsSetup ? zh.app.setupPasswordTitle : zh.app.passwordLabel}
               </label>
               <div className="relative">
                 <input
@@ -161,7 +161,7 @@ const AuthScreen: React.FC = () => {
               isDisabled={submitting}
               className="min-h-[48px] rounded-xl font-semibold gap-2"
             >
-              <span>{needsSetup ? '设置密码' : '登录'}</span>
+              <span>{needsSetup ? zh.app.setupPasswordSubmit : zh.app.loginSubmit}</span>
             </Button>
           </form>
         </Card.Content>

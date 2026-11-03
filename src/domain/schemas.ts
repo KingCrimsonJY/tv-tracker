@@ -200,6 +200,31 @@ export const patchProgressRequestSchema = z.object({
   movieWatchedAt: z.number().nullable().optional(),
 });
 
+export const titleAtomicActionRequestSchema = z
+  .object({
+    progress: z
+      .object({
+        playthroughId: z.string().min(1).optional(),
+        set: z.record(z.string(), z.number()).optional(),
+        unset: z.array(z.string()).optional(),
+        movieWatchedAt: z.number().nullable().optional(),
+        replaceWatched: z.record(z.string(), z.number()).optional(),
+        deletePlaythroughId: z.string().min(1).optional(),
+      })
+      .refine((p) => Boolean(p.playthroughId || p.deletePlaythroughId), {
+        message: 'progress 需指定 playthroughId 或 deletePlaythroughId',
+      })
+      .optional(),
+    title: titleDocSchema
+      .omit({ id: true })
+      .partial()
+      .refine((val) => Object.keys(val).length > 0, { message: 'title 至少需要更新一个字段' })
+      .optional(),
+  })
+  .refine((val) => Boolean(val.progress || val.title), {
+    message: '至少需要提供 progress 或 title 更新',
+  });
+
 export const putListRequestSchema = watchListDocSchema.omit({ id: true }).extend({
   id: z.string().optional(),
 });

@@ -170,18 +170,32 @@ export interface StateDeletes {
 
 export interface StateMutationResult {
   version: number;
+  epoch?: string;
   upserts: StateUpserts;
   deletes: StateDeletes;
 }
 
 export interface AppStateSnapshot {
   version: number;
+  epoch?: string;
   titles: Record<string, TitleDoc>;
   seasonsByTitle: Record<string, SeasonDoc[]>;
   progressByTitle: Record<string, Record<string, ProgressDoc>>;
   lists: Record<string, WatchListDoc>;
   entriesByList: Record<string, ListEntryDoc[]>;
   settings: AppSettingsDoc;
+}
+
+export interface TitleAtomicActionInput {
+  progress?: {
+    playthroughId?: string;
+    set?: Record<string, number>;
+    unset?: string[];
+    movieWatchedAt?: number | null;
+    replaceWatched?: Record<string, number>;
+    deletePlaythroughId?: string;
+  };
+  title?: Partial<Omit<TitleDoc, 'id'>>;
 }
 
 export interface ZhenjiExportV2 {

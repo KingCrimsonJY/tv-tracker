@@ -10,6 +10,24 @@ import type {
   ZhenjiExportV2,
 } from '../domain/types.ts';
 
+export type StateUpdater =
+  | AppStateSnapshot
+  | ((prev: AppStateSnapshot) => AppStateSnapshot);
+
+export type StoreListener = () => void;
+
+export interface TrackerStore {
+  getState: () => AppStateSnapshot;
+  setState: (updater: StateUpdater) => AppStateSnapshot;
+  subscribe: (listener: StoreListener) => () => void;
+  applySnapshot: (snapshot: AppStateSnapshot) => { state: AppStateSnapshot; epochChanged: boolean };
+  applyMutation: (
+    mutation: StateMutationResult,
+    options?: { allowSameOrLowerVersion?: boolean }
+  ) => { state: AppStateSnapshot; epochChanged: boolean };
+  reset: () => AppStateSnapshot;
+}
+
 export function createInitialAppState(): AppStateSnapshot {
   return {
     version: 0,
@@ -22,14 +40,27 @@ export function createInitialAppState(): AppStateSnapshot {
   };
 }
 
+export function hasEpochChanged(
+  currentEpoch: string | undefined,
+  incomingEpoch: string | undefined
+): boolean {
+  return Boolean(currentEpoch && incomingEpoch && currentEpoch !== incomingEpoch);
+}
+
 export function applyStateSnapshot(
   currentState: AppStateSnapshot,
   incomingSnapshot: AppStateSnapshot
 ): AppStateSnapshot {
+  if (hasEpochChanged(currentState.epoch, incomingSnapshot.epoch)) {
+    return incomingSnapshot;
+  }
   if (incomingSnapshot.version < currentState.version) {
     return currentState;
   }
-  return incomingSnapshot;
+  return {
+    ...incomingSnapshot,
+    epoch: incomingSnapshot.epoch ?? currentState.epoch,
+  };
 }
 
 export function applyMutationResult(
@@ -43,14 +74,13 @@ export function applyMutationResult(
 
   let titles: Record<string, TitleDoc> = { ...currentState.titles };
   let seasonsByTitle: Record<string, SeasonDoc[]> = { ...currentState.seasonsByTitle };
-  let progressByTitle: Record<string, Record<string, ProgressDoc>> = {
+  const progressByTitle: Record<string, Record<string, ProgressDoc>> = {
     ...currentState.progressByTitle,
   };
   let lists: Record<string, WatchListDoc> = { ...currentState.lists };
   let entriesByList: Record<string, ListEntryDoc[]> = { ...currentState.entriesByList };
   let settings = currentState.settings;
 
-  // 1. Apply deletes first
   const { deletes, upserts } = mutation;
 
   if (deletes.titles) {
@@ -89,7 +119,6 @@ export function applyMutationResult(
     }
   }
 
-  // 2. Apply upserts
   if (upserts.titles) {
     titles = {
       ...titles,
@@ -133,6 +162,7 @@ export function applyMutationResult(
 
   return {
     version: Math.max(currentState.version, mutation.version),
+    epoch: mutation.epoch ?? currentState.epoch,
     titles,
     seasonsByTitle,
     progressByTitle,
@@ -141,6 +171,65 @@ export function applyMutationResult(
     settings,
   };
 }
+
+export function createTrackerStore(
+  initialState: AppStateSnapshot = createInitialAppState()
+): TrackerStore {
+  let state: AppStateSnapshot = initialState;
+  const listeners = new Set<StoreListener>();
+
+  const notify = () => {
+    for (const listener of listeners) {
+      listener();
+    }
+  };
+
+  return {
+    getState: () => state,
+    setState: (updater: StateUpdater) => {
+      const next = typeof updater === 'function' ? updater(state) : updater;
+      if (next !== state) {
+        state = next;
+        notify();
+      }
+      return state;
+    },
+    subscribe: (listener: StoreListener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    applySnapshot: (snapshot: AppStateSnapshot) => {
+      const epochChanged = hasEpochChanged(state.epoch, snapshot.epoch);
+      const next = applyStateSnapshot(state, snapshot);
+      if (next !== state) {
+        state = next;
+        notify();
+      }
+      return { state, epochChanged };
+    },
+    applyMutation: (
+      mutation: StateMutationResult,
+      options: { allowSameOrLowerVersion?: boolean } = {}
+    ) => {
+      const epochChanged = hasEpochChanged(state.epoch, mutation.epoch);
+      const next = applyMutationResult(state, mutation, options);
+      if (next !== state) {
+        state = next;
+        notify();
+      }
+      return { state, epochChanged };
+    },
+    reset: () => {
+      state = createInitialAppState();
+      notify();
+      return state;
+    },
+  };
+}
+
+export const trackerStore = createTrackerStore();
 
 export function buildExportV2FromState(state: AppStateSnapshot): ZhenjiExportV2 {
   return {

@@ -40,7 +40,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex flex-col sm:flex-row">
       {/* Desktop Left Sidebar (>= 1024px) */}
       <aside
-        aria-label="桌面端主导航"
+        aria-label={zh.app.desktopNavAria}
         className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 bg-[var(--surface)] border-r border-[var(--border)] z-30 select-none"
       >
         <div className="h-16 px-6 flex items-center justify-between border-b border-[var(--separator)]">
@@ -49,7 +49,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-[var(--foreground)] whitespace-nowrap"
           >
             <span className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-sm">
-              帧
+              {zh.app.logoChar}
             </span>
             <span>{zh.app.name}</span>
           </NavLink>
@@ -129,13 +129,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
             >
               <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)] shrink-0 font-semibold text-xs">
-                帧
+                {zh.app.logoChar}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium text-[var(--foreground)] truncate">
                   {zh.settings.title}
                 </p>
-                <p className="text-[11px] text-[var(--muted)] truncate">实时同步已连接</p>
+                <p className="text-[11px] text-[var(--muted)] truncate">
+                  {zh.app.syncConnected}
+                </p>
               </div>
             </button>
             <button
@@ -153,7 +155,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Tablet Left Navigation Rail (640px - 1024px) */}
       <aside
-        aria-label="平板端导航栏"
+        aria-label={zh.app.tabletNavAria}
         className="hidden sm:flex lg:hidden sm:w-20 sm:flex-col sm:fixed sm:inset-y-0 sm:left-0 bg-[var(--surface)] border-r border-[var(--border)] z-30 items-center py-4 select-none"
       >
         <NavLink
@@ -161,7 +163,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           aria-label={zh.app.name}
           className="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-base mb-6"
         >
-          帧
+          {zh.app.logoChar}
         </NavLink>
 
         <nav className="flex-1 flex flex-col items-center gap-2 w-full px-2">
@@ -238,7 +240,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Phone Bottom Tab Bar (< 640px): height = 64px + env(safe-area-inset-bottom), icons & labels inside 64px area */}
       <nav
-        aria-label="移动端底部导航"
+        aria-label={zh.app.mobileNavAria}
         className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--surface-glass)] backdrop-blur-md border-t border-[var(--border)] h-[calc(64px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-2 select-none"
       >
         <div className="grid grid-cols-4 items-center h-[64px] w-full">

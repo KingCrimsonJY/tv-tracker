@@ -1,16 +1,84 @@
+import { z } from 'zod';
 import { makeEpisodeKey } from '../../src/domain/progress.ts';
 import type { EpisodeMeta, Ratings, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
 import { lookupDoubanBestEffort } from './douban.ts';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p';
+const TMDB_TIMEOUT_MS = 10_000;
+
+const tmdbSearchItemSchema = z.object({
+  id: z.number(),
+  media_type: z.string().optional(),
+  title: z.string().optional(),
+  name: z.string().optional(),
+  original_title: z.string().optional(),
+  original_name: z.string().optional(),
+  release_date: z.string().optional(),
+  first_air_date: z.string().optional(),
+  poster_path: z.string().nullable().optional(),
+  backdrop_path: z.string().nullable().optional(),
+  overview: z.string().optional(),
+});
+
+const tmdbSearchResponseSchema = z.object({
+  results: z.array(tmdbSearchItemSchema).optional(),
+});
+
+const tmdbTranslationItemSchema = z.object({
+  iso_639_1: z.string().optional(),
+  iso_3166_1: z.string().optional(),
+  data: z
+    .object({
+      title: z.string().optional(),
+      name: z.string().optional(),
+      overview: z.string().optional(),
+    })
+    .optional(),
+});
+
+const tmdbDetailResponseSchema = z.object({
+  id: z.number().optional(),
+  title: z.string().optional(),
+  name: z.string().optional(),
+  original_title: z.string().optional(),
+  original_name: z.string().optional(),
+  overview: z.string().optional(),
+  release_date: z.string().optional(),
+  first_air_date: z.string().optional(),
+  runtime: z.number().nullable().optional(),
+  episode_run_time: z.array(z.number()).optional(),
+  genres: z.array(z.object({ name: z.string() })).optional(),
+  poster_path: z.string().nullable().optional(),
+  backdrop_path: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  external_ids: z.object({ imdb_id: z.string().nullable().optional() }).optional(),
+  translations: z.object({ translations: z.array(tmdbTranslationItemSchema).optional() }).optional(),
+  seasons: z
+    .array(z.object({ season_number: z.number(), name: z.string().optional() }))
+    .optional(),
+});
+
+const tmdbSeasonResponseSchema = z.object({
+  name: z.string().optional(),
+  episodes: z
+    .array(
+      z.object({
+        episode_number: z.number(),
+        name: z.string().optional(),
+        air_date: z.string().nullable().optional(),
+        runtime: z.number().nullable().optional(),
+        still_path: z.string().nullable().optional(),
+        overview: z.string().optional(),
+      })
+    )
+    .optional(),
+});
 
 export function getOmdbKey(): string {
   const raw = (process.env.OMDB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '').trim();
   if (
     !raw ||
-    raw === 'MY_OMDB_API_KEY' ||
-    raw === 'YOUR_OMDB_API_KEY' ||
     raw.startsWith('MY_') ||
     raw.startsWith('YOUR_') ||
     raw === 'undefined' ||
@@ -27,11 +95,8 @@ export function getTmdbToken(): string {
     .replace(/^['"]|['"]$/g, '')
     .replace(/^Bearer\s+/i, '')
     .trim();
-
   if (
     !raw ||
-    raw === 'MY_TMDB_READ_TOKEN' ||
-    raw === 'YOUR_TMDB_READ_TOKEN' ||
     raw.startsWith('MY_') ||
     raw.startsWith('YOUR_') ||
     raw.startsWith('<') ||
@@ -56,13 +121,12 @@ export function tmdbImageUrl(
   return `${TMDB_IMG_BASE}/${size}${filePath}`;
 }
 
-const TMDB_TIMEOUT_MS = 10_000;
-
-async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+async function fetchTmdbRawJson(
+  endpoint: string,
+  params: Record<string, string> = {}
+): Promise<unknown> {
   const token = getTmdbToken();
-  if (!token) {
-    throw new Error('TMDB_READ_TOKEN_NOT_CONFIGURED');
-  }
+  if (!token) throw new Error('TMDB_READ_TOKEN_NOT_CONFIGURED');
 
   const isV3ApiKey = /^[a-f0-9]{32}$/i.test(token);
   const url = new URL(`${TMDB_BASE}${endpoint}`);
@@ -76,17 +140,12 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
     });
-    if (!res.ok) {
-      throw new Error(`TMDB HTTP ${res.status}: ${await res.text()}`);
-    }
-    return (await res.json()) as T;
+    if (!res.ok) throw new Error(`TMDB HTTP ${res.status}: ${await res.text()}`);
+    return await res.json();
   }
 
   const res = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
   });
 
@@ -97,29 +156,11 @@ async function fetchTmdbJson<T>(endpoint: string, params: Record<string, string>
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(TMDB_TIMEOUT_MS),
     });
-    if (retryRes.ok) {
-      return (await retryRes.json()) as T;
-    }
+    if (retryRes.ok) return await retryRes.json();
   }
 
-  if (!res.ok) {
-    throw new Error(`TMDB HTTP ${res.status}: ${await res.text()}`);
-  }
-  return (await res.json()) as T;
-}
-
-interface TmdbSearchResultItem {
-  id: number;
-  media_type?: string;
-  title?: string;
-  name?: string;
-  original_title?: string;
-  original_name?: string;
-  release_date?: string;
-  first_air_date?: string;
-  poster_path?: string | null;
-  backdrop_path?: string | null;
-  overview?: string;
+  if (!res.ok) throw new Error(`TMDB HTTP ${res.status}: ${await res.text()}`);
+  return await res.json();
 }
 
 export interface SearchResultDto {
@@ -133,18 +174,22 @@ export interface SearchResultDto {
 }
 
 export async function searchTmdb(query: string): Promise<SearchResultDto[]> {
-  const data = await fetchTmdbJson<{ results: TmdbSearchResultItem[] }>('/search/multi', {
+  const raw = await fetchTmdbRawJson('/search/multi', {
     query,
     language: 'zh-CN',
     include_adult: 'false',
     page: '1',
   });
+  const data = tmdbSearchResponseSchema.parse(raw);
 
   return (data.results || [])
-    .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+    .filter(
+      (r): r is z.infer<typeof tmdbSearchItemSchema> & { media_type: 'movie' | 'tv' } =>
+        r.media_type === 'movie' || r.media_type === 'tv'
+    )
     .slice(0, 20)
     .map((r) => {
-      const mediaType = r.media_type as 'movie' | 'tv';
+      const mediaType = r.media_type;
       const titleZh = (mediaType === 'movie' ? r.title : r.name) || '';
       const titleOriginal =
         (mediaType === 'movie' ? r.original_title : r.original_name) || titleZh;
@@ -167,32 +212,21 @@ export async function fetchTmdbTitleDetails(
   mediaType: 'movie' | 'tv',
   sourceId: string
 ): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const detail = await fetchTmdbJson<any>(`/${mediaType}/${sourceId}`, {
+  const rawDetail = await fetchTmdbRawJson(`/${mediaType}/${sourceId}`, {
     language: 'zh-CN',
     append_to_response: 'external_ids,translations,images',
     include_image_language: 'zh,en,null',
   });
+  const detail = tmdbDetailResponseSchema.parse(rawDetail);
 
-  const translations: Array<{
-    iso_639_1?: string;
-    iso_3166_1?: string;
-    data?: { title?: string; name?: string; overview?: string };
-  }> = detail.translations?.translations || [];
-
+  const translations = detail.translations?.translations || [];
   const enTrans =
     translations.find((t) => t.iso_639_1 === 'en' && t.iso_3166_1 === 'US') ||
     translations.find((t) => t.iso_639_1 === 'en');
   const zhTrans =
     translations.find(
-      (t) =>
-        t.iso_639_1 === 'zh' &&
-        t.iso_3166_1 === 'CN' &&
-        (t.data?.title || t.data?.name)
-    ) ||
-    translations.find(
-      (t) => t.iso_639_1 === 'zh' && (t.data?.title || t.data?.name)
-    );
+      (t) => t.iso_639_1 === 'zh' && t.iso_3166_1 === 'CN' && (t.data?.title || t.data?.name)
+    ) || translations.find((t) => t.iso_639_1 === 'zh' && (t.data?.title || t.data?.name));
 
   const originalName =
     (mediaType === 'movie' ? detail.original_title : detail.original_name) ||
@@ -219,11 +253,11 @@ export async function fetchTmdbTitleDetails(
     mediaType === 'movie'
       ? detail.runtime || null
       : Array.isArray(detail.episode_run_time) && detail.episode_run_time.length > 0
-        ? detail.episode_run_time[0]
+        ? detail.episode_run_time[0] ?? null
         : null;
 
   const genres: string[] = Array.isArray(detail.genres)
-    ? detail.genres.slice(0, 6).map((g: { name: string }) => g.name)
+    ? detail.genres.slice(0, 6).map((g) => g.name)
     : [];
 
   const now = Date.now();
@@ -234,25 +268,16 @@ export async function fetchTmdbTitleDetails(
     source: 'tmdb',
     sourceId,
     mediaType,
-    names: {
-      original: originalName,
-      zh: zhName,
-      en: enName,
-    },
+    names: { original: originalName, zh: zhName, en: enName },
     displayLang: null,
     year,
     runtimeMin,
     genres,
     posterPath: tmdbImageUrl(detail.poster_path, 'w500'),
     backdropPath: tmdbImageUrl(detail.backdrop_path, 'w1280'),
-    overview: {
-      zh: zhOverview,
-      en: enOverview,
-    },
+    overview: { zh: zhOverview, en: enOverview },
     showStatus: detail.status || null,
-    externalIds: {
-      ...(detail.external_ids?.imdb_id ? { imdb: detail.external_ids.imdb_id } : {}),
-    },
+    externalIds: detail.external_ids?.imdb_id ? { imdb: detail.external_ids.imdb_id } : {},
     ratings: {},
     manualState: null,
     playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
@@ -267,44 +292,41 @@ export async function fetchTmdbTitleDetails(
   const seasons: SeasonDoc[] = [];
 
   if (mediaType === 'tv' && Array.isArray(detail.seasons)) {
-    const rawSeasons = detail.seasons.filter(
-      (s: { season_number: number }) => typeof s.season_number === 'number' && s.season_number >= 0
+    const rawSeasons = detail.seasons.filter((s) => s.season_number >= 0);
+    const resolvedSeasons = await Promise.all(
+      rawSeasons.map(async (s) => {
+        try {
+          const rawSeason = await fetchTmdbRawJson(
+            `/tv/${sourceId}/season/${s.season_number}`,
+            { language: 'zh-CN' }
+          );
+          const sDetail = tmdbSeasonResponseSchema.parse(rawSeason);
+          const episodes: EpisodeMeta[] = Array.isArray(sDetail.episodes)
+            ? sDetail.episodes.map((ep) => ({
+                number: ep.episode_number,
+                key: makeEpisodeKey(s.season_number, ep.episode_number),
+                name: ep.name || `第 ${ep.episode_number} 集`,
+                airDate: ep.air_date || null,
+                runtime: ep.runtime || runtimeMin || null,
+                stillPath: tmdbImageUrl(ep.still_path, 'w300'),
+                overview: { zh: ep.overview || '' },
+              }))
+            : [];
+
+          return {
+            seasonNumber: s.season_number,
+            name:
+              sDetail.name ||
+              s.name ||
+              (s.season_number === 0 ? '特别篇' : `第 ${s.season_number} 季`),
+            episodes,
+          } satisfies SeasonDoc;
+        } catch (err) {
+          console.warn(`Failed to fetch season ${s.season_number}:`, err);
+          return null;
+        }
+      })
     );
-
-    const seasonPromises = rawSeasons.map(async (s: { season_number: number; name?: string }) => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sDetail = await fetchTmdbJson<any>(
-          `/tv/${sourceId}/season/${s.season_number}`,
-          { language: 'zh-CN' }
-        );
-        const episodes: EpisodeMeta[] = Array.isArray(sDetail.episodes)
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            sDetail.episodes.map((ep: any) => ({
-              number: ep.episode_number,
-              key: makeEpisodeKey(s.season_number, ep.episode_number),
-              name: ep.name || `第 ${ep.episode_number} 集`,
-              airDate: ep.air_date || null,
-              runtime: ep.runtime || runtimeMin || null,
-              stillPath: tmdbImageUrl(ep.still_path, 'w300'),
-              overview: {
-                zh: ep.overview || '',
-              },
-            }))
-          : [];
-
-        return {
-          seasonNumber: s.season_number,
-          name: sDetail.name || s.name || (s.season_number === 0 ? '特别篇' : `第 ${s.season_number} 季`),
-          episodes,
-        } satisfies SeasonDoc;
-      } catch (err) {
-        console.warn(`Failed to fetch season ${s.season_number}:`, err);
-        return null;
-      }
-    });
-
-    const resolvedSeasons = await Promise.all(seasonPromises);
     for (const s of resolvedSeasons) {
       if (s) seasons.push(s);
     }
@@ -321,9 +343,7 @@ export async function fetchCombinedRatings(params: {
 }): Promise<{ ratings: Ratings; externalIds: { douban?: string } }> {
   const { imdbId, title, year, doubanId } = params;
   const omdbKey = getOmdbKey();
-  const ratings: Ratings = {
-    fetchedAt: Date.now(),
-  };
+  const ratings: Ratings = { fetchedAt: Date.now() };
   const externalIds: { douban?: string } = {};
 
   const omdbPromise = (async () => {
@@ -331,9 +351,7 @@ export async function fetchCombinedRatings(params: {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const url = `https://www.omdbapi.com/?i=${encodeURIComponent(
-        imdbId
-      )}&apikey=${encodeURIComponent(omdbKey)}`;
+      const url = `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(omdbKey)}`;
       const omdbRes = await fetch(url, { signal: controller.signal });
       if (!omdbRes.ok) return;
       const data = (await omdbRes.json()) as {
@@ -344,21 +362,13 @@ export async function fetchCombinedRatings(params: {
         Ratings?: Array<{ Source?: string; Value?: string }>;
       };
       if (data.Response === 'False') return;
-      if (data.imdbRating && data.imdbRating !== 'N/A') {
-        ratings.imdb = data.imdbRating;
-      }
-      if (data.imdbVotes && data.imdbVotes !== 'N/A') {
-        ratings.imdbVotes = data.imdbVotes;
-      }
+      if (data.imdbRating && data.imdbRating !== 'N/A') ratings.imdb = data.imdbRating;
+      if (data.imdbVotes && data.imdbVotes !== 'N/A') ratings.imdbVotes = data.imdbVotes;
       if (Array.isArray(data.Ratings)) {
         const rt = data.Ratings.find((r) => r.Source === 'Rotten Tomatoes');
-        if (rt?.Value && rt.Value !== 'N/A') {
-          ratings.rottenTomatoes = rt.Value;
-        }
+        if (rt?.Value && rt.Value !== 'N/A') ratings.rottenTomatoes = rt.Value;
         const mc = data.Ratings.find((r) => r.Source === 'Metacritic');
-        if (mc?.Value && mc.Value !== 'N/A') {
-          ratings.metacritic = mc.Value.replace(/\/100$/, '');
-        }
+        if (mc?.Value && mc.Value !== 'N/A') ratings.metacritic = mc.Value.replace(/\/100$/, '');
       }
       if (!ratings.metacritic && data.Metascore && data.Metascore !== 'N/A') {
         ratings.metacritic = data.Metascore;
@@ -372,15 +382,10 @@ export async function fetchCombinedRatings(params: {
 
   const doubanPromise = (async () => {
     const dRes = await lookupDoubanBestEffort({ imdbId, title, year, doubanId });
-    if (dRes.doubanId) {
-      externalIds.douban = dRes.doubanId;
-    }
-    if (dRes.doubanRating) {
-      ratings.douban = dRes.doubanRating;
-    }
+    if (dRes.doubanId) externalIds.douban = dRes.doubanId;
+    if (dRes.doubanRating) ratings.douban = dRes.doubanRating;
   })();
 
   await Promise.all([omdbPromise, doubanPromise]);
-
   return { ratings, externalIds };
 }

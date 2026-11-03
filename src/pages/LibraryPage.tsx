@@ -104,7 +104,7 @@ export const LibraryPage: React.FC = () => {
             {zh.library.title}
           </h1>
           <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
-            共 {items.length} 部
+            {zh.library.countLabel(items.length)}
           </span>
         </div>
 
@@ -115,7 +115,7 @@ export const LibraryPage: React.FC = () => {
           className="gap-1.5 font-medium"
         >
           <Plus className="w-4 h-4" />
-          <span>添加影视</span>
+          <span>{zh.library.addMediaButton}</span>
         </Button>
       </header>
 
@@ -125,7 +125,7 @@ export const LibraryPage: React.FC = () => {
           {/* Status segmented control */}
           <div
             role="group"
-            aria-label="按观看状态筛选"
+            aria-label={zh.library.statusFilterAria}
             className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-x-auto max-w-full"
           >
             {statusTabs.map((tab) => (
@@ -147,7 +147,7 @@ export const LibraryPage: React.FC = () => {
           {/* Type segmented control */}
           <div
             role="group"
-            aria-label="按影视类型筛选"
+            aria-label={zh.library.typeFilterAria}
             className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]"
           >
             {typeTabs.map((tab) => (
@@ -173,7 +173,7 @@ export const LibraryPage: React.FC = () => {
             htmlFor="library-sort"
             className="text-xs text-[var(--muted)] whitespace-nowrap"
           >
-            排序方式
+            {zh.library.sortLabel}
           </label>
           <select
             id="library-sort"
@@ -193,7 +193,7 @@ export const LibraryPage: React.FC = () => {
       {loadingData ? (
         <div
           className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3.5 sm:gap-5"
-          aria-label="正在加载片库"
+          aria-label={zh.library.loadingAria}
         >
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="space-y-2">

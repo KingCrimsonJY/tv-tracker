@@ -41,7 +41,7 @@ export const ListsPage: React.FC = () => {
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setNameError('请输入列表名称');
+      setNameError(zh.lists.createModal.nameRequiredError);
       return;
     }
     const created = await createList({
@@ -64,7 +64,7 @@ export const ListsPage: React.FC = () => {
             {zh.lists.title}
           </h1>
           <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
-            共 {sortedLists.length} 个
+            {zh.lists.countLabel(sortedLists.length)}
           </span>
         </div>
 
@@ -82,7 +82,7 @@ export const ListsPage: React.FC = () => {
       {loadingData ? (
         <div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
-          aria-label="正在加载列表"
+          aria-label={zh.lists.loadingAria}
         >
           {[0, 1, 2].map((i) => (
             <div
@@ -208,14 +208,17 @@ export const ListsPage: React.FC = () => {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
-                      <span>共 {stats.totalCount} 部作品</span>
+                      <span>{zh.lists.totalTitlesLabel(stats.totalCount)}</span>
                       <span>
-                        已看 {stats.completedCount}/{stats.totalCount}
+                        {zh.lists.progressLabel(
+                          stats.completedCount,
+                          stats.totalCount
+                        )}
                       </span>
                     </div>
 
                     <ProgressBar
-                      aria-label={`${list.name} 进度`}
+                      aria-label={zh.lists.progressAria(list.name)}
                       value={pct}
                       size="sm"
                       className="w-full"
@@ -280,7 +283,7 @@ export const ListsPage: React.FC = () => {
                       <span>{zh.lists.orderedType}</span>
                     </div>
                     <p className="mt-1 text-xs text-[var(--muted)] leading-snug">
-                      按顺序编号排列，自动高亮下一部待看
+                      {zh.lists.orderedTypeHint}
                     </p>
                   </button>
 
@@ -298,7 +301,7 @@ export const ListsPage: React.FC = () => {
                       <span>{zh.lists.collectionType}</span>
                     </div>
                     <p className="mt-1 text-xs text-[var(--muted)] leading-snug">
-                      海报墙视图，支持多种排序与手动拖拽
+                      {zh.lists.collectionTypeHint}
                     </p>
                   </button>
                 </div>

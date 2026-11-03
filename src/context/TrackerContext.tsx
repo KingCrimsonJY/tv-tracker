@@ -6,9 +6,9 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import {
-  apiFetch,
   ApiError,
   fetchAuthStatus,
   fetchStateSnapshot,
@@ -24,15 +24,9 @@ import {
   type UpdateTitleDetailsInput,
 } from '../data/actions.ts';
 import { runOneTimeLegacyStorageCleanup } from '../data/storageCleanup.ts';
-import {
-  applyMutationResult,
-  applyStateSnapshot,
-  buildExportV2FromState,
-  createInitialAppState,
-} from '../data/store.ts';
+import { trackerStore } from '../data/store.ts';
 import type {
   AppSettingsDoc,
-  AppStateSnapshot,
   CollectionSort,
   DisplayLang,
   ListEntryDoc,
@@ -44,11 +38,9 @@ import type {
   TitleDoc,
   WatchListDoc,
 } from '../domain/types.ts';
+import { useSseEventStream } from './useSseEventStream.ts';
 
 export type { CustomTitleInput, UpdateTitleDetailsInput };
-
-const SSE_WATCHDOG_TIMEOUT_MS = 15_000;
-const OFFLINE_OVERLAY_DELAY_MS = 5_000;
 
 export interface TrackerContextValue {
   authReady: boolean;
@@ -121,14 +113,16 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [needsSetup, setNeedsSetup] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
-  const [serverUnreachable, setServerUnreachable] = useState(() =>
-    typeof navigator !== 'undefined' && navigator.onLine === false
+  const [serverUnreachable, setServerUnreachable] = useState(
+    () => typeof navigator !== 'undefined' && navigator.onLine === false
   );
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
-  const [state, setState] = useState<AppStateSnapshot>(() => createInitialAppState());
-  const stateRef = useRef<AppStateSnapshot>(state);
-  stateRef.current = state;
+  const state = useSyncExternalStore(
+    trackerStore.subscribe,
+    trackerStore.getState,
+    trackerStore.getState
+  );
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -136,12 +130,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
     if (typeof window !== 'undefined') {
-      if (toastTimerRef.current) {
-        window.clearTimeout(toastTimerRef.current);
-      }
-      toastTimerRef.current = window.setTimeout(() => {
-        setToastMessage(null);
-      }, 4500);
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 4500);
     }
   }, []);
 
@@ -153,12 +143,10 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
-  // Run one-time cleanup of leftover Firebase IndexedDB & localStorage keys on app start
   useEffect(() => {
     void runOneTimeLegacyStorageCleanup();
   }, []);
 
-  // Apply theme (dark / light / system) to document.documentElement
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return;
     const root = document.documentElement;
@@ -174,26 +162,20 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const handler = (e: MediaQueryListEvent) => applyResolvedTheme(e.matches ? 'light' : 'dark');
       mql.addEventListener('change', handler);
       return () => mql.removeEventListener('change', handler);
-    } else {
-      applyResolvedTheme(state.settings.theme);
     }
+    applyResolvedTheme(state.settings.theme);
   }, [state.settings.theme]);
-
-  const applyServerMutation = useCallback((mutation: StateMutationResult) => {
-    setState((prev) => applyMutationResult(prev, mutation));
-  }, []);
 
   const refreshStateFromServer = useCallback(async () => {
     try {
       const snapshot = await fetchStateSnapshot();
-      // Only replace local state with a snapshot whose version >= current local version
-      setState((prev) => applyStateSnapshot(prev, snapshot));
+      trackerStore.applySnapshot(snapshot);
       setServerUnreachable(false);
       setLoadingData(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthenticated(false);
-        setState(createInitialAppState());
+        trackerStore.reset();
         setLoadingData(false);
         return;
       }
@@ -202,7 +184,14 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
-  // Initial auth check
+  const applyServerMutation = useCallback(
+    (mutation: StateMutationResult) => {
+      const { epochChanged } = trackerStore.applyMutation(mutation);
+      if (epochChanged) void refreshStateFromServer();
+    },
+    [refreshStateFromServer]
+  );
+
   const checkAuthAndLoad = useCallback(async () => {
     try {
       const status = await fetchAuthStatus();
@@ -215,7 +204,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setLoadingData(true);
         await refreshStateFromServer();
       } else {
-        setState(createInitialAppState());
+        trackerStore.reset();
         setLoadingData(false);
       }
     } catch {
@@ -234,15 +223,10 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setReconnectTrigger((n) => n + 1);
   }, [checkAuthAndLoad]);
 
-  // Listen to browser offline / online events: show 无法连接到服务器 immediately when offline
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleOffline = () => {
-      setServerUnreachable(true);
-    };
-    const handleOnline = () => {
-      void retryConnection();
-    };
+    const handleOffline = () => setServerUnreachable(true);
+    const handleOnline = () => void retryConnection();
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
     return () => {
@@ -251,153 +235,23 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [retryConnection]);
 
-  // Refetch state when tab becomes visible again
   useEffect(() => {
     if (!authenticated || typeof document === 'undefined') return;
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void refreshStateFromServer();
-      }
+      if (document.visibilityState === 'visible') void refreshStateFromServer();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [authenticated, refreshStateFromServer]);
 
-  // Subscribe to SSE /api/events with 15s byte watchdog and 5s offline blocking policy
-  useEffect(() => {
-    if (!authenticated) return;
-
-    let cancelled = false;
-    let abortController: AbortController | null = null;
-    let offlineTimer: ReturnType<typeof setTimeout> | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const clearWatchdog = () => {
-      if (watchdogTimer) {
-        clearTimeout(watchdogTimer);
-        watchdogTimer = null;
-      }
-    };
-
-    const resetWatchdog = () => {
-      clearWatchdog();
-      if (cancelled) return;
-      watchdogTimer = setTimeout(() => {
-        if (!cancelled) {
-          abortController?.abort();
-        }
-      }, SSE_WATCHDOG_TIMEOUT_MS);
-    };
-
-    const startOfflineCountdown = () => {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        setServerUnreachable(true);
-        return;
-      }
-      if (offlineTimer || cancelled) return;
-      offlineTimer = setTimeout(() => {
-        if (!cancelled) {
-          setServerUnreachable(true);
-        }
-      }, OFFLINE_OVERLAY_DELAY_MS);
-    };
-
-    const clearOfflineCountdown = () => {
-      if (offlineTimer) {
-        clearTimeout(offlineTimer);
-        offlineTimer = null;
-      }
-      if (!cancelled && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
-        setServerUnreachable(false);
-      }
-    };
-
-    const connectEventStream = async (isReconnect: boolean) => {
-      if (cancelled) return;
-      abortController = new AbortController();
-      resetWatchdog();
-
-      try {
-        const res = await apiFetch('/api/events', {
-          signal: abortController.signal,
-          headers: { Accept: 'text/event-stream' },
-        });
-
-        if (res.status === 401) {
-          clearWatchdog();
-          if (!cancelled) {
-            setAuthenticated(false);
-            setState(createInitialAppState());
-          }
-          return;
-        }
-
-        if (!res.ok || !res.body) {
-          throw new Error(`SSE HTTP ${res.status}`);
-        }
-
-        clearOfflineCountdown();
-        resetWatchdog();
-        if (isReconnect) {
-          await refreshStateFromServer();
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-
-        while (!cancelled) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          clearOfflineCountdown();
-          resetWatchdog();
-
-          buffer += decoder.decode(value, { stream: true });
-          const blocks = buffer.split('\n\n');
-          buffer = blocks.pop() || '';
-
-          for (const block of blocks) {
-            const lines = block.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('data:')) {
-                const jsonStr = line.slice(5).trim();
-                if (!jsonStr) continue;
-                try {
-                  const mutation = JSON.parse(jsonStr) as StateMutationResult;
-                  applyServerMutation(mutation);
-                } catch {
-                  // ignore malformed event
-                }
-              }
-            }
-          }
-        }
-
-        clearWatchdog();
-        if (!cancelled) {
-          startOfflineCountdown();
-          retryTimer = setTimeout(() => connectEventStream(true), 1500);
-        }
-      } catch {
-        clearWatchdog();
-        if (!cancelled) {
-          startOfflineCountdown();
-          retryTimer = setTimeout(() => connectEventStream(true), 2000);
-        }
-      }
-    };
-
-    void connectEventStream(false);
-
-    return () => {
-      cancelled = true;
-      clearWatchdog();
-      abortController?.abort();
-      if (offlineTimer) clearTimeout(offlineTimer);
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [authenticated, reconnectTrigger, applyServerMutation, refreshStateFromServer]);
+  useSseEventStream({
+    authenticated,
+    reconnectTrigger,
+    setAuthenticated,
+    setServerUnreachable,
+    applyServerMutation,
+    refreshStateFromServer,
+  });
 
   const setupPassword = useCallback(
     async (password: string, setupCode: string) => {
@@ -424,36 +278,31 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const signOut = useCallback(async () => {
     await logoutApi();
     setAuthenticated(false);
-    setState(createInitialAppState());
+    trackerStore.reset();
   }, []);
 
   const signOutAll = useCallback(async () => {
     await logoutAllApi();
     setAuthenticated(false);
-    setState(createInitialAppState());
+    trackerStore.reset();
   }, []);
 
   const getActiveProgress = useCallback(
-    (title: TitleDoc): ProgressDoc => {
-      return getActiveProgressFromState(state, title);
-    },
+    (title: TitleDoc): ProgressDoc => getActiveProgressFromState(state, title),
     [state]
   );
 
   const actions = useMemo(
     () =>
       createTrackerActions({
-        getState: () => stateRef.current,
-        setState,
+        getState: trackerStore.getState,
+        setState: trackerStore.setState,
         applyServerMutation,
         showToast,
+        refetchState: refreshStateFromServer,
       }),
-    [applyServerMutation, showToast]
+    [applyServerMutation, showToast, refreshStateFromServer]
   );
-
-  const exportAllDataJson = useCallback((): string => {
-    return JSON.stringify(buildExportV2FromState(stateRef.current), null, 2);
-  }, []);
 
   const value = useMemo<TrackerContextValue>(
     () => ({
@@ -478,7 +327,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       signOutAll,
       getActiveProgress,
       ...actions,
-      exportAllDataJson,
     }),
     [
       authReady,
@@ -497,7 +345,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       signOutAll,
       getActiveProgress,
       actions,
-      exportAllDataJson,
     ]
   );
 
@@ -506,8 +353,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 export function useTracker(): TrackerContextValue {
   const ctx = useContext(TrackerContext);
-  if (!ctx) {
-    throw new Error('useTracker must be used within TrackerProvider');
-  }
+  if (!ctx) throw new Error('useTracker must be used within TrackerProvider');
   return ctx;
 }

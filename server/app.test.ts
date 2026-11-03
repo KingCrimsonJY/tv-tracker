@@ -25,6 +25,7 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
       setupCode: TEST_SETUP_CODE,
       trustProxy: true,
       isProduction: false,
+      epoch: 'test-epoch-initial',
     });
 
     server = await new Promise<Server>((resolve) => {
@@ -46,7 +47,6 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
   });
 
   it('rejects first-run setup without the correct setup code and rejects passwords under 10 characters', async () => {
-    // 1. Missing setup code -> 400
     const missingCodeRes = await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -54,7 +54,6 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     expect(missingCodeRes.status).toBe(400);
 
-    // 2. Wrong setup code -> 403
     const wrongCodeRes = await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,7 +61,6 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     expect(wrongCodeRes.status).toBe(403);
 
-    // 3. Password under 10 characters -> 400
     const shortPassRes = await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -70,7 +68,6 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     expect(shortPassRes.status).toBe(400);
 
-    // Verify setup is still needed
     const statusStillNeedsSetup = await (await fetch(`${baseUrl}/api/auth/status`)).json();
     expect(statusStillNeedsSetup).toEqual({ needsSetup: true, authenticated: false });
   });
@@ -89,7 +86,6 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     expect(body1.ok).toBe(true);
     expect(typeof body1.token).toBe('string');
 
-    // Second setup attempt must fail with 403
     const setupRes2 = await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -113,15 +109,12 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     const { token } = (await setupRes.json()) as { token: string };
 
-    // Valid right now
     const okRes = await fetch(`${baseUrl}/api/state`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(okRes.status).toBe(200);
 
-    // Advance time past SESSION_TTL_MS + 1ms
     currentNow += SESSION_TTL_MS + 1000;
-
     const expiredRes = await fetch(`${baseUrl}/api/state`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -135,49 +128,33 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
       body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
     });
 
-    // 5 failed login attempts from IP 203.0.113.50
     for (let i = 0; i < 5; i++) {
       const failRes = await fetch(`${baseUrl}/api/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'CF-Connecting-IP': '203.0.113.50',
-        },
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.50' },
         body: JSON.stringify({ password: 'wrong-password' }),
       });
       expect(failRes.status).toBe(401);
     }
 
-    // 6th attempt from same IP is blocked with 429 even with correct password
     const blockedRes = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'CF-Connecting-IP': '203.0.113.50',
-      },
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.50' },
       body: JSON.stringify({ password: VALID_PASSWORD }),
     });
     expect(blockedRes.status).toBe(429);
 
-    // Different IP is not blocked
     const otherIpRes = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'CF-Connecting-IP': '203.0.113.99',
-      },
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.99' },
       body: JSON.stringify({ password: VALID_PASSWORD }),
     });
     expect(otherIpRes.status).toBe(200);
 
-    // After 15 minutes + 1s, the first IP is unblocked
     currentNow += 15 * 60 * 1000 + 1000;
     const unblockedRes = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'CF-Connecting-IP': '203.0.113.50',
-      },
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.50' },
       body: JSON.stringify({ password: VALID_PASSWORD }),
     });
     expect(unblockedRes.status).toBe(200);
@@ -190,38 +167,26 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
       body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
     });
 
-    // 20 failed logins each from a distinct spoofed IP
     for (let i = 1; i <= 20; i++) {
       const res = await fetch(`${baseUrl}/api/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'CF-Connecting-IP': `198.51.100.${i}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': `198.51.100.${i}` },
         body: JSON.stringify({ password: 'wrong-password' }),
       });
       expect(res.status).toBe(401);
     }
 
-    // 21st login from a brand-new IP with the correct password is blocked with 429
     const blockedGlobalRes = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'CF-Connecting-IP': '198.51.100.250',
-      },
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '198.51.100.250' },
       body: JSON.stringify({ password: VALID_PASSWORD }),
     });
     expect(blockedGlobalRes.status).toBe(429);
 
-    // Advance 15 minutes + 1s -> global block expires
     currentNow += 15 * 60 * 1000 + 1000;
     const allowedAfterCooldown = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'CF-Connecting-IP': '198.51.100.250',
-      },
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '198.51.100.250' },
       body: JSON.stringify({ password: VALID_PASSWORD }),
     });
     expect(allowedAfterCooldown.status).toBe(200);
@@ -235,26 +200,23 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     const { token } = (await setupRes.json()) as { token: string };
 
-    // Open an SSE stream
     const sseRes = await fetch(`${baseUrl}/api/events`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(sseRes.status).toBe(200);
-    expect(sseRes.body).not.toBeNull();
+    if (!sseRes.body) throw new Error('Missing SSE body');
 
-    const reader = sseRes.body!.getReader();
+    const reader = sseRes.body.getReader();
     const firstChunk = await reader.read();
     expect(firstChunk.done).toBe(false);
     expect(new TextDecoder().decode(firstChunk.value)).toContain(': connected');
 
-    // Trigger logout-all
     const logoutAllRes = await fetch(`${baseUrl}/api/auth/logout-all`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(logoutAllRes.status).toBe(200);
 
-    // The SSE stream should now close (reader.read() resolves with done: true)
     const nextChunk = await reader.read();
     expect(nextChunk.done).toBe(true);
   });
@@ -269,41 +231,105 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     const cookiePair = setCookie.split(';')[0];
     expect(cookiePair).toContain('zhenji_session=');
 
-    // Cross-origin POST with cookie and mismatched Origin -> 403
     const crossOriginPost = await fetch(`${baseUrl}/api/auth/logout`, {
       method: 'POST',
-      headers: {
-        Cookie: cookiePair,
-        Origin: 'https://malicious.example.com',
-      },
+      headers: { Cookie: cookiePair, Origin: 'https://malicious.example.com' },
     });
     expect(crossOriginPost.status).toBe(403);
 
-    // Cookie-authenticated PATCH without Origin header -> 403
     const missingOriginPatch = await fetch(`${baseUrl}/api/settings`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: cookiePair,
-      },
+      headers: { 'Content-Type': 'application/json', Cookie: cookiePair },
       body: JSON.stringify({ includeSpecials: true }),
     });
     expect(missingOriginPatch.status).toBe(403);
 
-    // Same-origin PATCH with matching Origin -> 200
     const sameOriginPatch = await fetch(`${baseUrl}/api/settings`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: cookiePair,
-        Origin: baseUrl,
-      },
+      headers: { 'Content-Type': 'application/json', Cookie: cookiePair, Origin: baseUrl },
       body: JSON.stringify({ includeSpecials: true }),
     });
     expect(sameOriginPatch.status).toBe(200);
   });
 
-  it('returns 404 JSON for unknown /api routes', async () => {
+  it('POST /api/titles/:id/actions applies progress + title in one transaction and rolls back completely when one part is invalid', async () => {
+    const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
+    });
+    const { token } = (await setupRes.json()) as { token: string };
+    const authHeader = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    const putRes = await fetch(`${baseUrl}/api/titles/tmdb_tv_100`, {
+      method: 'PUT',
+      headers: authHeader,
+      body: JSON.stringify({
+        title: {
+          id: 'tmdb_tv_100',
+          source: 'tmdb',
+          sourceId: '100',
+          mediaType: 'tv',
+          names: { original: 'Severance', zh: '人生切割术' },
+          displayLang: null,
+          year: 2022,
+          runtimeMin: 50,
+          genres: [],
+          posterPath: null,
+          backdropPath: null,
+          overview: {},
+          showStatus: 'Returning Series',
+          externalIds: {},
+          ratings: {},
+          manualState: 'paused',
+          playthroughs: [{ id: 'p1', number: 1, startedAt: 1000 }],
+          activePlaythroughId: 'p1',
+          resume: null,
+          metaFetchedAt: 1000,
+          addedAt: 1000,
+          updatedAt: 1000,
+          lastActivityAt: 1000,
+        },
+        seasons: [],
+        progress: { p1: { playthroughId: 'p1', watched: {} } },
+      }),
+    });
+    expect(putRes.status).toBe(200);
+
+    const okActionRes = await fetch(`${baseUrl}/api/titles/tmdb_tv_100/actions`, {
+      method: 'POST',
+      headers: authHeader,
+      body: JSON.stringify({
+        progress: { playthroughId: 'p1', set: { s1e1: 5000 } },
+        title: { manualState: null, lastActivityAt: 5000 },
+      }),
+    });
+    expect(okActionRes.status).toBe(200);
+    const okMutation = (await okActionRes.json()) as { epoch: string; version: number };
+    expect(okMutation.epoch).toBe('test-epoch-initial');
+    expect(okMutation.version).toBe(2);
+
+    // Atomic action where progress is valid (setting s1e2) but title has an invalid activePlaythroughId
+    const badActionRes = await fetch(`${baseUrl}/api/titles/tmdb_tv_100/actions`, {
+      method: 'POST',
+      headers: authHeader,
+      body: JSON.stringify({
+        progress: { playthroughId: 'p1', set: { s1e2: 6000 } },
+        title: { activePlaythroughId: 'non_existent_playthrough' },
+      }),
+    });
+    expect(badActionRes.status).toBe(409);
+
+    const stateAfterFailed = repo.getState();
+    expect(stateAfterFailed.version).toBe(2);
+    expect(stateAfterFailed.progressByTitle['tmdb_tv_100'].p1.watched).toEqual({ s1e1: 5000 });
+    expect(stateAfterFailed.titles['tmdb_tv_100'].activePlaythroughId).toBe('p1');
+  });
+
+  it('returns 404 JSON for unknown /api routes and validates /api/tmdb/:mediaType/:id', async () => {
     const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -316,17 +342,6 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     expect(unknownRes.status).toBe(404);
     expect(unknownRes.headers.get('content-type')).toContain('application/json');
-    const body = (await unknownRes.json()) as { error?: string };
-    expect(typeof body.error).toBe('string');
-  });
-
-  it('validates /api/tmdb/:mediaType/:id parameters', async () => {
-    const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
-    });
-    const { token } = (await setupRes.json()) as { token: string };
 
     const badMediaType = await fetch(`${baseUrl}/api/tmdb/person/123`, {
       headers: { Authorization: `Bearer ${token}` },

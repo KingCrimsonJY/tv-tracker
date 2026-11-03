@@ -55,7 +55,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
         {isWatching && (
           <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-[var(--scrim-strong)] via-[var(--scrim-mid)] to-transparent">
             <ProgressBar
-              aria-label={`${primary} 观看进度`}
+              aria-label={`${primary} ${zh.app.watchProgressAriaSuffix}`}
               value={pct}
               size="sm"
               className="w-full"

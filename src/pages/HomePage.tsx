@@ -1,21 +1,13 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  Check,
-  ChevronRight,
-  Film,
-  ListOrdered,
-  Plus,
-  Settings,
-} from 'lucide-react';
-import { Button, Card, ProgressBar } from '@heroui/react';
+import { Check, ChevronRight, Film, ListOrdered, Plus, Settings } from 'lucide-react';
+import { Button, ProgressBar } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
 import {
   computeTitleState,
-  formatEpisodeBadge,
   formatSeconds,
   getTitleContinueProgressRatio,
   resolveDisplayTitle,
@@ -37,449 +29,299 @@ export const HomePage: React.FC = () => {
   } = useTracker();
   const navigate = useNavigate();
 
-  const allTitles = Object.values(titles).sort(
-    (a, b) => b.lastActivityAt - a.lastActivityAt
-  );
+  const allTitles = Object.values(titles);
+  const defaultLang = settings.defaultTitleLang;
+  const includeSpecials = settings.includeSpecials;
 
-  const progressMapForAllTitles: Record<string, ProgressDoc | undefined> = {};
+  const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
   for (const t of allTitles) {
-    progressMapForAllTitles[t.id] = getActiveProgress(t);
+    progressByTitleMap[t.id] = getActiveProgress(t);
   }
 
-  // Compute state for every title
-  const computedItems = allTitles.map((title) => {
+  const enriched = allTitles.map((title) => {
     const seasons = seasonsByTitle[title.id] || [];
-    const progress = progressMapForAllTitles[title.id];
-    const state = computeTitleState(title, seasons, progress, {
-      includeSpecials: settings.includeSpecials,
-    });
+    const progress = progressByTitleMap[title.id];
+    const state = computeTitleState(title, seasons, progress, { includeSpecials });
     return { title, seasons, progress, state };
   });
 
-  // 继续观看: status === 'watching' (paused/dropped are already separate statuses)
-  const continueWatchingItems = computedItems.filter(
-    (item) => item.state.status === 'watching'
-  );
+  const continueWatchingItems = enriched
+    .filter(
+      ({ title, state }) =>
+        state.status === 'watching' &&
+        (state.nextUp !== null || Boolean(title.resume && title.resume.seconds > 0))
+    )
+    .sort((a, b) => b.title.lastActivityAt - a.title.lastActivityAt);
 
-  // 有新集: state.hasNewEpisodes === true
-  const newEpisodeItems = computedItems.filter((item) => item.state.hasNewEpisodes);
+  const newEpisodeItems = enriched
+    .filter(({ state }) => state.hasNewEpisodes)
+    .sort((a, b) => b.title.lastActivityAt - a.title.lastActivityAt);
 
-  // 置顶列表: pinned ordered lists
-  const pinnedOrderedLists = Object.values(lists)
-    .filter((l) => l.pinned && l.kind === 'ordered')
-    .sort((a, b) => (a.rank < b.rank ? -1 : 1));
-
-  // 最近添加: sorted by addedAt descending
-  const recentlyAddedItems = [...computedItems]
+  const recentlyAddedItems = [...enriched]
     .sort((a, b) => b.title.addedAt - a.title.addedAt)
     .slice(0, 12);
 
-  // 想看: status === 'unwatched'
-  const watchlistItems = computedItems.filter(
-    (item) => item.state.status === 'unwatched'
-  );
+  const wantToWatchItems = enriched
+    .filter(({ state }) => state.status === 'unwatched')
+    .sort((a, b) => b.title.addedAt - a.title.addedAt)
+    .slice(0, 12);
 
-  const enabledSections = [...settings.homeSections]
-    .filter((s) => s.enabled)
-    .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
+  const pinnedOrderedLists = Object.values(lists)
+    .filter((l) => l.pinned)
+    .sort((a, b) => (a.rank < b.rank ? -1 : 1));
 
-  const isEmpty = allTitles.length === 0;
+  const renderPosterGridSection = (
+    key: HomeSectionId,
+    heading: string,
+    items: typeof enriched,
+    moreLink?: { to: string; label: string }
+  ) => {
+    if (items.length === 0) return null;
+    return (
+      <section key={key} className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
+            {heading}
+          </h2>
+          {moreLink && (
+            <Link
+              to={moreLink.to}
+              className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 min-h-[44px] px-2"
+            >
+              <span>{moreLink.label}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 sm:gap-5">
+          {items.map(({ title, seasons, progress }) => (
+            <PosterCard
+              key={title.id}
+              title={title}
+              seasons={seasons}
+              progress={progress}
+              defaultLang={defaultLang}
+              includeSpecials={includeSpecials}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  };
 
-  const renderSection = (sectionId: HomeSectionId) => {
-    switch (sectionId) {
-      case 'continue_watching':
+  const renderSection = (key: HomeSectionId) => {
+    switch (key) {
+      case 'continue_watching': {
+        if (continueWatchingItems.length === 0) return null;
         return (
-          <section
-            key="continue_watching"
-            aria-labelledby="heading-continue-watching"
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2
-                id="heading-continue-watching"
-                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
-              >
-                {zh.home.continueWatching}
-              </h2>
-              <span className="text-xs text-[var(--muted)] tabular-nums">
-                {continueWatchingItems.length} 部正在观看
-              </span>
-            </div>
+          <section key={key} className="space-y-4">
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
+              {zh.home.sections.continue_watching}
+            </h2>
+            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory no-scrollbar">
+              {continueWatchingItems.map(({ title, seasons, state }) => {
+                const { primary } = resolveDisplayTitle(
+                  title.names,
+                  title.displayLang,
+                  defaultLang
+                );
+                const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
+                const pct = Math.max(3, Math.min(100, Math.round(ratio * 100)));
 
-            {continueWatchingItems.length === 0 ? (
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 flex items-center justify-between gap-4">
-                <p className="text-sm text-[var(--muted)]">
-                  当前没有正在观看的影视，从片库挑选一部或搜索新作品开始吧。
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => navigate('/library')}
-                  className="shrink-0"
-                >
-                  浏览片库
-                </Button>
-              </div>
-            ) : (
-              /* Item 12: Horizontal scroll-snap row; on phone each card is ~85% width so the next one peeks */
-              <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-                {continueWatchingItems.map(({ title, seasons, state }) => {
-                  const { primary } = resolveDisplayTitle(
-                    title.names,
-                    title.displayLang,
-                    settings.defaultTitleLang
-                  );
-
-                  const resume = title.resume;
-                  const nextUp = state.nextUp;
-                  const targetEpisodeKey = resume?.episodeKey || nextUp?.key || null;
-
-                  let progressSubtitle = '';
-                  if (resume && resume.seconds > 0) {
-                    if (resume.episodeKey) {
-                      progressSubtitle = `${formatEpisodeBadge(resume.episodeKey)} · ${formatSeconds(
-                        resume.seconds
-                      )}`;
-                    } else {
-                      progressSubtitle = `${formatSeconds(resume.seconds)}`;
-                    }
-                  } else if (nextUp) {
-                    progressSubtitle = `${zh.home.nextEpisodePrefix} ${formatEpisodeBadge(
-                      nextUp.key
-                    )}`;
+                let subtitle: string = state.label;
+                if (title.resume && title.resume.seconds > 0) {
+                  const timeStr = formatSeconds(title.resume.seconds);
+                  if (title.resume.episodeKey) {
+                    const m = /^s(\d+)e(\d+)$/i.exec(title.resume.episodeKey);
+                    if (m) subtitle = zh.home.resumeEpisodeLabel(Number(m[1]), Number(m[2]), timeStr);
                   } else {
-                    progressSubtitle = state.label;
+                    subtitle = zh.home.resumeMovieLabel(timeStr);
                   }
+                } else if (state.nextUp) {
+                  subtitle = zh.home.nextEpisodeLabel(state.nextUp.seasonNumber, state.nextUp.number);
+                }
 
-                  // Item 15: Progress bar uses resume seconds ÷ (runtime × 60) for movies and resumed episodes
-                  const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
-                  const pct = Math.max(2, Math.min(100, Math.round(ratio * 100)));
-                  const detailHref = targetEpisodeKey
-                    ? `/title/${title.id}?episode=${targetEpisodeKey}`
-                    : `/title/${title.id}`;
+                const quickMarkEpisodeKey = title.resume?.episodeKey || state.nextUp?.key;
 
-                  const handleQuickMark = (e: React.MouseEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (nextUp) {
-                      toggleEpisode(title.id, nextUp.key);
-                    } else if (title.mediaType === 'movie') {
-                      markWholeTitle(title.id, true);
-                    }
-                  };
-
-                  return (
-                    <div
-                      key={title.id}
-                      className="w-[85%] sm:w-[340px] lg:w-[380px] shrink-0 snap-start group relative rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 hover:scale-[1.01]"
+                return (
+                  <div
+                    key={title.id}
+                    className="relative shrink-0 w-[280px] sm:w-[320px] snap-start group rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
+                  >
+                    <Link
+                      to={`/title/${title.id}${quickMarkEpisodeKey ? `?ep=${quickMarkEpisodeKey}` : ''}`}
+                      className="block relative"
                     >
-                      <Link
-                        to={detailHref}
-                        className="block relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      <MediaImage
+                        src={title.backdropPath || title.posterPath}
+                        alt={primary}
+                        aspect="backdrop"
+                        mediaType={title.mediaType}
+                        priority
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                      <div className="absolute inset-x-0 bottom-0 p-3.5 space-y-2">
+                        <div className="pr-11">
+                          <h3 className="text-sm sm:text-base font-semibold text-white truncate">
+                            {primary}
+                          </h3>
+                          <p className="text-xs text-white/80 tabular-nums mt-0.5 truncate">
+                            {subtitle}
+                          </p>
+                        </div>
+                        <ProgressBar
+                          aria-label={`${primary} ${zh.app.watchProgressAriaSuffix}`}
+                          value={pct}
+                          size="sm"
+                          className="w-full"
+                        >
+                          <ProgressBar.Track className="h-1 bg-white/25 rounded-full overflow-hidden">
+                            <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+                          </ProgressBar.Track>
+                        </ProgressBar>
+                      </div>
+                    </Link>
+
+                    {quickMarkEpisodeKey ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void toggleEpisode(title.id, quickMarkEpisodeKey);
+                        }}
+                        aria-label={zh.home.markNextWatchedAria(
+                          primary,
+                          quickMarkEpisodeKey.toUpperCase()
+                        )}
+                        title={zh.home.markNextWatched}
+                        className="absolute right-3 bottom-5 z-10 min-w-[44px] min-h-[44px] rounded-xl bg-white/15 hover:bg-[var(--accent)] backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
                       >
-                        <MediaImage
-                          src={title.backdropPath || title.posterPath}
-                          alt={primary}
-                          aspect="backdrop"
-                          mediaType={title.mediaType}
-                          priority
-                        />
-
-                        {/* Scrim overlay for contrast */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[var(--scrim-strong)] via-[var(--scrim-mid)] to-transparent" />
-
-                        <div className="absolute inset-x-0 bottom-0 p-4 flex items-end justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-base sm:text-lg font-semibold text-[var(--on-scrim)] truncate">
-                              {primary}
-                            </h3>
-                            <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--on-scrim-muted)] tabular-nums">
-                              <span>{progressSubtitle}</span>
-                              {state.hasNewEpisodes && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="text-[var(--accent-text)] font-medium">
-                                    {zh.detail.newEpisodeBadge}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Inline Quick Action: Mark next episode / movie watched */}
-                          {(nextUp || title.mediaType === 'movie') && (
-                            <button
-                              type="button"
-                              onClick={handleQuickMark}
-                              aria-label={
-                                nextUp
-                                  ? `${zh.home.markNextWatched} (${primary} ${formatEpisodeBadge(
-                                      nextUp.key
-                                    )})`
-                                  : `${zh.home.markMovieWatched} (${primary})`
-                              }
-                              title={
-                                nextUp
-                                  ? `${zh.home.markNextWatched} ${formatEpisodeBadge(nextUp.key)}`
-                                  : zh.home.markMovieWatched
-                              }
-                              className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-[var(--scrim-chip)] hover:bg-[var(--accent)] text-[var(--on-scrim)] backdrop-blur-md flex items-center justify-center gap-1.5 text-xs font-medium transition-colors shrink-0"
-                            >
-                              <Check className="w-4 h-4" />
-                              <span className="tabular-nums">
-                                {nextUp ? formatEpisodeBadge(nextUp.key) : '已看'}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Thin Progress Bar */}
-                        <div className="absolute inset-x-0 bottom-0">
-                          <ProgressBar
-                            aria-label={`${primary} 进度`}
-                            value={pct}
-                            size="sm"
-                            className="w-full"
-                          >
-                            <ProgressBar.Track className="h-1 bg-[var(--scrim-track)] overflow-hidden">
-                              <ProgressBar.Fill className="h-full bg-[var(--accent)]" />
-                            </ProgressBar.Track>
-                          </ProgressBar>
-                        </div>
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                        <Check className="w-4 h-4" />
+                      </button>
+                    ) : title.mediaType === 'movie' ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void markWholeTitle(title.id, true);
+                        }}
+                        aria-label={zh.home.markMovieWatchedAria(primary)}
+                        title={zh.home.markMovieWatched}
+                        className="absolute right-3 bottom-5 z-10 min-w-[44px] min-h-[44px] rounded-xl bg-white/15 hover:bg-[var(--accent)] backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
           </section>
         );
+      }
 
       case 'new_episodes':
-        if (newEpisodeItems.length === 0) return null;
-        return (
-          <section
-            key="new_episodes"
-            aria-labelledby="heading-new-episodes"
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2
-                id="heading-new-episodes"
-                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
-              >
-                {zh.home.newEpisodes}
-              </h2>
-              <span className="text-xs text-[var(--accent-text)] font-medium tabular-nums">
-                {newEpisodeItems.length} 部更新
-              </span>
-            </div>
+        return renderPosterGridSection(key, zh.home.sections.new_episodes, newEpisodeItems);
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 sm:gap-5">
-              {newEpisodeItems.map(({ title, seasons, progress }) => (
-                <PosterCard
-                  key={title.id}
-                  title={title}
-                  seasons={seasons}
-                  progress={progress}
-                  defaultLang={settings.defaultTitleLang}
-                  includeSpecials={settings.includeSpecials}
-                />
-              ))}
-            </div>
-          </section>
-        );
-
-      case 'pinned_lists':
+      case 'pinned_lists': {
         if (pinnedOrderedLists.length === 0) return null;
         return (
-          <section
-            key="pinned_lists"
-            aria-labelledby="heading-pinned-lists"
-            className="space-y-4"
-          >
+          <section key={key} className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2
-                id="heading-pinned-lists"
-                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
-              >
-                {zh.home.pinnedLists}
+              <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
+                {zh.home.sections.pinned_lists}
               </h2>
               <Link
                 to="/lists"
-                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 transition-colors"
+                className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 min-h-[44px] px-2"
               >
-                <span>全部列表</span>
+                <span>{zh.home.manageLists}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {pinnedOrderedLists.map((list) => {
                 const rawEntries = entriesByList[list.id] || [];
                 const hydrated = rawEntries
                   .map((entry) => ({ entry, title: titles[entry.titleId] }))
                   .filter(
-                    (item): item is { entry: ListEntryDoc; title: TitleDoc } =>
-                      Boolean(item.title)
+                    (item): item is { entry: ListEntryDoc; title: TitleDoc } => Boolean(item.title)
                   );
-
                 const sorted = sortListEntries(
                   hydrated,
-                  'ordered',
-                  'manual',
-                  settings.defaultTitleLang
+                  list.kind,
+                  list.collectionSort,
+                  defaultLang
                 );
-
-                const listStats = computeListProgress(
-                  sorted,
-                  seasonsByTitle,
-                  progressMapForAllTitles,
-                  { includeSpecials: settings.includeSpecials }
-                );
-
-                const nextTitleName = listStats.nextEntry
+                const stats = computeListProgress(sorted, seasonsByTitle, progressByTitleMap, {
+                  includeSpecials,
+                });
+                const nextTitleName = stats.nextEntry
                   ? resolveDisplayTitle(
-                      listStats.nextEntry.title.names,
-                      listStats.nextEntry.title.displayLang,
-                      settings.defaultTitleLang
+                      stats.nextEntry.title.names,
+                      stats.nextEntry.title.displayLang,
+                      defaultLang
                     ).primary
                   : null;
-
                 const pct =
-                  listStats.totalCount > 0
-                    ? Math.round((listStats.completedCount / listStats.totalCount) * 100)
+                  stats.totalCount > 0
+                    ? Math.round((stats.completedCount / stats.totalCount) * 100)
                     : 0;
 
                 return (
                   <Link
                     key={list.id}
                     to={`/lists/${list.id}`}
-                    className="group block rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-secondary)] p-5 transition-colors"
+                    className="group flex flex-col justify-between p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-secondary)] transition-colors space-y-3"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 text-xs text-[var(--accent-text)] font-medium">
-                          <ListOrdered className="w-4 h-4 shrink-0" />
-                          <span>{zh.lists.orderedType}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-xs text-[var(--accent-text)] font-medium">
+                          <ListOrdered className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{list.name}</span>
                         </div>
-                        <h3 className="mt-1.5 text-base font-semibold text-[var(--foreground)] truncate">
-                          {list.name}
-                        </h3>
-                        <p className="mt-1 text-sm text-[var(--foreground-secondary)] truncate">
-                          {nextTitleName ? (
-                            <>
-                              <span className="text-[var(--muted)]">{zh.home.nextTitlePrefix}</span>
-                              <span className="font-medium text-[var(--foreground)]">
-                                {nextTitleName}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-[var(--muted)]">{zh.home.allCompleted}</span>
-                          )}
+                        <p className="mt-1.5 text-sm font-medium text-[var(--foreground)] truncate">
+                          {nextTitleName
+                            ? zh.home.pinnedListNextUp(nextTitleName)
+                            : stats.totalCount > 0
+                              ? zh.home.pinnedListAllDone
+                              : zh.home.pinnedListEmpty}
                         </p>
                       </div>
-
-                      <div className="text-right shrink-0 tabular-nums">
-                        <span className="text-sm font-semibold text-[var(--foreground)]">
-                          {listStats.completedCount}/{listStats.totalCount}
-                        </span>
-                        <p className="text-xs text-[var(--muted)] mt-0.5">已看完</p>
-                      </div>
+                      <span className="text-xs font-medium text-[var(--muted)] tabular-nums shrink-0">
+                        {zh.home.pinnedListProgress(stats.completedCount, stats.totalCount)}
+                      </span>
                     </div>
 
-                    <div className="mt-4">
-                      <ProgressBar
-                        aria-label={`${list.name} 列表进度`}
-                        value={pct}
-                        size="sm"
-                        className="w-full"
-                      >
-                        <ProgressBar.Track className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
-                          <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
-                        </ProgressBar.Track>
-                      </ProgressBar>
-                    </div>
+                    <ProgressBar
+                      aria-label={zh.lists.progressAria(list.name)}
+                      value={pct}
+                      size="sm"
+                      className="w-full"
+                    >
+                      <ProgressBar.Track className="h-1 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
+                        <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+                      </ProgressBar.Track>
+                    </ProgressBar>
                   </Link>
                 );
               })}
             </div>
           </section>
         );
+      }
 
       case 'recently_added':
-        if (recentlyAddedItems.length === 0) return null;
-        return (
-          <section
-            key="recently_added"
-            aria-labelledby="heading-recently-added"
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2
-                id="heading-recently-added"
-                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
-              >
-                {zh.home.recentlyAdded}
-              </h2>
-              <Link
-                to="/library"
-                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 transition-colors"
-              >
-                <span>查看片库</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 sm:gap-5">
-              {recentlyAddedItems.slice(0, 6).map(({ title, seasons, progress }) => (
-                <PosterCard
-                  key={title.id}
-                  title={title}
-                  seasons={seasons}
-                  progress={progress}
-                  defaultLang={settings.defaultTitleLang}
-                  includeSpecials={settings.includeSpecials}
-                />
-              ))}
-            </div>
-          </section>
-        );
+        return renderPosterGridSection(key, zh.home.sections.recently_added, recentlyAddedItems, {
+          to: '/library',
+          label: zh.home.viewAllLibrary,
+        });
 
       case 'watchlist':
-        if (watchlistItems.length === 0) return null;
-        return (
-          <section
-            key="watchlist"
-            aria-labelledby="heading-watchlist"
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2
-                id="heading-watchlist"
-                className="text-lg sm:text-xl font-semibold text-[var(--foreground)] tracking-tight"
-              >
-                {zh.home.watchlist}
-              </h2>
-              <span className="text-xs text-[var(--muted)] tabular-nums">
-                {watchlistItems.length} 部待看
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 sm:gap-5">
-              {watchlistItems.slice(0, 12).map(({ title, seasons, progress }) => (
-                <PosterCard
-                  key={title.id}
-                  title={title}
-                  seasons={seasons}
-                  progress={progress}
-                  defaultLang={settings.defaultTitleLang}
-                  includeSpecials={settings.includeSpecials}
-                />
-              ))}
-            </div>
-          </section>
-        );
+        return renderPosterGridSection(key, zh.home.sections.watchlist, wantToWatchItems);
 
       default:
         return null;
@@ -487,84 +329,66 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-10">
-      {/* Top Header */}
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-            {zh.nav.home}
-          </h1>
-          <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">{zh.app.tagline}</p>
-        </div>
-
-        {/* Settings opens from an avatar button in the Home header, not a tab */}
-        <div className="flex items-center gap-2.5">
+    <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-8">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
+          {zh.home.title}
+        </h1>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => navigate('/search')}
+            className="gap-1.5 font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{zh.library.addMediaButton}</span>
+          </Button>
           <button
             type="button"
             onClick={() => navigate('/settings')}
             aria-label={zh.settings.title}
-            title={zh.settings.title}
-            className="min-w-[44px] min-h-[44px] px-2.5 rounded-2xl bg-[var(--surface)] hover:bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center justify-center gap-2 text-[var(--foreground)] transition-colors cursor-pointer"
+            className="w-11 h-11 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-colors"
           >
-            <div className="w-7 h-7 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center text-xs font-semibold">
-              帧
-            </div>
-            <Settings className="w-4 h-4 text-[var(--muted)]" />
+            <Settings className="w-5 h-5" />
           </button>
         </div>
       </header>
 
       {loadingData ? (
-        <div className="space-y-8" aria-label="正在加载数据">
-          <div className="space-y-4">
-            <div className="h-6 w-28 rounded-lg bg-[var(--surface-secondary)] animate-pulse" />
-            <div className="flex overflow-hidden gap-4">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-[85%] sm:w-[340px] lg:w-[380px] shrink-0 aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] animate-pulse"
-                />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="h-6 w-28 rounded-lg bg-[var(--surface-secondary)] animate-pulse" />
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="aspect-[2/3] rounded-xl bg-[var(--surface)] border border-[var(--border)] animate-pulse"
-                />
-              ))}
-            </div>
+        <div className="space-y-6" aria-label={zh.home.loadingAria}>
+          <div className="h-6 w-32 rounded-lg bg-[var(--surface-secondary)] animate-pulse" />
+          <div className="flex gap-4 overflow-hidden">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-[280px] sm:w-[320px] aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] animate-pulse shrink-0"
+              />
+            ))}
           </div>
         </div>
-      ) : isEmpty ? (
-        <Card className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 sm:p-12 text-center max-w-xl mx-auto my-8">
-          <Card.Content className="flex flex-col items-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)]">
-              <Film className="w-7 h-7" />
-            </div>
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">
-              {zh.home.emptyTitle}
-            </h2>
-            <p className="text-sm text-[var(--muted)] leading-relaxed max-w-md">
-              {zh.home.emptyDescription}
-            </p>
-            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-              <Button
-                variant="primary"
-                onPress={() => navigate('/search')}
-                className="gap-2 font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{zh.home.emptyAction}</span>
-              </Button>
-            </div>
-          </Card.Content>
-        </Card>
+      ) : allTitles.length === 0 ? (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 sm:p-12 text-center max-w-lg mx-auto my-8 space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center mx-auto">
+            <Film className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">
+            {zh.home.emptyLibraryTitle}
+          </h2>
+          <p className="text-sm text-[var(--muted)] leading-relaxed">
+            {zh.home.emptyLibraryDescription}
+          </p>
+          <div className="pt-2">
+            <Button variant="primary" onPress={() => navigate('/search')} className="gap-2">
+              <Plus className="w-4 h-4" />
+              <span>{zh.home.emptyLibraryCta}</span>
+            </Button>
+          </div>
+        </div>
       ) : (
-        <>{enabledSections.map((sec) => renderSection(sec.id))}</>
+        <div className="space-y-10">
+          {settings.homeSections.filter((s) => s.enabled).map((s) => renderSection(s.id))}
+        </div>
       )}
     </div>
   );

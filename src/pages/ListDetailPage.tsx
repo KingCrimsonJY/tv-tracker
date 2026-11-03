@@ -1,8 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  closestCenter,
-  DndContext,
+  ArrowLeft,
+  ArrowUpDown,
+  Bookmark,
+  Check,
+  ListOrdered,
+  Pin,
+  Plus,
+  Trash2,
+} from 'lucide-react';
+import {
   type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
@@ -10,255 +18,26 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import {
-  rectSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import {
-  ArrowLeft,
-  ArrowUpDown,
-  Bookmark,
-  GripVertical,
-  ListOrdered,
-  Pin,
-  Plus,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Button, Modal, ProgressBar } from '@heroui/react';
-import { MediaImage } from '../components/MediaImage';
-import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
-import {
-  computeListProgress,
-  type HydratedListEntry,
-  sortListEntries,
-} from '../domain/ordering';
-import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
+import { computeListProgress, sortListEntries } from '../domain/ordering';
 import type {
   CollectionSort,
   ListEntryDoc,
   ProgressDoc,
-  SeasonDoc,
   TitleDoc,
 } from '../domain/types';
+import { AddTitlesDialog } from '../features/lists/AddTitlesDialog';
+import { CollectionGridSection } from '../features/lists/CollectionGridSection';
+import { OrderedListSection } from '../features/lists/OrderedListSection';
 import { zh } from '../i18n/zh';
-
-interface SortableOrderedRowProps {
-  index: number;
-  item: HydratedListEntry;
-  seasons: SeasonDoc[];
-  progress: ProgressDoc | undefined;
-  isNextUp: boolean;
-  isReordering: boolean;
-  defaultLang: 'zh' | 'original' | 'en';
-  includeSpecials: boolean;
-  onRemove: (entryId: string) => void;
-}
-
-const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
-  index,
-  item,
-  seasons,
-  progress,
-  isNextUp,
-  isReordering,
-  defaultLang,
-  includeSpecials,
-  onRemove,
-}) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.entry.id, disabled: !isReordering });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 20 : undefined,
-  };
-
-  const { primary } = resolveDisplayTitle(
-    item.title.names,
-    item.title.displayLang,
-    defaultLang
-  );
-  const state = computeTitleState(item.title, seasons, progress, { includeSpecials });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-3 sm:gap-4 p-3 rounded-2xl border transition-colors ${
-        isDragging
-          ? 'bg-[var(--surface-tertiary)] border-[var(--accent)] shadow-2xl'
-          : isNextUp
-            ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/40'
-            : 'bg-[var(--surface)] border-[var(--border)] hover:bg-[var(--surface-secondary)]'
-      }`}
-    >
-      {/* Order number */}
-      <span
-        className={`w-7 text-center text-sm font-semibold tabular-nums shrink-0 ${
-          isNextUp ? 'text-[var(--accent-text)]' : 'text-[var(--muted)]'
-        }`}
-      >
-        {String(index + 1).padStart(2, '0')}
-      </span>
-
-      {/* Poster thumbnail */}
-      <Link
-        to={`/title/${item.title.id}`}
-        className="w-12 sm:w-14 shrink-0 rounded-lg overflow-hidden border border-[var(--border)]"
-      >
-        <MediaImage
-          src={item.title.posterPath}
-          alt={primary}
-          aspect="poster"
-          mediaType={item.title.mediaType}
-        />
-      </Link>
-
-      {/* Title, Year & Status */}
-      <Link to={`/title/${item.title.id}`} className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm sm:text-base font-medium text-[var(--foreground)] truncate">
-            {primary}
-          </h3>
-          {isNextUp && (
-            <span className="text-xs font-medium text-[var(--accent-text)] shrink-0">
-              · {zh.lists.nextUpHighlight}
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted)] tabular-nums">
-          {item.title.year && <span>{item.title.year}</span>}
-          {item.title.year && <span aria-hidden="true">·</span>}
-          <span>{zh.detail.mediaTypes[item.title.mediaType]}</span>
-          <span aria-hidden="true">·</span>
-          <span
-            className={
-              state.status === 'completed'
-                ? 'text-[var(--success)]'
-                : state.status === 'watching'
-                  ? 'text-[var(--accent-text)]'
-                  : 'text-[var(--muted)]'
-            }
-          >
-            {state.label}
-          </span>
-        </div>
-      </Link>
-
-      {/* Drag handle or remove button inside reorder mode */}
-      {isReordering ? (
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => onRemove(item.entry.id)}
-            aria-label={`移除 ${primary}`}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[var(--danger)] hover:bg-[var(--danger-subtle)]"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            aria-label={`拖拽调整 ${primary} 顺序`}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--foreground)] cursor-grab active:cursor-grabbing touch-none"
-          >
-            <GripVertical className="w-5 h-5" />
-          </button>
-        </div>
-      ) : (
-        <div className="text-xs text-[var(--muted)] tabular-nums pr-2 hidden sm:block">
-          {state.countableCount > 1 && state.watchedCount > 0
-            ? `${state.watchedCount}/${state.countableCount}`
-            : state.label}
-        </div>
-      )}
-    </div>
-  );
-};
-
-interface SortableCollectionCardProps {
-  item: HydratedListEntry;
-  seasons: SeasonDoc[];
-  progress: ProgressDoc | undefined;
-  isReordering: boolean;
-  defaultLang: 'zh' | 'original' | 'en';
-  includeSpecials: boolean;
-  onRemove: (entryId: string) => void;
-}
-
-const SortableCollectionCard: React.FC<SortableCollectionCardProps> = ({
-  item,
-  seasons,
-  progress,
-  isReordering,
-  defaultLang,
-  includeSpecials,
-  onRemove,
-}) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.entry.id, disabled: !isReordering });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 20 : undefined,
-  };
-
-  const { primary } = resolveDisplayTitle(
-    item.title.names,
-    item.title.displayLang,
-    defaultLang
-  );
-
-  return (
-    <div ref={setNodeRef} style={style} className="relative">
-      <PosterCard
-        title={item.title}
-        seasons={seasons}
-        progress={progress}
-        defaultLang={defaultLang}
-        includeSpecials={includeSpecials}
-      />
-
-      {isReordering && (
-        <div className="absolute top-2 right-2 left-2 flex items-center justify-between gap-1 z-10">
-          <button
-            type="button"
-            onClick={() => onRemove(item.entry.id)}
-            aria-label={`移除 ${primary}`}
-            className="min-w-[38px] min-h-[38px] rounded-xl bg-[var(--scrim-chip)] text-[var(--danger)] backdrop-blur-md flex items-center justify-center border border-[var(--border)]"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            aria-label={`拖拽排序 ${primary}`}
-            className="min-w-[38px] min-h-[38px] rounded-xl bg-[var(--scrim-chip)] text-[var(--on-scrim)] backdrop-blur-md flex items-center justify-center border border-[var(--border)] cursor-grab active:cursor-grabbing touch-none"
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
 
 export const ListDetailPage: React.FC = () => {
   const { listId } = useParams<{ listId: string }>();
   const navigate = useNavigate();
 
   const {
-    loadingData,
     titles,
     seasonsByTitle,
     lists,
@@ -266,144 +45,144 @@ export const ListDetailPage: React.FC = () => {
     settings,
     getActiveProgress,
     togglePinList,
-    deleteList,
     updateCollectionSort,
+    deleteList,
     addTitleToList,
     removeEntryFromList,
     reorderListEntry,
   } = useTracker();
 
   const list = listId ? lists[listId] : undefined;
-  const [isReordering, setIsReordering] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  const rawEntries = useMemo(
+    () => (listId ? entriesByList[listId] || [] : []),
+    [entriesByList, listId]
+  );
 
-  // @dnd-kit sensors: Pointer, Touch (200ms press activation on handle), and Keyboard
+  const [reorderMode, setReorderMode] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 4 },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 5 },
+      activationConstraint: { delay: 200, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
+  const hydratedEntries = useMemo(() => {
+    return rawEntries
+      .map((entry) => ({ entry, title: titles[entry.titleId] }))
+      .filter(
+        (item): item is { entry: ListEntryDoc; title: TitleDoc } =>
+          Boolean(item.title)
+      );
+  }, [rawEntries, titles]);
+
+  const sortedEntries = useMemo(() => {
+    if (!list) return [];
+    return sortListEntries(
+      hydratedEntries,
+      list.kind,
+      list.collectionSort,
+      settings.defaultTitleLang
+    );
+  }, [hydratedEntries, list, settings.defaultTitleLang]);
+
   const progressByTitleMap = useMemo(() => {
     const map: Record<string, ProgressDoc | undefined> = {};
-    for (const t of Object.values(titles)) {
-      map[t.id] = getActiveProgress(t);
+    for (const { title } of sortedEntries) {
+      map[title.id] = getActiveProgress(title);
     }
     return map;
-  }, [titles, getActiveProgress]);
+  }, [sortedEntries, getActiveProgress]);
 
-  if (loadingData && !list) {
-    return (
-      <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6" aria-label="正在加载列表详情">
-        <div className="h-10 w-28 rounded-xl bg-[var(--surface)] animate-pulse" />
-        <div className="h-36 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse" />
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-20 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse"
-            />
-          ))}
-        </div>
-      </div>
+  const stats = useMemo(() => {
+    return computeListProgress(
+      sortedEntries,
+      seasonsByTitle,
+      progressByTitleMap,
+      { includeSpecials: settings.includeSpecials }
     );
-  }
+  }, [sortedEntries, seasonsByTitle, progressByTitleMap, settings.includeSpecials]);
 
   if (!list) {
     return (
       <div className="px-6 py-16 text-center space-y-4">
-        <p className="text-base text-[var(--muted)]">未找到该列表</p>
-        <Button variant="secondary" onPress={() => navigate('/lists')}>
-          返回列表页
+        <p className="text-base text-[var(--muted)]">{zh.lists.notFound}</p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={() => navigate('/lists')}
+        >
+          {zh.lists.backToLists}
         </Button>
       </div>
     );
   }
-
-  const rawEntries = entriesByList[list.id] || [];
-  const hydrated = rawEntries
-    .map((entry) => ({ entry, title: titles[entry.titleId] }))
-    .filter((item): item is { entry: ListEntryDoc; title: TitleDoc } =>
-      Boolean(item.title)
-    );
-
-  const effectiveSort: CollectionSort =
-    list.kind === 'ordered' || isReordering ? 'manual' : list.collectionSort;
-
-  const sortedEntries = sortListEntries(
-    hydrated,
-    list.kind,
-    effectiveSort,
-    settings.defaultTitleLang
-  );
-
-  const stats = computeListProgress(
-    sortedEntries,
-    seasonsByTitle,
-    progressByTitleMap,
-    { includeSpecials: settings.includeSpecials }
-  );
 
   const pct =
     stats.totalCount > 0
       ? Math.round((stats.completedCount / stats.totalCount) * 100)
       : 0;
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const isManualReorderAllowed =
+    list.kind === 'ordered' ||
+    (list.kind === 'collection' && list.collectionSort === 'manual');
+
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    reorderListEntry(list.id, String(active.id), String(over.id));
+
+    await reorderListEntry(list.id, String(active.id), String(over.id));
   };
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
-      {/* Top Back & Actions */}
-      <div className="flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={() => navigate('/lists')}
-          className="min-h-[44px] px-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--surface-secondary)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)] flex items-center gap-1.5 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>所有列表</span>
-        </button>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() => togglePinList(list.id)}
-            className="gap-1.5 text-xs"
+      {/* Top Navigation & Header */}
+      <header className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate('/lists')}
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)] min-h-[44px] pr-3"
           >
-            <Pin className="w-3.5 h-3.5" />
-            <span>{list.pinned ? zh.lists.unpinAction : zh.lists.pinAction}</span>
-          </Button>
+            <ArrowLeft className="w-4 h-4" />
+            <span>{zh.lists.title}</span>
+          </button>
 
-          <Button
-            variant="danger-soft"
-            size="sm"
-            onPress={async () => {
-              await deleteList(list.id);
-              navigate('/lists');
-            }}
-            className="gap-1.5 text-xs"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>{zh.lists.deleteList}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => togglePinList(list.id)}
+              aria-label={list.pinned ? zh.lists.unpinAction : zh.lists.pinAction}
+              className={`min-h-[40px] px-3 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                list.pinned
+                  ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
+                  : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              <Pin className="w-3.5 h-3.5" />
+              <span>
+                {list.pinned ? zh.lists.pinnedBadge : zh.lists.unpinnedBadge}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              aria-label={zh.app.delete}
+              className="min-w-[40px] min-h-[40px] rounded-xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--muted)] hover:text-[var(--danger)] transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* List Header Info & Progress */}
-      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-[var(--separator)]">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-medium text-[var(--accent-text)]">
               {list.kind === 'ordered' ? (
                 <ListOrdered className="w-4 h-4" />
@@ -411,56 +190,69 @@ export const ListDetailPage: React.FC = () => {
                 <Bookmark className="w-4 h-4" />
               )}
               <span>
-                {list.kind === 'ordered' ? zh.lists.orderedType : zh.lists.collectionType}
+                {list.kind === 'ordered'
+                  ? zh.lists.orderedType
+                  : zh.lists.collectionType}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">
+
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
               {list.name}
             </h1>
+
             {list.description && (
-              <p className="text-sm text-[var(--muted)]">{list.description}</p>
+              <p className="text-sm text-[var(--muted)] max-w-2xl">
+                {list.description}
+              </p>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Collection Sort Selector */}
             {list.kind === 'collection' && (
-              <select
-                aria-label="合集排序方式"
-                value={list.collectionSort}
-                onChange={(e) => {
-                  const nextSort = e.target.value as CollectionSort;
-                  updateCollectionSort(list.id, nextSort);
-                  if (nextSort === 'manual') {
-                    setIsReordering(true);
-                  }
-                }}
-                className="h-9 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)]"
-              >
-                <option value="added">{zh.lists.sortOptions.added}</option>
-                <option value="name">{zh.lists.sortOptions.name}</option>
-                <option value="year">{zh.lists.sortOptions.year}</option>
-                <option value="rating">{zh.lists.sortOptions.rating}</option>
-                <option value="manual">{zh.lists.sortOptions.manual}</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="collection-sort"
+                  className="text-xs text-[var(--muted)]"
+                >
+                  {zh.lists.sortByLabel}
+                </label>
+                <select
+                  id="collection-sort"
+                  value={list.collectionSort}
+                  onChange={async (e) => {
+                    const nextSort = e.target.value as CollectionSort;
+                    await updateCollectionSort(list.id, nextSort);
+                    if (nextSort === 'manual') {
+                      setReorderMode(true);
+                    } else {
+                      setReorderMode(false);
+                    }
+                  }}
+                  className="h-10 px-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)]"
+                >
+                  <option value="added">{zh.lists.sortBy.added}</option>
+                  <option value="name">{zh.lists.sortBy.name}</option>
+                  <option value="year">{zh.lists.sortBy.year}</option>
+                  <option value="rating">{zh.lists.sortBy.rating}</option>
+                  <option value="manual">{zh.lists.sortBy.manual}</option>
+                </select>
+              </div>
             )}
 
-            {/* Reorder Toggle Button */}
-            {sortedEntries.length > 1 && (
+            {isManualReorderAllowed && sortedEntries.length > 1 && (
               <Button
-                variant={isReordering ? 'primary' : 'secondary'}
+                variant={reorderMode ? 'primary' : 'secondary'}
                 size="sm"
-                onPress={() => {
-                  if (!isReordering && list.kind === 'collection') {
-                    updateCollectionSort(list.id, 'manual');
-                  }
-                  setIsReordering((v) => !v);
-                }}
-                className="gap-1.5 text-xs font-medium"
+                onPress={() => setReorderMode((v) => !v)}
+                className="gap-1.5 min-h-[40px]"
               >
-                <ArrowUpDown className="w-3.5 h-3.5" />
+                {reorderMode ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <ArrowUpDown className="w-4 h-4" />
+                )}
                 <span>
-                  {isReordering ? zh.lists.reorderDone : zh.lists.reorderToggle}
+                  {reorderMode ? zh.lists.reorderDone : zh.lists.reorderToggle}
                 </span>
               </Button>
             )}
@@ -469,174 +261,121 @@ export const ListDetailPage: React.FC = () => {
               variant="primary"
               size="sm"
               onPress={() => setAddModalOpen(true)}
-              className="gap-1.5 text-xs font-medium"
+              className="gap-1.5 min-h-[40px]"
             >
               <Plus className="w-4 h-4" />
-              <span>{zh.lists.addTitlesToList}</span>
+              <span>{zh.lists.addTitlesButtonShort}</span>
             </Button>
           </div>
         </div>
 
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
-            <span>
-              已看完 {stats.completedCount} / {stats.totalCount} 部
+        {/* List Progress Summary */}
+        {stats.totalCount > 0 && (
+          <div className="flex items-center gap-4 max-w-md">
+            <span className="text-xs text-[var(--muted)] tabular-nums whitespace-nowrap">
+              {zh.lists.progressLabel(stats.completedCount, stats.totalCount)}
             </span>
-            <span>{pct}%</span>
+            <ProgressBar
+              aria-label={zh.lists.progressAria(list.name)}
+              value={pct}
+              size="sm"
+              className="flex-1"
+            >
+              <ProgressBar.Track className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
+                <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+              </ProgressBar.Track>
+            </ProgressBar>
           </div>
-          <ProgressBar
-            aria-label={`${list.name} 完成进度`}
-            value={pct}
-            size="sm"
-            className="w-full"
-          >
-            <ProgressBar.Track className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
-              <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
-            </ProgressBar.Track>
-          </ProgressBar>
-        </div>
+        )}
       </header>
 
       {/* Entries Content */}
       {sortedEntries.length === 0 ? (
         <div className="py-16 text-center space-y-4">
-          <p className="text-sm text-[var(--muted)]">{zh.lists.emptyEntries}</p>
-          <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
-            {zh.lists.addTitlesToList}
+          <p className="text-sm text-[var(--muted)]">
+            {zh.lists.emptyListEntries}
+          </p>
+          <Button
+            variant="primary"
+            size="sm"
+            onPress={() => setAddModalOpen(true)}
+            className="gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{zh.lists.addTitlesToList}</span>
           </Button>
         </div>
       ) : list.kind === 'ordered' ? (
-        <DndContext
+        <OrderedListSection
+          sortedEntries={sortedEntries}
+          nextToWatchEntryId={stats.nextEntry?.entry.id}
+          reorderEnabled={reorderMode}
           sensors={sensors}
-          collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortedEntries.map((h) => h.entry.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2.5">
-              {sortedEntries.map((item, idx) => (
-                <SortableOrderedRow
-                  key={item.entry.id}
-                  index={idx}
-                  item={item}
-                  seasons={seasonsByTitle[item.title.id] || []}
-                  progress={progressByTitleMap[item.title.id]}
-                  isNextUp={stats.nextEntry?.entry.id === item.entry.id}
-                  isReordering={isReordering}
-                  defaultLang={settings.defaultTitleLang}
-                  includeSpecials={settings.includeSpecials}
-                  onRemove={(entryId) => removeEntryFromList(list.id, entryId)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+          seasonsByTitle={seasonsByTitle}
+          progressByTitleMap={progressByTitleMap}
+          defaultLang={settings.defaultTitleLang}
+          includeSpecials={settings.includeSpecials}
+          onRemoveEntry={(entryId) => removeEntryFromList(list.id, entryId)}
+        />
       ) : (
-        <DndContext
+        <CollectionGridSection
+          sortedEntries={sortedEntries}
+          reorderEnabled={reorderMode && list.collectionSort === 'manual'}
           sensors={sensors}
-          collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortedEntries.map((h) => h.entry.id)}
-            strategy={rectSortingStrategy}
-          >
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 sm:gap-5">
-              {sortedEntries.map((item) => (
-                <SortableCollectionCard
-                  key={item.entry.id}
-                  item={item}
-                  seasons={seasonsByTitle[item.title.id] || []}
-                  progress={progressByTitleMap[item.title.id]}
-                  isReordering={isReordering}
-                  defaultLang={settings.defaultTitleLang}
-                  includeSpecials={settings.includeSpecials}
-                  onRemove={(entryId) => removeEntryFromList(list.id, entryId)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+          seasonsByTitle={seasonsByTitle}
+          progressByTitleMap={progressByTitleMap}
+          defaultLang={settings.defaultTitleLang}
+          includeSpecials={settings.includeSpecials}
+          onRemoveEntry={(entryId) => removeEntryFromList(list.id, entryId)}
+        />
       )}
 
-      {/* Modal to Add Titles from Library into this List */}
-      <Modal.Backdrop isOpen={addModalOpen} onOpenChange={setAddModalOpen} isDismissable>
-        <Modal.Container size="md" placement="center">
+      <AddTitlesDialog
+        isOpen={addModalOpen}
+        onOpenChange={setAddModalOpen}
+        titles={titles}
+        rawEntries={rawEntries}
+        defaultLang={settings.defaultTitleLang}
+        onAddTitle={(titleId) => addTitleToList(list.id, titleId)}
+      />
+
+      <Modal.Backdrop
+        isOpen={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        isDismissable
+      >
+        <Modal.Container size="sm" placement="center">
           <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
             <Modal.Header>
               <Modal.Heading className="text-base font-semibold">
-                添加作品到「{list.name}」
+                {zh.app.delete}
               </Modal.Heading>
             </Modal.Header>
-
-            <Modal.Body className="mt-4 space-y-2 max-h-80 overflow-y-auto">
-              {Object.values(titles).map((t) => {
-                const { primary } = resolveDisplayTitle(
-                  t.names,
-                  t.displayLang,
-                  settings.defaultTitleLang
-                );
-                const existingEntry = rawEntries.find((e) => e.titleId === t.id);
-
-                return (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)]"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 shrink-0 rounded overflow-hidden">
-                        <MediaImage
-                          src={t.posterPath}
-                          alt={primary}
-                          aspect="poster"
-                          mediaType={t.mediaType}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                          {primary}
-                        </p>
-                        <p className="text-xs text-[var(--muted)] tabular-nums">
-                          {t.year || ''} · {zh.detail.mediaTypes[t.mediaType]}
-                        </p>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant={existingEntry ? 'secondary' : 'primary'}
-                      size="sm"
-                      onPress={() =>
-                        existingEntry
-                          ? removeEntryFromList(list.id, existingEntry.id)
-                          : addTitleToList(list.id, t.id)
-                      }
-                    >
-                      {existingEntry
-                        ? zh.detail.addToListModal.added
-                        : zh.detail.addToListModal.add}
-                    </Button>
-                  </div>
-                );
-              })}
-            </Modal.Body>
-
-            <Modal.Footer className="mt-5 flex justify-between items-center">
+            <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
+              {zh.lists.deleteListConfirm}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
-                onPress={() => {
-                  setAddModalOpen(false);
-                  navigate('/search');
+                onPress={() => setDeleteConfirmOpen(false)}
+              >
+                {zh.app.cancel}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onPress={async () => {
+                  setDeleteConfirmOpen(false);
+                  await deleteList(list.id);
+                  navigate('/lists', { replace: true });
                 }}
               >
-                去搜索更多新影视
+                {zh.app.delete}
               </Button>
-              <Button variant="secondary" size="sm" onPress={() => setAddModalOpen(false)}>
-                {zh.app.close}
-              </Button>
-            </Modal.Footer>
+            </div>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
