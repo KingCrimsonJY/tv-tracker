@@ -1,4 +1,10 @@
-import { assertSafePublicUrl, safeFetchFollowingRedirects } from '../security/ssrf.ts';
+import {
+  assertSafePublicUrl,
+  safeFetchFollowingRedirects,
+  UnsafeUrlError,
+  type DnsLookupFn,
+  type FetchFn,
+} from '../security/ssrf.ts';
 
 export interface LinkImportResult {
   title: string;
@@ -8,6 +14,14 @@ export interface LinkImportResult {
   suggestedMediaType: 'movie' | 'tv' | 'other';
 }
 
+export interface ResolveLinkOptions {
+  timeoutMs?: number;
+  lookupFn?: DnsLookupFn;
+  fetchFn?: FetchFn;
+}
+
+const MAX_HTML_BYTES = 512 * 1024; // 512 KB
+
 function decodeHtmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, '&')
@@ -16,6 +30,52 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/gi, "'");
+}
+
+export function isHostOrSubdomain(hostname: string, domain: string): boolean {
+  const h = hostname.toLowerCase();
+  const d = domain.toLowerCase();
+  return h === d || h.endsWith(`.${d}`);
+}
+
+async function readStreamUpToLimit(response: Response, maxBytes = MAX_HTML_BYTES): Promise<string> {
+  if (!response.body) {
+    const text = await response.text();
+    return text.slice(0, maxBytes);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  const chunks: string[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        if (totalBytes + value.byteLength >= maxBytes) {
+          const remaining = maxBytes - totalBytes;
+          if (remaining > 0) {
+            chunks.push(decoder.decode(value.subarray(0, remaining), { stream: false }));
+          }
+          await reader.cancel().catch(() => {});
+          break;
+        }
+        totalBytes += value.byteLength;
+        chunks.push(decoder.decode(value, { stream: true }));
+      }
+    }
+    chunks.push(decoder.decode());
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore
+    }
+  }
+
+  return chunks.join('');
 }
 
 const YOUTUBE_REGEX =
@@ -31,15 +91,23 @@ const BILI_AID_REGEX = /[?&]aid=([0-9]+)/i;
  */
 export async function resolveLinkMetadata(
   rawUrl: string,
-  timeoutMs = 8000
+  options: ResolveLinkOptions | number = {}
 ): Promise<LinkImportResult> {
-  const safeInitialUrl = await assertSafePublicUrl(rawUrl);
+  const opts: ResolveLinkOptions =
+    typeof options === 'number' ? { timeoutMs: options } : options;
+  const timeoutMs = opts.timeoutMs ?? 8000;
+  const safeFetchOpts = {
+    lookupFn: opts.lookupFn,
+    fetchFn: opts.fetchFn,
+  };
+
+  const safeInitialUrl = await assertSafePublicUrl(rawUrl, opts.lookupFn);
   const hostname = safeInitialUrl.hostname.toLowerCase();
 
   const isYouTube =
-    hostname.includes('youtube.com') || hostname === 'youtu.be' || hostname.endsWith('.youtu.be');
+    isHostOrSubdomain(hostname, 'youtube.com') || isHostOrSubdomain(hostname, 'youtu.be');
   const isBilibili =
-    hostname.includes('bilibili.com') || hostname === 'b23.tv' || hostname.endsWith('.b23.tv');
+    isHostOrSubdomain(hostname, 'bilibili.com') || isHostOrSubdomain(hostname, 'b23.tv');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -59,9 +127,11 @@ export async function resolveLinkMetadata(
             canonicalUrl
           )}&format=json`;
 
-          const { response: ytRes } = await safeFetchFollowingRedirects(oembedUrl, {
-            signal: controller.signal,
-          });
+          const { response: ytRes } = await safeFetchFollowingRedirects(
+            oembedUrl,
+            { signal: controller.signal },
+            safeFetchOpts
+          );
 
           if (ytRes.ok) {
             const ytData = (await ytRes.json()) as {
@@ -80,11 +150,13 @@ export async function resolveLinkMetadata(
               suggestedMediaType: 'other',
             };
           }
-        } catch {
+        } catch (err) {
+          if (err instanceof UnsafeUrlError) {
+            throw err;
+          }
           // oEmbed network error or timeout: fall back to video ID metadata
         }
 
-        // Reliable fallback if oEmbed is unreachable
         return {
           title: `YouTube 视频 (${videoId})`,
           posterUrl: fallbackThumbnail,
@@ -99,15 +171,18 @@ export async function resolveLinkMetadata(
     if (isBilibili) {
       let currentUrl = safeInitialUrl.toString();
 
-      // Resolve b23.tv short link if necessary
-      if (hostname === 'b23.tv' || hostname.endsWith('.b23.tv')) {
+      if (isHostOrSubdomain(hostname, 'b23.tv')) {
         try {
-          const { finalUrl } = await safeFetchFollowingRedirects(currentUrl, {
-            signal: controller.signal,
-          });
+          const { finalUrl } = await safeFetchFollowingRedirects(
+            currentUrl,
+            { signal: controller.signal },
+            safeFetchOpts
+          );
           currentUrl = finalUrl;
-        } catch {
-          // Keep currentUrl
+        } catch (err) {
+          if (err instanceof UnsafeUrlError) {
+            throw err;
+          }
         }
       }
 
@@ -119,15 +194,19 @@ export async function resolveLinkMetadata(
         const apiUrl = `https://api.bilibili.com/x/web-interface/view?${queryParam}`;
 
         try {
-          const { response: biliRes } = await safeFetchFollowingRedirects(apiUrl, {
-            signal: controller.signal,
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-              Referer: 'https://www.bilibili.com/',
-              Accept: 'application/json',
+          const { response: biliRes } = await safeFetchFollowingRedirects(
+            apiUrl,
+            {
+              signal: controller.signal,
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                Referer: 'https://www.bilibili.com/',
+                Accept: 'application/json',
+              },
             },
-          });
+            safeFetchOpts
+          );
 
           if (biliRes.ok) {
             const biliData = (await biliRes.json()) as {
@@ -168,8 +247,10 @@ export async function resolveLinkMetadata(
               };
             }
           }
-        } catch {
-          // Bilibili API call failed; fall back to Open Graph or BVID fallback
+        } catch (err) {
+          if (err instanceof UnsafeUrlError) {
+            throw err;
+          }
         }
 
         if (bvMatch) {
@@ -184,7 +265,7 @@ export async function resolveLinkMetadata(
       }
     }
 
-    // 3. General Open Graph / HTML metadata scrape
+    // 3. General Open Graph / HTML metadata scrape (stream up to 512 KB)
     const { response: htmlRes, finalUrl } = await safeFetchFollowingRedirects(
       safeInitialUrl.toString(),
       {
@@ -195,12 +276,13 @@ export async function resolveLinkMetadata(
           Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         },
-      }
+      },
+      safeFetchOpts
     );
 
     if (htmlRes.ok) {
       const finalUrlObj = new URL(finalUrl);
-      const html = (await htmlRes.text()).slice(0, 180000);
+      const html = await readStreamUpToLimit(htmlRes, MAX_HTML_BYTES);
 
       const extractMeta = (prop: string): string | null => {
         const r1 = new RegExp(
@@ -227,11 +309,14 @@ export async function resolveLinkMetadata(
         .replace(/\s*-\s*YouTube$/i, '')
         .trim();
 
-      let ogImage = extractMeta('og:image') || extractMeta('twitter:image') || null;
-      if (ogImage && ogImage.startsWith('//')) {
-        ogImage = `https:${ogImage}`;
-      } else if (ogImage && ogImage.startsWith('/')) {
-        ogImage = `${finalUrlObj.origin}${ogImage}`;
+      const rawOgImage = extractMeta('og:image') || extractMeta('twitter:image') || null;
+      let resolvedOgImage: string | null = null;
+      if (rawOgImage) {
+        try {
+          resolvedOgImage = new URL(rawOgImage, finalUrl).toString();
+        } catch {
+          resolvedOgImage = null;
+        }
       }
 
       const ogDesc =
@@ -242,22 +327,14 @@ export async function resolveLinkMetadata(
 
       return {
         title: cleanedTitle || finalUrlObj.hostname,
-        posterUrl: ogImage,
+        posterUrl: resolvedOgImage,
         overview: ogDesc,
         sourceUrl: finalUrlObj.toString(),
         suggestedMediaType: 'other',
       };
     }
   } catch (err) {
-    if (
-      err instanceof Error &&
-      (err.message.includes('仅支持') ||
-        err.message.includes('仅允许') ||
-        err.message.includes('禁止访问') ||
-        err.message.includes('重定向') ||
-        err.message.includes('私有或受限') ||
-        err.message.includes('认证信息'))
-    ) {
+    if (err instanceof UnsafeUrlError) {
       throw err;
     }
     // Upstream connection/timeout errors fall through to basic URL fallback
@@ -265,9 +342,9 @@ export async function resolveLinkMetadata(
     clearTimeout(timer);
   }
 
-  // 4. Safe fallback if upstream is slow or unresponsive
   return {
-    title: safeInitialUrl.hostname + (safeInitialUrl.pathname !== '/' ? safeInitialUrl.pathname : ''),
+    title:
+      safeInitialUrl.hostname + (safeInitialUrl.pathname !== '/' ? safeInitialUrl.pathname : ''),
     posterUrl: null,
     overview: `来自链接：${safeInitialUrl.toString()}`,
     sourceUrl: safeInitialUrl.toString(),

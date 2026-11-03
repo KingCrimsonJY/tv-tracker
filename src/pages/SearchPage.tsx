@@ -15,7 +15,7 @@ import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
 import type { MediaType } from '../domain/types';
 import { zh } from '../i18n/zh';
-import { apiFetch } from '../lib/api';
+import { apiFetch } from '../data/api';
 
 interface SearchResultItem {
   sourceId: string;

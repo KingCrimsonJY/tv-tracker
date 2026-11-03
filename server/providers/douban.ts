@@ -28,8 +28,8 @@ export async function lookupDoubanBestEffort(
   try {
     let subjectId = input.doubanId?.trim();
 
-    if (subjectId && subjectId.includes('douban.com/subject/')) {
-      const m = subjectId.match(/subject\/(\d+)/);
+    if (subjectId) {
+      const m = subjectId.match(/\/subject\/(\d+)/);
       if (m) subjectId = m[1];
     }
 

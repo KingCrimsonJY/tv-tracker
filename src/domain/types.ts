@@ -151,3 +151,48 @@ export interface AppSettingsDoc {
   homeSections: HomeSectionConfig[];
   theme: 'dark' | 'light' | 'system';
 }
+
+export interface StateUpserts {
+  titles?: Record<string, TitleDoc>;
+  seasonsByTitle?: Record<string, SeasonDoc[]>;
+  progressByTitle?: Record<string, Record<string, ProgressDoc>>;
+  lists?: Record<string, WatchListDoc>;
+  entriesByList?: Record<string, ListEntryDoc[]>;
+  settings?: AppSettingsDoc;
+}
+
+export interface StateDeletes {
+  titles?: string[];
+  progress?: Array<{ titleId: string; playthroughId: string }>;
+  lists?: string[];
+  entries?: Array<{ listId: string; entryId: string }>;
+}
+
+export interface StateMutationResult {
+  version: number;
+  upserts: StateUpserts;
+  deletes: StateDeletes;
+}
+
+export interface AppStateSnapshot {
+  version: number;
+  titles: Record<string, TitleDoc>;
+  seasonsByTitle: Record<string, SeasonDoc[]>;
+  progressByTitle: Record<string, Record<string, ProgressDoc>>;
+  lists: Record<string, WatchListDoc>;
+  entriesByList: Record<string, ListEntryDoc[]>;
+  settings: AppSettingsDoc;
+}
+
+export interface ZhenjiExportV2 {
+  format: 'zhenji-export';
+  version: 2;
+  exportedAt: string;
+  settings: AppSettingsDoc;
+  titles: Record<string, TitleDoc>;
+  seasonsByTitle: Record<string, SeasonDoc[]>;
+  progressByTitle: Record<string, Record<string, ProgressDoc>>;
+  lists: Record<string, WatchListDoc>;
+  entriesByList: Record<string, ListEntryDoc[]>;
+}
+

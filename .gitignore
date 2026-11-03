@@ -3,6 +3,8 @@ build/
 dist/
 dev-dist/
 .aistudio/
+.playwright-cli/
+data/
 coverage/
 .DS_Store
 *.log

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   Download,
@@ -25,13 +26,16 @@ import {
   LogOut,
   Monitor,
   Moon,
+  ShieldAlert,
   Sun,
+  Upload,
 } from 'lucide-react';
-import { Button, Card } from '@heroui/react';
-import { useTracker } from '../context/TrackerContext';
-import { computeMovedRank } from '../domain/ordering';
-import type { HomeSectionConfig, HomeSectionId } from '../domain/types';
-import { zh } from '../i18n/zh';
+import { Button, Card, Modal } from '@heroui/react';
+import { useTracker } from '../context/TrackerContext.tsx';
+import { apiFetch } from '../data/api.ts';
+import { computeMovedRank } from '../domain/ordering.ts';
+import type { HomeSectionConfig, HomeSectionId } from '../domain/types.ts';
+import { zh } from '../i18n/zh.ts';
 
 interface SortableSectionRowProps {
   section: HomeSectionConfig;
@@ -98,7 +102,22 @@ const SortableSectionRow: React.FC<SortableSectionRowProps> = ({ section, onTogg
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, updateSettings, exportAllDataJson, signOut } = useTracker();
+  const {
+    settings,
+    updateSettings,
+    exportAllDataJson,
+    importBackupData,
+    signOut,
+    signOutAll,
+    showToast,
+  } = useTracker();
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingImportData, setPendingImportData] = useState<unknown | null>(null);
+  const [pendingFileName, setPendingFileName] = useState<string>('');
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -133,22 +152,70 @@ export const SettingsPage: React.FC = () => {
     updateSettings({ homeSections: next });
   };
 
-  const handleExportJson = () => {
-    const jsonStr = exportAllDataJson();
+  const handleExportJson = async () => {
+    let jsonStr = '';
+    try {
+      const res = await apiFetch('/api/export');
+      if (res.ok) {
+        jsonStr = await res.text();
+      } else {
+        jsonStr = exportAllDataJson();
+      }
+    } catch {
+      jsonStr = exportAllDataJson();
+    }
+
     const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const datePart = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `zhenji-watch-tracker-${datePart}.json`;
+    a.download = `zhenji-${datePart}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setImportError(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as unknown;
+      setPendingImportData(parsed);
+      setPendingFileName(file.name);
+      setImportConfirmOpen(true);
+    } catch {
+      showToast('无法解析该 JSON 文件，请检查文件格式');
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingImportData) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      await importBackupData(pendingImportData);
+      setImportConfirmOpen(false);
+      setPendingImportData(null);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : '导入失败，请检查文件格式');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
+    navigate('/');
+  };
+
+  const handleSignOutAll = async () => {
+    await signOutAll();
     navigate('/');
   };
 
@@ -309,7 +376,7 @@ export const SettingsPage: React.FC = () => {
         </Card.Content>
       </Card>
 
-      {/* 5. 导出数据 (JSON) & 退出登录 */}
+      {/* 5. 导出数据 / 导入数据 / 退出登录 / 退出所有设备 */}
       <Card className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 sm:p-6">
         <Card.Content className="space-y-4">
           <div>
@@ -320,6 +387,14 @@ export const SettingsPage: React.FC = () => {
               {zh.settings.exportJsonDesc}
             </p>
           </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <Button
@@ -332,6 +407,15 @@ export const SettingsPage: React.FC = () => {
             </Button>
 
             <Button
+              variant="secondary"
+              onPress={() => fileInputRef.current?.click()}
+              className="min-h-[44px] gap-2 font-medium"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{zh.settings.importJson}</span>
+            </Button>
+
+            <Button
               variant="danger-soft"
               onPress={handleSignOut}
               className="min-h-[44px] gap-2 font-medium text-[var(--danger)]"
@@ -339,9 +423,72 @@ export const SettingsPage: React.FC = () => {
               <LogOut className="w-4 h-4" />
               <span>{zh.settings.signOutButton}</span>
             </Button>
+
+            <Button
+              variant="danger-soft"
+              onPress={handleSignOutAll}
+              className="min-h-[44px] gap-2 font-medium text-[var(--danger)]"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              <span>{zh.settings.signOutAllButton}</span>
+            </Button>
           </div>
         </Card.Content>
       </Card>
+
+      {/* 导入数据确认弹窗 */}
+      <Modal.Backdrop
+        isOpen={importConfirmOpen}
+        onOpenChange={setImportConfirmOpen}
+        isDismissable={!importing}
+      >
+        <Modal.Container size="sm" placement="center">
+          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)]">
+            <Modal.Header>
+              <Modal.Heading className="text-base font-semibold">
+                {zh.settings.importConfirmTitle}
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="mt-2 space-y-3 text-sm text-[var(--muted)]">
+              {pendingFileName && (
+                <p className="text-xs font-medium text-[var(--foreground)] bg-[var(--surface-secondary)] px-3 py-2 rounded-lg truncate">
+                  文件：{pendingFileName}
+                </p>
+              )}
+              <p className="leading-relaxed">{zh.settings.importConfirmBody}</p>
+              {importError && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-[var(--danger)]">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer className="mt-5 flex justify-end gap-2.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={importing}
+                onPress={() => {
+                  setImportConfirmOpen(false);
+                  setPendingImportData(null);
+                  setImportError(null);
+                }}
+              >
+                {zh.detail.editModal.cancel}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                isDisabled={importing}
+                onPress={handleConfirmImport}
+                className="bg-[var(--danger)] text-white"
+              >
+                {zh.settings.importConfirmButton}
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   );
 };

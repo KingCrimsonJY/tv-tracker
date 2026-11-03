@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import nodeTest from 'node:test';
+import { test as registerTest } from 'vitest';
 import {
   cancelRewatch,
   computeResumeRatio,
@@ -17,11 +17,6 @@ import {
 } from './progress.ts';
 import type { ProgressDoc, SeasonDoc, TitleDoc } from './types.ts';
 import { assertSafePublicUrl, isPrivateOrReservedIp } from '../../server/security/ssrf.ts';
-
-// Support both Vitest (`npx vitest run`) and Node's test runner (`npx --yes tsx --test`)
-const vitestModule = process.env.VITEST ? await import('vitest') : null;
-const registerTest: (name: string, fn: () => void | Promise<void>) => void =
-  vitestModule ? vitestModule.test : (name, fn) => { nodeTest(name, fn); };
 
 const TODAY = '2026-11-01';
 

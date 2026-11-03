@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Film,
   ListOrdered,
-  LogIn,
   Plus,
   Settings,
 } from 'lucide-react';
@@ -26,7 +25,6 @@ import { zh } from '../i18n/zh';
 
 export const HomePage: React.FC = () => {
   const {
-    user,
     loadingData,
     titles,
     seasonsByTitle,
@@ -36,7 +34,6 @@ export const HomePage: React.FC = () => {
     getActiveProgress,
     toggleEpisode,
     markWholeTitle,
-    signIn,
   } = useTracker();
   const navigate = useNavigate();
 
@@ -502,18 +499,6 @@ export const HomePage: React.FC = () => {
 
         {/* Settings opens from an avatar button in the Home header, not a tab */}
         <div className="flex items-center gap-2.5">
-          {!user && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => signIn().catch(() => {})}
-              className="sm:hidden gap-1.5 text-xs min-h-[44px]"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Google 登录</span>
-            </Button>
-          )}
-
           <button
             type="button"
             onClick={() => navigate('/settings')}
@@ -521,18 +506,9 @@ export const HomePage: React.FC = () => {
             title={zh.settings.title}
             className="min-w-[44px] min-h-[44px] px-2.5 rounded-2xl bg-[var(--surface)] hover:bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center justify-center gap-2 text-[var(--foreground)] transition-colors cursor-pointer"
           >
-            {user?.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt={user.displayName || zh.settings.title}
-                referrerPolicy="no-referrer"
-                className="w-7 h-7 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center text-xs font-semibold">
-                {user?.displayName ? user.displayName.slice(0, 1) : '帧'}
-              </div>
-            )}
+            <div className="w-7 h-7 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center text-xs font-semibold">
+              帧
+            </div>
             <Settings className="w-4 h-4 text-[var(--muted)]" />
           </button>
         </div>

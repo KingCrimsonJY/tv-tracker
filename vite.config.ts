@@ -45,7 +45,8 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          navigateFallbackDenylist: [/^\/api\//],
+          navigateFallbackDenylist: [/^\/api\//, /^\/healthz$/],
+          runtimeCaching: [],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         },
         devOptions: {

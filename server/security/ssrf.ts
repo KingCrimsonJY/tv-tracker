@@ -1,6 +1,19 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
 
+export class UnsafeUrlError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsafeUrlError';
+  }
+}
+
+export type DnsLookupFn = (hostname: string) => Promise<Array<{ address: string }>>;
+export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+
+const defaultLookupFn: DnsLookupFn = (h) => dns.lookup(h, { all: true, verbatim: true });
+const defaultFetchFn: FetchFn = (input, init) => fetch(input, init);
+
 /**
  * Checks whether an IPv4 or IPv6 address is loopback, private, link-local,
  * unspecified, CGNAT, or multicast/reserved.
@@ -105,26 +118,25 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 
 /**
  * Validates that a URL uses http/https and that its hostname resolves
- * exclusively to public IP addresses.
+ * exclusively to public IP addresses. Throws UnsafeUrlError on violation.
  */
 export async function assertSafePublicUrl(
   rawUrl: string,
-  lookupFn: (hostname: string) => Promise<Array<{ address: string }>> = (h) =>
-    dns.lookup(h, { all: true, verbatim: true })
+  lookupFn: DnsLookupFn = defaultLookupFn
 ): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new Error('无效的链接格式');
+    throw new UnsafeUrlError('无效的链接格式');
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('仅支持 http 或 https 协议的链接');
+    throw new UnsafeUrlError('仅支持 http 或 https 协议的链接');
   }
 
   if (parsed.username || parsed.password) {
-    throw new Error('不支持包含认证信息的链接');
+    throw new UnsafeUrlError('不支持包含认证信息的链接');
   }
 
   // Strip IPv6 brackets if present
@@ -137,13 +149,13 @@ export async function assertSafePublicUrl(
     hostname.endsWith('.internal') ||
     hostname === 'metadata.google.internal'
   ) {
-    throw new Error('禁止访问内网或本地主机地址');
+    throw new UnsafeUrlError('禁止访问内网或本地主机地址');
   }
 
   // Direct IP literal in URL
   if (net.isIP(hostname) !== 0) {
     if (isPrivateOrReservedIp(hostname)) {
-      throw new Error('禁止访问私有、环回或链路本地 IP 地址');
+      throw new UnsafeUrlError('禁止访问私有、环回或链路本地 IP 地址');
     }
     return parsed;
   }
@@ -153,20 +165,26 @@ export async function assertSafePublicUrl(
   try {
     records = await lookupFn(hostname);
   } catch {
-    throw new Error('无法解析目标域名');
+    throw new UnsafeUrlError('无法解析目标域名');
   }
 
   if (!records || records.length === 0) {
-    throw new Error('无法解析目标域名');
+    throw new UnsafeUrlError('无法解析目标域名');
   }
 
   for (const rec of records) {
     if (isPrivateOrReservedIp(rec.address)) {
-      throw new Error('目标域名解析为私有或受限 IP 地址，已拒绝访问');
+      throw new UnsafeUrlError('目标域名解析为私有或受限 IP 地址，已拒绝访问');
     }
   }
 
   return parsed;
+}
+
+export interface SafeFetchOptions {
+  maxRedirects?: number;
+  lookupFn?: DnsLookupFn;
+  fetchFn?: FetchFn;
 }
 
 /**
@@ -176,12 +194,18 @@ export async function assertSafePublicUrl(
 export async function safeFetchFollowingRedirects(
   initialUrl: string,
   init: RequestInit = {},
-  maxRedirects = 5
+  options: SafeFetchOptions | number = {}
 ): Promise<{ response: Response; finalUrl: string }> {
-  let currentUrlObj = await assertSafePublicUrl(initialUrl);
+  const opts: SafeFetchOptions =
+    typeof options === 'number' ? { maxRedirects: options } : options;
+  const maxRedirects = opts.maxRedirects ?? 5;
+  const lookupFn = opts.lookupFn ?? defaultLookupFn;
+  const fetchFn = opts.fetchFn ?? defaultFetchFn;
+
+  let currentUrlObj = await assertSafePublicUrl(initialUrl, lookupFn);
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const response = await fetch(currentUrlObj.toString(), {
+    const response = await fetchFn(currentUrlObj.toString(), {
       ...init,
       redirect: 'manual',
     });
@@ -189,18 +213,18 @@ export async function safeFetchFollowingRedirects(
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
       if (!location) {
-        throw new Error('重定向缺少目标地址');
+        throw new UnsafeUrlError('重定向缺少目标地址');
       }
       if (hop === maxRedirects) {
-        throw new Error('重定向次数过多');
+        throw new UnsafeUrlError('重定向次数过多');
       }
       const nextUrlStr = new URL(location, currentUrlObj).toString();
-      currentUrlObj = await assertSafePublicUrl(nextUrlStr);
+      currentUrlObj = await assertSafePublicUrl(nextUrlStr, lookupFn);
       continue;
     }
 
     return { response, finalUrl: currentUrlObj.toString() };
   }
 
-  throw new Error('重定向次数过多');
+  throw new UnsafeUrlError('重定向次数过多');
 }
