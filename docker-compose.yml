@@ -1,0 +1,43 @@
+services:
+  zhenji:
+    build: .
+    container_name: zhenji
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/data
+    ports:
+      - "127.0.0.1:8080:3000"
+    volumes:
+      - ./data:/data
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: zhenji-cloudflared
+    profiles:
+      - cloudflare
+    restart: unless-stopped
+    depends_on:
+      - zhenji
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: zhenji-tailscale
+    profiles:
+      - tailscale
+    restart: unless-stopped
+    depends_on:
+      - zhenji
+    hostname: zhenji
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+    volumes:
+      - ./data/tailscale:/var/lib/tailscale

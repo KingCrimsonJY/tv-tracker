@@ -360,5 +360,12 @@ export const zh = {
       signOutAll: '退出所有设备',
       signOutAllConfirm: '确定要退出所有已登录的手机、平板和电脑设备吗？',
     },
+    about: {
+      label: '关于',
+      versionLabel: '版本 v1.0.0',
+      githubLabel: 'GitHub 仓库',
+      githubUrl: 'https://github.com/KingCrimsonJY/zhenji',
+      tmdbNotice: 'This product uses the TMDB API but is not endorsed or certified by TMDB.',
+    },
   },
 } as const;

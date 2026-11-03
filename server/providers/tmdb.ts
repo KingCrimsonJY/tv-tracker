@@ -166,9 +166,11 @@ async function fetchTmdbRawJson(
 export interface SearchResultDto {
   sourceId: string;
   mediaType: 'movie' | 'tv';
+  names: { zh: string; original: string };
   titleZh: string;
   titleOriginal: string;
   year: number | null;
+  posterPath: string | null;
   posterUrl: string | null;
   overview: string;
 }
@@ -195,14 +197,18 @@ export async function searchTmdb(query: string): Promise<SearchResultDto[]> {
         (mediaType === 'movie' ? r.original_title : r.original_name) || titleZh;
       const dateStr = (mediaType === 'movie' ? r.release_date : r.first_air_date) || '';
       const year = dateStr ? parseInt(dateStr.slice(0, 4), 10) || null : null;
+      const posterPath = tmdbImageUrl(r.poster_path, 'w342');
+      const resolvedZh = titleZh || titleOriginal;
 
       return {
         sourceId: String(r.id),
         mediaType,
-        titleZh: titleZh || titleOriginal,
+        names: { zh: resolvedZh, original: titleOriginal },
+        titleZh: resolvedZh,
         titleOriginal,
         year,
-        posterUrl: tmdbImageUrl(r.poster_path, 'w342'),
+        posterPath,
+        posterUrl: posterPath,
         overview: r.overview || '',
       };
     });

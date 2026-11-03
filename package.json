@@ -1,7 +1,9 @@
 {
-  "name": "react-example",
+  "name": "zhenji",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "个人自托管影视进度追踪应用 (Personal self-hosted movie & TV watch progress tracker)",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -11,7 +13,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "set-password": "tsx server/scripts/set-password.ts"
+    "set-password": "tsx server/scripts/set-password.ts",
+    "seed:demo": "tsx server/scripts/seed-demo.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

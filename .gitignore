@@ -5,6 +5,7 @@ dev-dist/
 .aistudio/
 .playwright-cli/
 /data/
+/data-demo/
 coverage/
 .DS_Store
 *.log
