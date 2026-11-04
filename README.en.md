@@ -118,7 +118,7 @@ All environment variables are read exclusively on the server from `.env` (see [`
 | `DATA_DIR` | Optional | `./data` | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports | Mounted at `/data` inside Docker |
 | `YTDLP_PATH` | Optional | `yt-dlp` | Path to the `yt-dlp` binary used by Link Import | Checks `./.bin/yt-dlp` first, then `PATH`; pre-installed at `/opt/yt-dlp/yt-dlp` in Docker |
 | `SETUP_CODE` | Optional | Random | One-time verification code required on the first-run password setup screen | If omitted, a random code is printed to server logs on first boot |
-| `APP_PASSWORD_HASH` | Optional | Empty | `scrypt` password hash override (takes priority over the database password hash) | Generate via `npm run set-password -- "new-password"` |
+| `APP_PASSWORD_HASH` | Optional | Empty | `scrypt` password hash override (takes priority over the database password hash) | Generate interactively via `npm run set-password` |
 | `TRUST_PROXY` | Optional | `0` | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy |
 | `PORT` | Optional | `3000` | HTTP server port | Defaults to `3000` |
 
@@ -133,6 +133,7 @@ git clone https://github.com/KingCrimsonJY/zhenji.git
 cd zhenji
 cp .env.example .env
 # Edit .env to set TMDB_READ_TOKEN
+mkdir -p data && sudo chown 1000:1000 data
 docker compose up -d --build
 
 # Read the one-time setup code on first start
@@ -218,8 +219,8 @@ npm run build
 # Start production server
 npm start
 
-# Generate an scrypt hash to reset a forgotten password
-npm run set-password -- "your-new-password"
+# Generate an scrypt hash to reset a forgotten password (prompts twice with hidden input)
+npm run set-password
 
 # Build the demo database in ./data-demo (never touches ./data)
 npm run seed:demo

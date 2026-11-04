@@ -118,7 +118,7 @@ npm run dev
 | `DATA_DIR` | 可选 | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录 | Docker 容器内固定为 `/data` |
 | `YTDLP_PATH` | 可选 | `yt-dlp` | `yt-dlp` 可执行文件路径，用于外链视频与合集解析 | 默认优先查找 `./.bin/yt-dlp` 再查找系统 `PATH`；Docker 镜像内置于 `/opt/yt-dlp/yt-dlp` |
 | `SETUP_CODE` | 可选 | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码 | 留空时会在服务端启动日志中自动生成并打印 |
-| `APP_PASSWORD_HASH` | 可选 | 空 | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码） | 通过 `npm run set-password -- "新密码"` 生成 |
+| `APP_PASSWORD_HASH` | 可选 | 空 | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码） | 通过 `npm run set-password` 交互式生成 |
 | `TRUST_PROXY` | 可选 | `0` | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流 | 使用 Cloudflare Tunnel 或 Nginx 反代时设为 `1` |
 | `PORT` | 可选 | `3000` | Node.js 服务端监听端口 | 本地或容器内默认 `3000` |
 
@@ -133,6 +133,7 @@ git clone https://github.com/KingCrimsonJY/zhenji.git
 cd zhenji
 cp .env.example .env
 # 编辑 .env 填入 TMDB_READ_TOKEN 等配置
+mkdir -p data && sudo chown 1000:1000 data
 docker compose up -d --build
 
 # 查看首次启动的一次性设置码
@@ -218,8 +219,8 @@ npm run build
 # 以生产模式启动服务端
 npm start
 
-# 生成密码重置哈希
-npm run set-password -- "your-new-password"
+# 生成密码重置哈希（终端隐藏输入两次新密码，至少 10 位）
+npm run set-password
 
 # 生成演示数据库至 ./data-demo（不会修改 ./data）
 npm run seed:demo

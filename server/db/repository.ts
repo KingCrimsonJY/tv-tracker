@@ -54,6 +54,41 @@ import { ConflictError, type DbContext, NotFoundError, type RepositoryOptions } 
 
 export { ConflictError, NotFoundError, type RepositoryOptions };
 
+export class DataDirPermissionError extends Error {
+  public readonly dataDir: string;
+
+  constructor(dataDir: string, cause?: unknown) {
+    const uid = typeof process.getuid === 'function' ? process.getuid() : 'unknown';
+    const message = [
+      `Error: DATA_DIR "${dataDir}" is not writable by the current process (uid=${uid}).`,
+      `If ./data did not exist before the first "docker compose up", Docker created it owned by root.`,
+      `Fix it on the host before starting the container:`,
+      `  mkdir -p data && sudo chown 1000:1000 data`,
+    ].join('\n');
+    super(message, { cause });
+    this.name = 'DataDirPermissionError';
+    this.dataDir = dataDir;
+  }
+}
+
+export function assertDataDirWritable(
+  dataDir: string,
+  fsImpl: Pick<typeof fs, 'mkdirSync' | 'accessSync' | 'writeFileSync' | 'unlinkSync'> = fs
+): void {
+  const resolved = path.resolve(dataDir);
+  try {
+    fsImpl.mkdirSync(resolved, { recursive: true });
+    fsImpl.accessSync(resolved, fs.constants.R_OK | fs.constants.W_OK);
+    const probeFile = path.join(resolved, `.write-test-${process.pid}-${Date.now()}`);
+    fsImpl.writeFileSync(probeFile, '');
+    fsImpl.unlinkSync(probeFile);
+    fsImpl.mkdirSync(path.join(resolved, 'backups'), { recursive: true });
+    fsImpl.mkdirSync(path.join(resolved, 'exports'), { recursive: true });
+  } catch (err) {
+    throw new DataDirPermissionError(resolved, err);
+  }
+}
+
 export class TrackerRepository {
   private readonly db: DatabaseSync;
   private readonly isMemory: boolean;
@@ -75,9 +110,7 @@ export class TrackerRepository {
       options.migrationsDir || path.resolve(import.meta.dirname, 'migrations');
 
     if (!this.isMemory && this.dataDir) {
-      fs.mkdirSync(this.dataDir, { recursive: true });
-      fs.mkdirSync(path.join(this.dataDir, 'backups'), { recursive: true });
-      fs.mkdirSync(path.join(this.dataDir, 'exports'), { recursive: true });
+      assertDataDirWritable(this.dataDir);
     }
 
     this.db = new DatabaseSync(dbPath);

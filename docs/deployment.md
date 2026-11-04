@@ -53,9 +53,10 @@ TRUST_PROXY=1
 
 ## 3. 首次启动与获取一次性设置码
 
-在默认模式下，帧迹将端口绑定在宿主机的 `127.0.0.1:8080`（避免直接向公网暴露未加密的 HTTP 端口）：
+在首次运行 `docker compose up` 之前，请先在宿主机创建 `./data` 目录并将其归属设为容器内的 `node` 用户（`uid 1000`），避免 Docker 自动以 `root` 权限创建该目录导致容器无法写入：
 
 ```bash
+mkdir -p data && sudo chown 1000:1000 data
 docker compose up -d --build
 ```
 
@@ -191,14 +192,14 @@ data/
 
 ## 8. 重置忘记的访问密码
 
-如果忘记了登录密码，可在宿主机上生成新的密码哈希并写入 `.env`：
+如果忘记了登录密码，可在容器内交互式运行密码哈希生成工具（为防止密码残留在 Shell 历史记录中，该工具不接受命令行参数，而是会以隐藏输入方式提示你输入两次新密码，且长度至少 10 位）：
 
 ```bash
-# 在容器内运行密码哈希生成工具
-docker compose exec zhenji npm run set-password -- "你的新密码至少10位"
+# 在容器内交互式生成密码哈希
+docker compose exec -it zhenji npm run set-password
 ```
 
-工具会输出一行 `APP_PASSWORD_HASH=scrypt:...`：
+按提示输入两次新密码后，工具会输出一行 `APP_PASSWORD_HASH="scrypt:..."`：
 
 1. 将该行复制到宿主机 `.env` 文件中（当 `.env` 中设置了 `APP_PASSWORD_HASH` 时，优先级高于数据库内的旧密码哈希）。
 2. 重启容器使其生效：

@@ -358,4 +358,77 @@ describe('TrackerRepository (in-memory SQLite)', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('throws DataDirPermissionError with chown 1000:1000 fix message when DATA_DIR is not writable', async () => {
+    const { assertDataDirWritable, DataDirPermissionError } = await import('./repository.ts');
+
+    expect(() =>
+      assertDataDirWritable('/data', {
+        mkdirSync: () => undefined,
+        accessSync: () => {
+          throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+        },
+        writeFileSync: () => undefined,
+        unlinkSync: () => undefined,
+      })
+    ).toThrow(DataDirPermissionError);
+
+    try {
+      assertDataDirWritable('/data', {
+        mkdirSync: () => undefined,
+        accessSync: () => {
+          throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+        },
+        writeFileSync: () => undefined,
+        unlinkSync: () => undefined,
+      });
+    } catch (err) {
+      expect(err).toBeInstanceOf(DataDirPermissionError);
+      expect((err as Error).message).toContain('mkdir -p data && sudo chown 1000:1000 data');
+    }
+  });
+
+  it('set-password CLI rejects command-line arguments, enforces 10-char minimum, verifies confirmation match, and masks input', async () => {
+    const { PassThrough } = await import('node:stream');
+    const { verifyPassword } = await import('../auth.ts');
+    const { runSetPasswordCli, SetPasswordCliError } = await import('../scripts/set-password.ts');
+
+    // 1. Rejects command-line password argument
+    await expect(
+      runSetPasswordCli({ argv: ['my-secret-password'] })
+    ).rejects.toThrow(SetPasswordCliError);
+
+    // 2. Rejects passwords shorter than 10 characters
+    const shortIn = new PassThrough();
+    const shortOut = new PassThrough();
+    shortIn.end('short123\nshort123\n');
+    await expect(
+      runSetPasswordCli({ argv: [], input: shortIn, output: shortOut })
+    ).rejects.toThrow(/at least 10 characters/);
+
+    // 3. Rejects mismatched confirmation
+    const mismatchIn = new PassThrough();
+    const mismatchOut = new PassThrough();
+    mismatchIn.end('valid-password-10\ndifferent-password-10\n');
+    await expect(
+      runSetPasswordCli({ argv: [], input: mismatchIn, output: mismatchOut })
+    ).rejects.toThrow(/do not match/);
+
+    // 4. Accepts matching >= 10 char password and never echoes the typed characters to output
+    const validIn = new PassThrough();
+    let capturedOutput = '';
+    const validOut = new PassThrough();
+    validOut.on('data', (chunk) => {
+      capturedOutput += String(chunk);
+    });
+    const secret = 'correct-horse-battery-staple';
+    validIn.end(`${secret}\n${secret}\n`);
+
+    const hash = await runSetPasswordCli({ argv: [], input: validIn, output: validOut });
+    expect(verifyPassword(secret, hash)).toBe(true);
+    expect(capturedOutput).toContain('Enter new password');
+    expect(capturedOutput).toContain('Confirm new password');
+    expect(capturedOutput).not.toContain(secret);
+  });
 });
+
