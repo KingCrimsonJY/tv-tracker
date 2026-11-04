@@ -89,8 +89,8 @@ export function sortListEntries(
       return copy.sort((a, b) => (b.title.year ?? 0) - (a.title.year ?? 0));
     case 'rating':
       return copy.sort((a, b) => {
-        const scoreA = parseFloat(a.title.ratings?.douban || a.title.ratings?.imdb || '0') || 0;
-        const scoreB = parseFloat(b.title.ratings?.douban || b.title.ratings?.imdb || '0') || 0;
+        const scoreA = parseFloat(a.title.ratings?.tmdb || a.title.ratings?.imdb || '0') || 0;
+        const scoreB = parseFloat(b.title.ratings?.tmdb || b.title.ratings?.imdb || '0') || 0;
         return scoreB - scoreA;
       });
     default:

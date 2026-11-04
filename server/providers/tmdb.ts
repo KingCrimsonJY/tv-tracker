@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { makeEpisodeKey } from '../../src/domain/progress.ts';
 import type { EpisodeMeta, Ratings, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
-import { lookupDoubanBestEffort } from './douban.ts';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p';
@@ -52,6 +51,8 @@ const tmdbDetailResponseSchema = z.object({
   poster_path: z.string().nullable().optional(),
   backdrop_path: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
+  vote_average: z.number().nullable().optional(),
+  vote_count: z.number().int().nullable().optional(),
   external_ids: z.object({ imdb_id: z.string().nullable().optional() }).optional(),
   translations: z.object({ translations: z.array(tmdbTranslationItemSchema).optional() }).optional(),
   seasons: z
@@ -269,6 +270,14 @@ export async function fetchTmdbTitleDetails(
   const now = Date.now();
   const titleId = `tmdb_${mediaType}_${sourceId}`;
 
+  const initialRatings: Ratings = {};
+  if (typeof detail.vote_average === 'number' && detail.vote_average > 0) {
+    initialRatings.tmdb = detail.vote_average.toFixed(1);
+    if (typeof detail.vote_count === 'number' && detail.vote_count >= 0) {
+      initialRatings.tmdbVotes = detail.vote_count;
+    }
+  }
+
   const titleDoc: TitleDoc = {
     id: titleId,
     source: 'tmdb',
@@ -284,7 +293,7 @@ export async function fetchTmdbTitleDetails(
     overview: { zh: zhOverview, en: enOverview },
     showStatus: detail.status || null,
     externalIds: detail.external_ids?.imdb_id ? { imdb: detail.external_ids.imdb_id } : {},
-    ratings: {},
+    ratings: initialRatings,
     manualState: null,
     playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
     activePlaythroughId: 'p1',
@@ -343,23 +352,21 @@ export async function fetchTmdbTitleDetails(
 
 export async function fetchCombinedRatings(params: {
   imdbId: string;
-  title: string;
-  year: number | null;
-  doubanId: string;
-}): Promise<{ ratings: Ratings; externalIds: { douban?: string } }> {
-  const { imdbId, title, year, doubanId } = params;
+}): Promise<{ ratings: Ratings }> {
+  const { imdbId } = params;
   const omdbKey = getOmdbKey();
   const ratings: Ratings = { fetchedAt: Date.now() };
-  const externalIds: { douban?: string } = {};
 
-  const omdbPromise = (async () => {
-    if (!omdbKey || !imdbId) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    try {
-      const url = `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(omdbKey)}`;
-      const omdbRes = await fetch(url, { signal: controller.signal });
-      if (!omdbRes.ok) return;
+  if (!omdbKey || !imdbId) {
+    return { ratings };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const url = `https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(omdbKey)}`;
+    const omdbRes = await fetch(url, { signal: controller.signal });
+    if (omdbRes.ok) {
       const data = (await omdbRes.json()) as {
         Response?: string;
         imdbRating?: string;
@@ -367,31 +374,25 @@ export async function fetchCombinedRatings(params: {
         Metascore?: string;
         Ratings?: Array<{ Source?: string; Value?: string }>;
       };
-      if (data.Response === 'False') return;
-      if (data.imdbRating && data.imdbRating !== 'N/A') ratings.imdb = data.imdbRating;
-      if (data.imdbVotes && data.imdbVotes !== 'N/A') ratings.imdbVotes = data.imdbVotes;
-      if (Array.isArray(data.Ratings)) {
-        const rt = data.Ratings.find((r) => r.Source === 'Rotten Tomatoes');
-        if (rt?.Value && rt.Value !== 'N/A') ratings.rottenTomatoes = rt.Value;
-        const mc = data.Ratings.find((r) => r.Source === 'Metacritic');
-        if (mc?.Value && mc.Value !== 'N/A') ratings.metacritic = mc.Value.replace(/\/100$/, '');
+      if (data.Response !== 'False') {
+        if (data.imdbRating && data.imdbRating !== 'N/A') ratings.imdb = data.imdbRating;
+        if (data.imdbVotes && data.imdbVotes !== 'N/A') ratings.imdbVotes = data.imdbVotes;
+        if (Array.isArray(data.Ratings)) {
+          const rt = data.Ratings.find((r) => r.Source === 'Rotten Tomatoes');
+          if (rt?.Value && rt.Value !== 'N/A') ratings.rottenTomatoes = rt.Value;
+          const mc = data.Ratings.find((r) => r.Source === 'Metacritic');
+          if (mc?.Value && mc.Value !== 'N/A') ratings.metacritic = mc.Value.replace(/\/100$/, '');
+        }
+        if (!ratings.metacritic && data.Metascore && data.Metascore !== 'N/A') {
+          ratings.metacritic = data.Metascore;
+        }
       }
-      if (!ratings.metacritic && data.Metascore && data.Metascore !== 'N/A') {
-        ratings.metacritic = data.Metascore;
-      }
-    } catch {
-      // Ignore OMDb network errors
-    } finally {
-      clearTimeout(timeout);
     }
-  })();
+  } catch {
+    // Ignore OMDb network errors
+  } finally {
+    clearTimeout(timeout);
+  }
 
-  const doubanPromise = (async () => {
-    const dRes = await lookupDoubanBestEffort({ imdbId, title, year, doubanId });
-    if (dRes.doubanId) externalIds.douban = dRes.doubanId;
-    if (dRes.doubanRating) ratings.douban = dRes.doubanRating;
-  })();
-
-  await Promise.all([omdbPromise, doubanPromise]);
-  return { ratings, externalIds };
+  return { ratings };
 }

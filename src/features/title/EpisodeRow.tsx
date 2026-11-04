@@ -1,6 +1,6 @@
 import React from 'react';
 import { Check, CheckCheck, Clock, MoreHorizontal } from 'lucide-react';
-import { Dropdown, ProgressBar } from '@heroui/react';
+import { Button, Dropdown, ProgressBar } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import { formatSeconds } from '../../domain/progress';
 import type { EpisodeMeta, ProgressDoc, TitleDoc } from '../../domain/types';
@@ -56,16 +56,17 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {/* >= 44px tap target check circle */}
-        <button
-          type="button"
-          disabled={!aired}
-          onClick={() => onToggleWatched(ep.key)}
+        <Button
+          variant="ghost"
+          isIconOnly
+          isDisabled={!aired}
+          onPress={() => onToggleWatched(ep.key)}
           aria-label={zh.detail.seasons.checkEpisodeAria(
             seasonNumber,
             ep.number,
             watched
           )}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-full focus:outline-none disabled:cursor-not-allowed"
+          className="min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-full p-0"
         >
           <span
             className={`w-6 h-6 rounded-full flex items-center justify-center border transition-colors ${
@@ -78,7 +79,7 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
           >
             {watched && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
           </span>
-        </button>
+        </Button>
 
         {/* Episode Still Thumbnail on tablet and up */}
         {ep.stillPath && (

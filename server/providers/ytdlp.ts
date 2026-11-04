@@ -110,13 +110,49 @@ export const ytdlpOutputSchema = z.object({
 
 export type YtdlpOutput = z.infer<typeof ytdlpOutputSchema>;
 
-export function getYtdlpBinaryPath(customPath?: string): string {
-  const fromArg = customPath?.trim();
+export interface GetYtdlpBinaryPathOptions {
+  customPath?: string;
+  envPath?: string;
+  cwd?: string;
+  checkExecutable?: (filePath: string) => boolean;
+}
+
+function isFileExecutable(filePath: string): boolean {
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return false;
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getYtdlpBinaryPath(
+  customPathOrOptions?: string | GetYtdlpBinaryPathOptions
+): string {
+  const opts: GetYtdlpBinaryPathOptions =
+    typeof customPathOrOptions === 'string'
+      ? { customPath: customPathOrOptions }
+      : (customPathOrOptions ?? {});
+
+  const fromArg = opts.customPath?.trim();
   if (fromArg) return fromArg;
-  const fromEnv = process.env.YTDLP_PATH?.trim();
+
+  const rawEnv = opts.envPath !== undefined ? opts.envPath : process.env.YTDLP_PATH;
+  const fromEnv = rawEnv?.trim();
   if (fromEnv) return fromEnv;
-  const localBin = path.resolve(process.cwd(), '.bin', 'yt-dlp');
-  if (fs.existsSync(localBin)) return localBin;
+
+  const checkExec = opts.checkExecutable ?? isFileExecutable;
+  const cwd = opts.cwd ?? process.cwd();
+
+  const candidates = ['/opt/yt-dlp/yt-dlp', path.resolve(cwd, '.bin', 'yt-dlp')];
+  for (const candidate of candidates) {
+    if (checkExec(candidate)) {
+      return candidate;
+    }
+  }
+
   return 'yt-dlp';
 }
 

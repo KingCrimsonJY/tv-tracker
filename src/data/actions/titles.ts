@@ -83,13 +83,7 @@ export function createTitleActions(
     let titleDoc = getState().titles[existingId];
 
     if (!titleDoc) {
-      let data: { title: TitleDoc; seasons: SeasonDoc[] };
-      try {
-        data = await fetchTmdbDetailsApi(mediaType, sourceId);
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : zh.search.tmdbErrorTitle);
-        throw err;
-      }
+      const data = await fetchTmdbDetailsApi(mediaType, sourceId);
 
       const createdTitle = data.title;
       titleDoc = createdTitle;
@@ -121,7 +115,6 @@ export function createTitleActions(
         applyServerMutation(mut);
       } catch (err) {
         removeOptimisticNewTitle(createdTitle.id);
-        showToast(zh.app.writeRollbackToast);
         void triggerRefetch();
         throw err;
       }
@@ -151,12 +144,6 @@ export function createTitleActions(
     const rawSource = input.sourceUrl ?? input.sourceId;
     const sourceId = rawSource?.trim() ? rawSource.trim().slice(0, 2048) : null;
 
-    let doubanField = input.doubanUrl?.trim() || undefined;
-    if (doubanField) {
-      const m = doubanField.match(/subject\/(\d+)/);
-      if (m) doubanField = m[1];
-    }
-
     const newTitle: TitleDoc = {
       id,
       source: input.source,
@@ -171,8 +158,8 @@ export function createTitleActions(
       backdropPath: posterUrl,
       overview: { zh: input.overview?.trim() || '' },
       showStatus: 'Ended',
-      externalIds: doubanField ? { douban: doubanField } : {},
-      ratings: input.doubanScore?.trim() ? { douban: input.doubanScore.trim() } : {},
+      externalIds: {},
+      ratings: {},
       manualState: null,
       playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
       activePlaythroughId: 'p1',
@@ -202,7 +189,6 @@ export function createTitleActions(
       applyServerMutation(mut);
     } catch (err) {
       removeOptimisticNewTitle(newTitle.id);
-      showToast(zh.app.writeRollbackToast);
       void triggerRefetch();
       throw err;
     }
@@ -236,24 +222,6 @@ export function createTitleActions(
           : null
         : prevTitle.posterPath;
 
-    let doubanField =
-      input.doubanUrl !== undefined ? input.doubanUrl.trim() : prevTitle.externalIds?.douban;
-    if (doubanField) {
-      const m = doubanField.match(/subject\/(\d+)/);
-      if (m) doubanField = m[1];
-    }
-
-    const nextExternalIds = { ...prevTitle.externalIds };
-    if (doubanField) nextExternalIds.douban = doubanField;
-    else if (input.doubanUrl !== undefined) delete nextExternalIds.douban;
-
-    const nextRatings = { ...prevTitle.ratings };
-    if (input.doubanScore !== undefined) {
-      const s = input.doubanScore.trim();
-      if (s) nextRatings.douban = s;
-      else delete nextRatings.douban;
-    }
-
     const updatedTitle: TitleDoc = {
       ...prevTitle,
       mediaType: input.mediaType ?? prevTitle.mediaType,
@@ -267,8 +235,6 @@ export function createTitleActions(
         ...prevTitle.overview,
         ...(input.overview !== undefined ? { zh: input.overview.trim() } : {}),
       },
-      externalIds: nextExternalIds,
-      ratings: nextRatings,
       updatedAt: now,
       lastActivityAt: now,
     };
@@ -337,7 +303,7 @@ export function createTitleActions(
           ? { seasonsByTitle: { ...curr.seasonsByTitle, [titleId]: prevSeasons } }
           : {}),
       }));
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -388,7 +354,7 @@ export function createTitleActions(
             }
           : curr
       );
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -431,7 +397,7 @@ export function createTitleActions(
             }
           : curr
       );
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

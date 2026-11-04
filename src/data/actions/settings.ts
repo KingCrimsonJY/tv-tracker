@@ -43,7 +43,7 @@ export function createSettingsActions(
           ...revertPartial,
         },
       }));
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

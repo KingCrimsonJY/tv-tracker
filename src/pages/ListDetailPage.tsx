@@ -19,7 +19,14 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Button, Modal, ProgressBar } from '@heroui/react';
+import {
+  AlertDialog,
+  Button,
+  Label,
+  ListBox,
+  ProgressBar,
+  Select,
+} from '@heroui/react';
 import { useTracker } from '../context/TrackerContext';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
 import type {
@@ -144,19 +151,21 @@ export const ListDetailPage: React.FC = () => {
       {/* Top Navigation & Header */}
       <header className="space-y-4">
         <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate('/lists')}
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)] min-h-[44px] pr-3"
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => navigate('/lists')}
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)] min-h-[44px] px-2 -ml-2"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>{zh.lists.title}</span>
-          </button>
+          </Button>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => togglePinList(list.id)}
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => togglePinList(list.id)}
               aria-label={list.pinned ? zh.lists.unpinAction : zh.lists.pinAction}
               className={`min-h-[40px] px-3 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-colors ${
                 list.pinned
@@ -168,16 +177,17 @@ export const ListDetailPage: React.FC = () => {
               <span>
                 {list.pinned ? zh.lists.pinnedBadge : zh.lists.unpinnedBadge}
               </span>
-            </button>
+            </Button>
 
-            <button
-              type="button"
-              onClick={() => setDeleteConfirmOpen(true)}
+            <Button
+              variant="secondary"
+              isIconOnly
+              onPress={() => setDeleteConfirmOpen(true)}
               aria-label={zh.app.delete}
               className="min-w-[40px] min-h-[40px] rounded-xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--muted)] hover:text-[var(--danger)] transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -209,34 +219,47 @@ export const ListDetailPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             {list.kind === 'collection' && (
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="collection-sort"
-                  className="text-xs text-[var(--muted)]"
-                >
+              <Select
+                selectedKey={list.collectionSort}
+                onSelectionChange={async (key) => {
+                  if (key === null) return;
+                  const nextSort = String(key) as CollectionSort;
+                  await updateCollectionSort(list.id, nextSort);
+                  if (nextSort === 'manual') {
+                    setReorderMode(true);
+                  } else {
+                    setReorderMode(false);
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                <Label className="text-xs text-[var(--muted)]">
                   {zh.lists.sortByLabel}
-                </label>
-                <select
-                  id="collection-sort"
-                  value={list.collectionSort}
-                  onChange={async (e) => {
-                    const nextSort = e.target.value as CollectionSort;
-                    await updateCollectionSort(list.id, nextSort);
-                    if (nextSort === 'manual') {
-                      setReorderMode(true);
-                    } else {
-                      setReorderMode(false);
-                    }
-                  }}
-                  className="h-10 px-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)]"
-                >
-                  <option value="added">{zh.lists.sortBy.added}</option>
-                  <option value="name">{zh.lists.sortBy.name}</option>
-                  <option value="year">{zh.lists.sortBy.year}</option>
-                  <option value="rating">{zh.lists.sortBy.rating}</option>
-                  <option value="manual">{zh.lists.sortBy.manual}</option>
-                </select>
-              </div>
+                </Label>
+                <Select.Trigger className="h-10 min-w-[116px] px-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)]">
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox className="p-1 bg-[var(--overlay)] border border-[var(--border)] rounded-xl text-xs text-[var(--foreground)]">
+                    <ListBox.Item id="added" textValue={zh.lists.sortBy.added} className="px-3 py-2 rounded-lg cursor-pointer">
+                      {zh.lists.sortBy.added}
+                    </ListBox.Item>
+                    <ListBox.Item id="name" textValue={zh.lists.sortBy.name} className="px-3 py-2 rounded-lg cursor-pointer">
+                      {zh.lists.sortBy.name}
+                    </ListBox.Item>
+                    <ListBox.Item id="year" textValue={zh.lists.sortBy.year} className="px-3 py-2 rounded-lg cursor-pointer">
+                      {zh.lists.sortBy.year}
+                    </ListBox.Item>
+                    <ListBox.Item id="rating" textValue={zh.lists.sortBy.rating} className="px-3 py-2 rounded-lg cursor-pointer">
+                      {zh.lists.sortBy.rating}
+                    </ListBox.Item>
+                    <ListBox.Item id="manual" textValue={zh.lists.sortBy.manual} className="px-3 py-2 rounded-lg cursor-pointer">
+                      {zh.lists.sortBy.manual}
+                    </ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             )}
 
             {isManualReorderAllowed && sortedEntries.length > 1 && (
@@ -341,22 +364,23 @@ export const ListDetailPage: React.FC = () => {
         onAddTitle={(titleId) => addTitleToList(list.id, titleId)}
       />
 
-      <Modal.Backdrop
+      <AlertDialog.Backdrop
         isOpen={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         isDismissable
       >
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
+        <AlertDialog.Container size="sm" placement="center">
+          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+            <AlertDialog.Header className="flex items-center gap-3">
+              <AlertDialog.Icon status="danger" />
+              <AlertDialog.Heading className="text-base font-semibold">
                 {zh.app.delete}
-              </Modal.Heading>
-            </Modal.Header>
-            <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
-              {zh.lists.deleteListConfirm}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
+              <p>{zh.lists.deleteListConfirm}</p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
               <Button
                 variant="secondary"
                 size="sm"
@@ -375,10 +399,10 @@ export const ListDetailPage: React.FC = () => {
               >
                 {zh.app.delete}
               </Button>
-            </div>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </div>
   );
 };

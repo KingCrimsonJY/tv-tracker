@@ -361,18 +361,11 @@ export async function fetchTmdbDetailsApi(
 
 export async function fetchRatingsApi(params: {
   imdbId?: string;
-  title?: string;
-  year?: number | null;
-  doubanId?: string;
 }): Promise<{
   ratings?: Ratings;
-  externalIds?: { douban?: string };
 }> {
   const query = new URLSearchParams();
   if (params.imdbId) query.set('imdbId', params.imdbId);
-  if (params.title) query.set('title', params.title);
-  if (params.year) query.set('year', String(params.year));
-  if (params.doubanId) query.set('doubanId', params.doubanId);
   return apiJson(`/api/ratings?${query.toString()}`);
 }
 

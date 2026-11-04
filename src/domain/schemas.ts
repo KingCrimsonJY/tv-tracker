@@ -33,15 +33,15 @@ export const localizedOverviewSchema = z.object({
 
 export const externalIdsSchema = z.object({
   imdb: z.string().optional(),
-  douban: z.string().optional(),
 });
 
 export const ratingsSchema = z.object({
+  tmdb: z.string().optional(),
+  tmdbVotes: z.number().int().nonnegative().optional(),
   imdb: z.string().optional(),
   imdbVotes: z.string().optional(),
   rottenTomatoes: z.string().optional(),
   metacritic: z.string().optional(),
-  douban: z.string().optional(),
   fetchedAt: z.number().optional(),
 });
 

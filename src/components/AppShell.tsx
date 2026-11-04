@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  AlertCircle,
   Bookmark,
   Download,
   Film,
@@ -11,7 +10,6 @@ import {
   LogOut,
   Search,
   Settings,
-  X,
 } from 'lucide-react';
 import { Button, Modal } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext.tsx';
@@ -26,7 +24,7 @@ const NAV_ITEMS = [
 ];
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { lists, toastMessage, dismissToast, signOut } = useTracker();
+  const { lists, signOut } = useTracker();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);
   const location = useLocation();
@@ -123,10 +121,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           )}
 
           <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-[var(--surface-secondary)]">
-            <button
-              type="button"
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => navigate('/settings')}
+              className="flex items-center justify-start gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 h-auto"
             >
               <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)] shrink-0 font-semibold text-xs">
                 {zh.app.logoChar}
@@ -139,16 +138,17 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                   {zh.app.syncConnected}
                 </p>
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => signOut()}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              onPress={() => void signOut()}
               aria-label={zh.app.signOut}
-              title={zh.app.signOut}
-              className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-tertiary)] transition-colors cursor-pointer"
+              className="min-w-[36px] min-h-[36px] rounded-lg text-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <LogOut className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         </div>
       </aside>
@@ -190,22 +190,24 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         </nav>
 
         <div className="mt-auto flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/settings')}
+          <Button
+            variant="secondary"
+            isIconOnly
+            onPress={() => navigate('/settings')}
             aria-label={zh.settings.title}
-            className="w-11 h-11 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] cursor-pointer"
+            className="w-11 h-11 rounded-full bg-[var(--surface-secondary)] text-[var(--muted)] hover:text-[var(--foreground)]"
           >
             <Settings className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => signOut()}
+          </Button>
+          <Button
+            variant="secondary"
+            isIconOnly
+            onPress={() => void signOut()}
             aria-label={zh.app.signOut}
-            className="w-11 h-11 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] cursor-pointer"
+            className="w-11 h-11 rounded-full bg-[var(--surface-secondary)] text-[var(--muted)] hover:text-[var(--foreground)]"
           >
             <LogOut className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -215,28 +217,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           {children}
         </main>
       </div>
-
-      {/* Global Toast Notification for Rollbacks / Errors */}
-      {toastMessage && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-[calc(84px+env(safe-area-inset-bottom,0px))] sm:bottom-6 right-4 left-4 sm:left-auto sm:max-w-sm z-50 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-[var(--overlay)] border border-[var(--danger)] text-[var(--foreground)] shadow-xl"
-        >
-          <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium min-w-0">
-            <AlertCircle className="w-4 h-4 shrink-0 text-[var(--danger)]" />
-            <span className="truncate">{toastMessage}</span>
-          </div>
-          <button
-            type="button"
-            onClick={dismissToast}
-            aria-label={zh.app.close}
-            className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)]"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Phone Bottom Tab Bar (< 640px): height = 64px + env(safe-area-inset-bottom), icons & labels inside 64px area */}
       <nav

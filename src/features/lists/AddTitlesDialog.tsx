@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
-import { Button, Modal } from '@heroui/react';
+import { Plus, Search } from 'lucide-react';
+import { Button, Modal, SearchField, toast } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import { resolveDisplayTitle } from '../../domain/progress';
 import type { ListEntryDoc, TitleDoc } from '../../domain/types';
@@ -48,13 +48,23 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
           </Modal.Header>
 
           <div className="mt-4 space-y-3">
-            <input
-              type="text"
+            <SearchField
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={zh.lists.searchLibraryPlaceholder}
-              className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-            />
+              onChange={setSearchQuery}
+              aria-label={zh.lists.searchLibraryPlaceholder}
+              className="w-full"
+            >
+              <SearchField.Group className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center gap-2">
+                <SearchField.SearchIcon>
+                  <Search className="w-4 h-4 text-[var(--muted)]" />
+                </SearchField.SearchIcon>
+                <SearchField.Input
+                  placeholder={zh.lists.searchLibraryPlaceholder}
+                  className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none"
+                />
+                <SearchField.ClearButton aria-label={zh.search.clearSearchAria} />
+              </SearchField.Group>
+            </SearchField>
 
             <div className="max-h-80 overflow-y-auto space-y-2">
               {availableTitlesToAdd.length === 0 ? (
@@ -96,7 +106,13 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                       <Button
                         variant="primary"
                         size="sm"
-                        onPress={() => onAddTitle(t.id)}
+                        onPress={() => {
+                          toast.promise(onAddTitle(t.id), {
+                            loading: zh.search.addingToListToast,
+                            success: zh.search.addedToListToast(primary),
+                            error: zh.search.addToListFailedToast,
+                          });
+                        }}
                         className="gap-1 shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" />

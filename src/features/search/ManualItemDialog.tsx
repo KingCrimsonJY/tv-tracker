@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { ListVideo } from 'lucide-react';
-import { Button } from '@heroui/react';
+import {
+  Button,
+  FieldError,
+  Input,
+  Label,
+  ListBox,
+  NumberField,
+  Select,
+  Spinner,
+  TextArea,
+  TextField,
+} from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import type { CustomTitleInput } from '../../context/TrackerContext';
 import type { LinkImportResult, MediaType } from '../../domain/types';
@@ -20,17 +31,17 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
   const [manualType, setManualType] = useState<MediaType>(
     initialSeed ? 'other' : 'movie'
   );
-  const [manualYear, setManualYear] = useState(
-    initialSeed?.year ? String(initialSeed.year) : ''
+  const [manualYear, setManualYear] = useState<number>(
+    initialSeed?.year ?? Number.NaN
   );
   const [manualPoster, setManualPoster] = useState(initialSeed?.posterUrl || '');
-  const [manualEpisodes, setManualEpisodes] = useState(
+  const [manualEpisodes, setManualEpisodes] = useState<number>(
     initialSeed?.episodes && initialSeed.episodes.length > 0
-      ? String(initialSeed.episodes.length)
-      : ''
+      ? initialSeed.episodes.length
+      : Number.NaN
   );
-  const [manualRuntime, setManualRuntime] = useState(
-    initialSeed?.runtimeMin ? String(initialSeed.runtimeMin) : ''
+  const [manualRuntime, setManualRuntime] = useState<number>(
+    initialSeed?.runtimeMin ?? Number.NaN
   );
   const [manualOverview, setManualOverview] = useState(
     initialSeed?.overview || ''
@@ -39,6 +50,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
     initialSeed?.sourceUrl || ''
   );
   const [manualError, setManualError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialSeed) {
@@ -47,14 +59,12 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
       setManualPoster(initialSeed.posterUrl || '');
       setManualOverview(initialSeed.overview || '');
       setManualSourceUrl(initialSeed.sourceUrl);
-      setManualYear(initialSeed.year ? String(initialSeed.year) : '');
-      setManualRuntime(
-        initialSeed.runtimeMin ? String(initialSeed.runtimeMin) : ''
-      );
+      setManualYear(initialSeed.year ?? Number.NaN);
+      setManualRuntime(initialSeed.runtimeMin ?? Number.NaN);
       setManualEpisodes(
         initialSeed.episodes && initialSeed.episodes.length > 0
-          ? String(initialSeed.episodes.length)
-          : ''
+          ? initialSeed.episodes.length
+          : Number.NaN
       );
       setManualType('other');
       setManualError(null);
@@ -73,25 +83,30 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
       return;
     }
 
-    const epCount = manualEpisodes.trim()
-      ? Math.max(0, Math.floor(Number(manualEpisodes)))
+    const epCount = Number.isFinite(manualEpisodes)
+      ? Math.max(0, Math.floor(manualEpisodes))
       : seedEpisodes?.length;
-    const yr = manualYear.trim() ? Number(manualYear) : undefined;
-    const rt = manualRuntime.trim() ? Number(manualRuntime) : undefined;
+    const yr = Number.isFinite(manualYear) ? manualYear : undefined;
+    const rt = Number.isFinite(manualRuntime) ? manualRuntime : undefined;
 
-    await onSubmitCustomItem({
-      source: manualSourceUrl.trim() ? 'url' : 'custom',
-      name: manualName.trim(),
-      originalName: manualOrigName.trim() || undefined,
-      mediaType: manualType,
-      posterPath: manualPoster.trim() || null,
-      episodeCount: epCount,
-      episodes: seedEpisodes,
-      overview: manualOverview.trim() || undefined,
-      sourceUrl: manualSourceUrl.trim() || undefined,
-      year: yr && Number.isFinite(yr) ? yr : null,
-      runtimeMin: rt && Number.isFinite(rt) ? rt : null,
-    });
+    setSubmitting(true);
+    try {
+      await onSubmitCustomItem({
+        source: manualSourceUrl.trim() ? 'url' : 'custom',
+        name: manualName.trim(),
+        originalName: manualOrigName.trim() || undefined,
+        mediaType: manualType,
+        posterPath: manualPoster.trim() || null,
+        episodeCount: epCount,
+        episodes: seedEpisodes,
+        overview: manualOverview.trim() || undefined,
+        sourceUrl: manualSourceUrl.trim() || undefined,
+        year: yr && Number.isFinite(yr) ? yr : null,
+        runtimeMin: rt && Number.isFinite(rt) ? rt : null,
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -153,178 +168,173 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
 
       <form onSubmit={handleManualSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <label
-              htmlFor="manual-title"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <TextField
+            value={manualName}
+            onChange={(val) => {
+              setManualName(val);
+              setManualError(null);
+            }}
+            isInvalid={Boolean(manualError)}
+            isRequired
+            fullWidth
+          >
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.nameLabel}
-            </label>
-            <input
-              id="manual-title"
-              type="text"
-              required
-              value={manualName}
-              onChange={(e) => {
-                setManualName(e.target.value);
-                setManualError(null);
-              }}
+            </Label>
+            <Input
               placeholder={zh.search.manual.namePlaceholder}
               className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
             />
-          </div>
+            {manualError && (
+              <FieldError className="mt-1 text-xs text-[var(--danger)]">
+                {manualError}
+              </FieldError>
+            )}
+          </TextField>
 
-          <div>
-            <label
-              htmlFor="manual-orig-title"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <TextField value={manualOrigName} onChange={setManualOrigName} fullWidth>
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.originalNameLabel}
-            </label>
-            <input
-              id="manual-orig-title"
-              type="text"
-              value={manualOrigName}
-              onChange={(e) => setManualOrigName(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-            />
-          </div>
+            </Label>
+            <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
+          </TextField>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <div>
-            <label
-              htmlFor="manual-type"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <Select
+            selectedKey={manualType}
+            onSelectionChange={(key) => {
+              if (key != null) setManualType(key as MediaType);
+            }}
+            fullWidth
+          >
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.typeLabel}
-            </label>
-            <select
-              id="manual-type"
-              value={manualType}
-              onChange={(e) => setManualType(e.target.value as MediaType)}
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-            >
-              <option value="movie">{zh.mediaType.movie}</option>
-              <option value="tv">{zh.mediaType.tv}</option>
-              <option value="other">{zh.mediaType.other}</option>
-            </select>
-          </div>
+            </Label>
+            <Select.Trigger className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] flex items-center justify-between">
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover className="bg-[var(--overlay)] border border-[var(--border)] rounded-xl p-1">
+              <ListBox aria-label={zh.search.manual.typeLabel}>
+                {(
+                  [
+                    { id: 'movie', label: zh.mediaType.movie },
+                    { id: 'tv', label: zh.mediaType.tv },
+                    { id: 'other', label: zh.mediaType.other },
+                  ] as const
+                ).map((item) => (
+                  <ListBox.Item
+                    key={item.id}
+                    id={item.id}
+                    textValue={item.label}
+                    className="px-3 py-2 rounded-lg text-sm text-[var(--foreground)] hover:bg-[var(--surface-secondary)] cursor-pointer outline-none"
+                  >
+                    {item.label}
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
 
-          <div>
-            <label
-              htmlFor="manual-year"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <NumberField
+            value={manualYear}
+            onChange={setManualYear}
+            minValue={1888}
+            maxValue={2100}
+            formatOptions={{ useGrouping: false }}
+            fullWidth
+          >
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.yearLabel}
-            </label>
-            <input
-              id="manual-year"
-              type="number"
-              value={manualYear}
-              onChange={(e) => setManualYear(e.target.value)}
-              placeholder="2025"
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] tabular-nums"
-            />
-          </div>
+            </Label>
+            <NumberField.Group className="w-full h-10 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center overflow-hidden">
+              <NumberField.Input
+                placeholder="2025"
+                className="w-full h-full px-3 bg-transparent text-sm text-[var(--foreground)] tabular-nums outline-none"
+              />
+            </NumberField.Group>
+          </NumberField>
 
-          <div>
-            <label
-              htmlFor="manual-runtime"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <NumberField
+            value={manualRuntime}
+            onChange={setManualRuntime}
+            minValue={1}
+            maxValue={10000}
+            formatOptions={{ useGrouping: false }}
+            fullWidth
+          >
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.runtimeLabel}
-            </label>
-            <input
-              id="manual-runtime"
-              type="number"
-              value={manualRuntime}
-              onChange={(e) => setManualRuntime(e.target.value)}
-              placeholder="45"
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] tabular-nums"
-            />
-          </div>
+            </Label>
+            <NumberField.Group className="w-full h-10 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center overflow-hidden">
+              <NumberField.Input
+                placeholder="45"
+                className="w-full h-full px-3 bg-transparent text-sm text-[var(--foreground)] tabular-nums outline-none"
+              />
+            </NumberField.Group>
+          </NumberField>
         </div>
 
         {!seedEpisodes && (
-          <div>
-            <label
-              htmlFor="manual-episodes"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <NumberField
+            value={manualEpisodes}
+            onChange={setManualEpisodes}
+            minValue={1}
+            maxValue={2000}
+            formatOptions={{ useGrouping: false }}
+            fullWidth
+          >
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.episodeCountLabel}
-            </label>
-            <input
-              id="manual-episodes"
-              type="number"
-              min="1"
-              max="2000"
-              value={manualEpisodes}
-              onChange={(e) => setManualEpisodes(e.target.value)}
-              placeholder={zh.search.manual.episodeCountPlaceholder}
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] tabular-nums"
-            />
-          </div>
+            </Label>
+            <NumberField.Group className="w-full h-10 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center overflow-hidden">
+              <NumberField.Input
+                placeholder={zh.search.manual.episodeCountPlaceholder}
+                className="w-full h-full px-3 bg-transparent text-sm text-[var(--foreground)] tabular-nums outline-none"
+              />
+            </NumberField.Group>
+          </NumberField>
         )}
 
-        <div>
-          <label
-            htmlFor="manual-poster"
-            className="block text-xs text-[var(--muted)] mb-1"
-          >
+        <TextField value={manualPoster} onChange={setManualPoster} fullWidth>
+          <Label className="block text-xs text-[var(--muted)] mb-1">
             {zh.search.manual.posterUrlLabel}
-          </label>
-          <input
-            id="manual-poster"
-            type="text"
-            value={manualPoster}
-            onChange={(e) => setManualPoster(e.target.value)}
+          </Label>
+          <Input
             placeholder={zh.search.manual.posterUrlPlaceholder}
             className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
           />
-        </div>
+        </TextField>
 
         {manualSourceUrl && (
-          <div>
-            <label
-              htmlFor="manual-source"
-              className="block text-xs text-[var(--muted)] mb-1"
-            >
+          <TextField value={manualSourceUrl} onChange={setManualSourceUrl} fullWidth>
+            <Label className="block text-xs text-[var(--muted)] mb-1">
               {zh.search.manual.sourceUrlLabel}
-            </label>
-            <input
-              id="manual-source"
-              type="text"
-              value={manualSourceUrl}
-              onChange={(e) => setManualSourceUrl(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-            />
-          </div>
+            </Label>
+            <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
+          </TextField>
         )}
 
-        <div>
-          <label
-            htmlFor="manual-overview"
-            className="block text-xs text-[var(--muted)] mb-1"
-          >
+        <TextField value={manualOverview} onChange={setManualOverview} fullWidth>
+          <Label className="block text-xs text-[var(--muted)] mb-1">
             {zh.search.manual.overviewLabel}
-          </label>
-          <textarea
-            id="manual-overview"
+          </Label>
+          <TextArea
             rows={3}
-            value={manualOverview}
-            onChange={(e) => setManualOverview(e.target.value)}
             className="w-full p-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
           />
-        </div>
-
-        {manualError && (
-          <p className="text-xs text-[var(--danger)]">{manualError}</p>
-        )}
+        </TextField>
 
         <div className="pt-2">
-          <Button type="submit" variant="primary">
-            {zh.search.manual.submitButton}
+          <Button
+            type="submit"
+            variant="primary"
+            isPending={submitting}
+            className="gap-2"
+          >
+            {submitting && <Spinner size="sm" color="current" />}
+            <span>{zh.search.manual.submitButton}</span>
           </Button>
         </div>
       </form>

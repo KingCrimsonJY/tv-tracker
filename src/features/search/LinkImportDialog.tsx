@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Loader2, Search } from 'lucide-react';
-import { Button } from '@heroui/react';
+import { Search } from 'lucide-react';
+import {
+  Alert,
+  Button,
+  FieldError,
+  Input,
+  Label,
+  Spinner,
+  TextField,
+  toast,
+} from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import type { CustomTitleInput } from '../../context/TrackerContext';
 import { importLinkApi } from '../../data/api';
@@ -36,7 +45,16 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
     setForceLinkPreview(false);
 
     try {
-      const result = await importLinkApi(raw);
+      const parsePromise = importLinkApi(raw);
+      toast.promise(parsePromise, {
+        loading: zh.search.linkImport.parsing,
+        success: zh.search.linkImport.parseSuccessToast,
+        error: (err) =>
+          err instanceof Error
+            ? `${zh.search.linkImport.parseError}: ${err.message}`
+            : zh.search.linkImport.parseError,
+      });
+      const result = await parsePromise;
       setParsedResult(result);
     } catch (err) {
       setLinkError(
@@ -62,37 +80,37 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
         </div>
 
         <form onSubmit={handleParseLink} className="space-y-4">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="link-import-url"
-              className="block text-xs text-[var(--muted)]"
-            >
+          <TextField
+            value={linkUrl}
+            onChange={(val) => {
+              setLinkUrl(val);
+              setLinkError(null);
+            }}
+            isInvalid={Boolean(linkError)}
+            isRequired
+            fullWidth
+          >
+            <Label className="block text-xs text-[var(--muted)] mb-1.5">
               {zh.search.linkImport.urlLabel}
-            </label>
-            <input
-              id="link-import-url"
-              type="text"
-              required
-              value={linkUrl}
-              onChange={(e) => {
-                setLinkUrl(e.target.value);
-                setLinkError(null);
-              }}
+            </Label>
+            <Input
               placeholder={zh.search.linkImport.urlPlaceholder}
-              className="w-full h-11 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
+              className="w-full h-11 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
             />
             {linkError && (
-              <p className="text-xs text-[var(--danger)]">{linkError}</p>
+              <FieldError className="mt-1 text-xs text-[var(--danger)]">
+                {linkError}
+              </FieldError>
             )}
-          </div>
+          </TextField>
 
           <Button
             type="submit"
             variant="primary"
-            isDisabled={parsingLink}
+            isPending={parsingLink}
             className="gap-2"
           >
-            {parsingLink && <Loader2 className="w-4 h-4 animate-spin" />}
+            {parsingLink && <Spinner size="sm" color="current" />}
             <span>
               {parsingLink
                 ? zh.search.linkImport.parsing
@@ -103,10 +121,14 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
       </section>
 
       {parsedResult?.warning && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center gap-2.5 text-xs sm:text-sm text-amber-200">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-          <span>{parsedResult.warning}</span>
-        </div>
+        <Alert status="warning" className="rounded-2xl">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description className="text-xs sm:text-sm">
+              {parsedResult.warning}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
 
       {parsedResult &&

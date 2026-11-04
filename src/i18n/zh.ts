@@ -192,8 +192,10 @@ export const zh = {
     tmdbUnconfiguredHint: '服务端尚未配置 TMDB_READ_TOKEN，你可以使用“通过链接添加”或“手动添加”录入影视。',
     searchPromptTitle: '输入关键词搜索全球影视库',
     searchPromptSubtitle: '支持中文译名、原版片名或英文名检索；找不到时可使用上方“通过链接添加”或“手动添加”',
-    fetchingDetailToast: '正在获取完整剧集信息…',
+    addedTitleToast: (name: string) => `已添加《${name}》`,
+    viewAction: '查看',
     addFailedToast: '添加失败，请稍后重试',
+    addingToListToast: '正在加入列表…',
     addedToListToast: (listName: string) => `已加入列表「${listName}」`,
     addToListFailedToast: '加入列表失败',
     linkImport: {
@@ -203,6 +205,7 @@ export const zh = {
       urlPlaceholder: '粘贴链接或分享口令（如【标题-哔哩哔哩】 https://b23.tv/... 或 YouTube 链接）',
       parseButton: '解析链接',
       parsing: '正在解析…',
+      parseSuccessToast: '链接解析完成',
       parseError: '解析失败，请检查链接格式或改用手动添加',
       reparseButton: '重新解析其他链接',
       tmdbSuggestionTitle: (title: string) => `检测到剧集或番剧：《${title}》`,
@@ -264,11 +267,10 @@ export const zh = {
     deleteConfirm: '确定要从片库中删除这部作品吗？所有观看进度和列表关联都会一并移除。',
     languageOptions: { default: '跟随全局默认', zh: '中文标题', original: '原始片名', en: '英文标题' },
     ratings: {
-      douban: '豆瓣',
+      tmdb: 'TMDB',
       imdb: 'IMDb',
       rottenTomatoes: '烂番茄',
       metacritic: 'Metacritic',
-      searchOnDouban: '在豆瓣搜索',
     },
     overview: { expand: '展开全部', collapse: '收起', empty: '暂无剧情简介' },
     seasons: {
@@ -303,15 +305,11 @@ export const zh = {
       exceedsRuntime: (mins: number) => `输入时间超过了已知片长（${mins} 分钟）`,
     },
     editModal: {
-      title: '编辑作品与豆瓣信息',
+      title: '编辑作品信息',
       zhNameLabel: '中文名称',
       originalNameLabel: '原始名称',
       posterPathLabel: '海报链接',
-      doubanScoreLabel: '豆瓣评分（手动，0 - 10）',
-      doubanUrlLabel: '豆瓣条目链接或 ID（手动）',
-      doubanUrlPlaceholder: 'https://movie.douban.com/subject/...',
       overviewLabel: '剧情简介',
-      invalidDoubanScore: '豆瓣评分需在 0 到 10 之间',
     },
     playthroughs: {
       historyTitle: (count: number) => `观看历史（看过 ${count} 次）`,
@@ -359,6 +357,7 @@ export const zh = {
       importConfirmTitle: '确认导入并覆盖数据',
       importConfirmDescription:
         '导入备份文件将完整替换当前服务器上的所有片库、进度、列表与设置（导入前会自动生成安全数据库备份）。确定继续吗？',
+      importingToast: '正在导入数据…',
       importSuccess: '数据导入成功',
       importError: '导入失败：文件格式无效或已损坏',
       exportSuccessToast: '数据已导出',

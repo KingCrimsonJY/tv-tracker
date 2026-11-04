@@ -4,10 +4,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
+import { toast } from '@heroui/react';
 import {
   ApiError,
   fetchAuthStatus,
@@ -23,6 +23,7 @@ import {
   getActiveProgressFromState,
   type UpdateTitleDetailsInput,
 } from '../data/actions.ts';
+import type { ToastVariant } from '../data/actions/types.ts';
 import { runOneTimeLegacyStorageCleanup } from '../data/storageCleanup.ts';
 import { trackerStore } from '../data/store.ts';
 import type {
@@ -40,7 +41,7 @@ import type {
 } from '../domain/types.ts';
 import { useSseEventStream } from './useSseEventStream.ts';
 
-export type { CustomTitleInput, UpdateTitleDetailsInput };
+export type { CustomTitleInput, ToastVariant, UpdateTitleDetailsInput };
 
 export interface TrackerContextValue {
   authReady: boolean;
@@ -49,9 +50,7 @@ export interface TrackerContextValue {
   loadingData: boolean;
   serverUnreachable: boolean;
   retryConnection: () => Promise<void>;
-  toastMessage: string | null;
-  showToast: (message: string) => void;
-  dismissToast: () => void;
+  showToast: (message: string, variant?: ToastVariant) => void;
   titles: Record<string, TitleDoc>;
   seasonsByTitle: Record<string, SeasonDoc[]>;
   progressByTitle: Record<string, Record<string, ProgressDoc>>;
@@ -125,22 +124,23 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     trackerStore.getState
   );
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimerRef = useRef<number | null>(null);
-
-  const showToast = useCallback((message: string) => {
-    setToastMessage(message);
-    if (typeof window !== 'undefined') {
-      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 4500);
-    }
-  }, []);
-
-  const dismissToast = useCallback(() => {
-    setToastMessage(null);
-    if (typeof window !== 'undefined' && toastTimerRef.current) {
-      window.clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = null;
+  const showToast = useCallback((message: string, variant: ToastVariant = 'default') => {
+    switch (variant) {
+      case 'success':
+        toast.success(message);
+        break;
+      case 'warning':
+        toast.warning(message);
+        break;
+      case 'danger':
+        toast.danger(message);
+        break;
+      case 'accent':
+        toast.info(message);
+        break;
+      default:
+        toast(message);
+        break;
     }
   }, []);
 
@@ -313,9 +313,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       loadingData,
       serverUnreachable,
       retryConnection,
-      toastMessage,
       showToast,
-      dismissToast,
       titles: state.titles,
       seasonsByTitle: state.seasonsByTitle,
       progressByTitle: state.progressByTitle,
@@ -336,9 +334,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       loadingData,
       serverUnreachable,
       retryConnection,
-      toastMessage,
       showToast,
-      dismissToast,
       state,
       setupPassword,
       loginWithPassword,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Check, FolderPlus, Loader2, Plus, Search } from 'lucide-react';
+import { Check, FolderPlus, Plus } from 'lucide-react';
+import { Alert, Button, SearchField, Spinner } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import type { TitleDoc } from '../../domain/types';
 import { zh } from '../../i18n/zh';
@@ -41,37 +42,38 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 }) => {
   return (
     <section className="space-y-5">
-      <div className="relative max-w-2xl">
-        <Search className="w-5 h-5 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          placeholder={zh.search.placeholder}
-          autoFocus
-          className="w-full h-12 pl-12 pr-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] text-sm sm:text-base text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => onQueryChange('')}
-            aria-label={zh.search.clearSearchAria}
-            className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+      <SearchField
+        aria-label={zh.search.title}
+        value={query}
+        onChange={onQueryChange}
+        fullWidth
+        className="max-w-2xl"
+      >
+        <SearchField.Group className="w-full h-12 px-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center gap-3">
+          <SearchField.SearchIcon className="w-5 h-5 text-[var(--muted)] shrink-0" />
+          <SearchField.Input
+            placeholder={zh.search.placeholder}
+            autoFocus
+            className="flex-1 bg-transparent text-sm sm:text-base text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none"
+          />
+          <SearchField.ClearButton aria-label={zh.search.clearSearchAria} />
+        </SearchField.Group>
+      </SearchField>
 
       {!tmdbConfigured && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs sm:text-sm text-amber-200 max-w-2xl">
-          {zh.search.tmdbUnconfiguredHint}
-        </div>
+        <Alert status="warning" className="max-w-2xl rounded-2xl">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description className="text-xs sm:text-sm">
+              {zh.search.tmdbUnconfiguredHint}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
 
       {searching ? (
         <div className="py-12 flex items-center justify-center gap-2 text-sm text-[var(--muted)]">
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Spinner size="sm" />
           <span>{zh.search.searching}</span>
         </div>
       ) : query.trim() && results.length === 0 ? (
@@ -122,40 +124,42 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   {inLibrary ? (
-                    <button
-                      type="button"
-                      onClick={() => onNavigateTitle(id)}
-                      className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center gap-1.5 text-xs font-medium"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => onNavigateTitle(id)}
+                      className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-[var(--accent-subtle)] text-[var(--accent-text)] gap-1.5 text-xs font-medium"
                     >
                       <Check className="w-4 h-4" />
                       <span>{zh.search.addedToLibrary}</span>
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      type="button"
-                      disabled={isAdding}
-                      onClick={() => onAddTmdbHit(hit)}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      isPending={isAdding}
+                      onPress={() => onAddTmdbHit(hit)}
                       aria-label={`${zh.search.addToLibrary} ${zhTitle}`}
-                      className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-[var(--accent)] text-[var(--accent-foreground)] hover:opacity-90 flex items-center gap-1 text-xs font-medium transition-opacity disabled:opacity-50"
+                      className="min-w-[44px] min-h-[44px] px-3 rounded-xl gap-1 text-xs font-medium"
                     >
                       {isAdding ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Spinner size="sm" color="current" />
                       ) : (
                         <Plus className="w-4 h-4" />
                       )}
                       <span>{zh.search.addToLibrary}</span>
-                    </button>
+                    </Button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => onOpenAddToList(hit)}
+                  <Button
+                    variant="secondary"
+                    isIconOnly
+                    onPress={() => onOpenAddToList(hit)}
                     aria-label={zh.search.addToListAria(zhTitle)}
-                    title={zh.search.addToList}
-                    className="min-w-[44px] min-h-[44px] rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                    className="min-w-[44px] min-h-[44px] rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"
                   >
                     <FolderPlus className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             );

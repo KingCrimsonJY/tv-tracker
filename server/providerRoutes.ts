@@ -92,12 +92,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
 
   app.get('/api/ratings', async (req, res) => {
     const imdbId = String(req.query.imdbId || '').trim();
-    const title = String(req.query.title || '').trim();
-    const yearStr = String(req.query.year || '').trim();
-    const year = yearStr ? Number.parseInt(yearStr, 10) || null : null;
-    const doubanId = String(req.query.doubanId || '').trim();
-
-    const result = await fetchCombinedRatings({ imdbId, title, year, doubanId });
+    const result = await fetchCombinedRatings({ imdbId });
     res.json(result);
   });
 

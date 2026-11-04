@@ -57,7 +57,7 @@ export function createListActions(
           [listId]: (curr.entriesByList[listId] || []).filter((e) => e.id !== newEntry.id),
         },
       }));
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -105,7 +105,7 @@ export function createListActions(
           entriesByList: nextEntries,
         };
       });
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       void triggerRefetch();
       throw err;
     }
@@ -140,7 +140,7 @@ export function createListActions(
         lists: { ...curr.lists, [listId]: removedList },
         entriesByList: { ...curr.entriesByList, [listId]: removedEntries },
       }));
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -178,7 +178,7 @@ export function createListActions(
             }
           : curr
       );
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -215,7 +215,7 @@ export function createListActions(
             }
           : curr
       );
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -248,7 +248,7 @@ export function createListActions(
           entriesByList: { ...curr.entriesByList, [listId]: next },
         };
       });
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -309,7 +309,7 @@ export function createListActions(
           entriesByList: { ...curr.entriesByList, [listId]: next },
         };
       });
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

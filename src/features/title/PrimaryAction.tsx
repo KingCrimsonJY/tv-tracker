@@ -44,14 +44,15 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
           <span>{label}</span>
         </Button>
 
-        <button
-          type="button"
-          onClick={onOpenMenu}
+        <Button
+          variant="secondary"
+          isIconOnly
+          onPress={onOpenMenu}
           aria-label={zh.detail.moreActionsAria}
-          className="min-w-[48px] min-h-[48px] rounded-xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-colors"
+          className="min-w-[48px] min-h-[48px] rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--surface-secondary)]"
         >
           <MoreHorizontal className="w-5 h-5" />
-        </button>
+        </Button>
       </div>
 
       {hasMovieResume && title.resume && (

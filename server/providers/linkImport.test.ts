@@ -687,7 +687,7 @@ test('decodeHtmlEntities and extractMetaContent handle quotes and decimal/hex en
   assert.equal(extractMetaContent(html, 'og:description'), 'Single "Quoted" Value');
 });
 
-test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlpBinaryPath prefers ./.bin/yt-dlp when YTDLP_PATH is unset', async () => {
+test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlpBinaryPath resolves /opt/yt-dlp/yt-dlp when YTDLP_PATH is empty', async () => {
   const { buildYtdlpArgs, getYtdlpBinaryPath } = await import('./ytdlp.ts');
   const { parseExpectedSha256 } = await import('../scripts/setup-ytdlp.ts');
 
@@ -701,12 +701,41 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
   const localBin = path.resolve(process.cwd(), '.bin', 'yt-dlp');
   const prevEnv = process.env.YTDLP_PATH;
   try {
-    delete process.env.YTDLP_PATH;
-    if (fs.existsSync(localBin)) {
-      assert.equal(getYtdlpBinaryPath(), localBin);
-    }
-    process.env.YTDLP_PATH = '/opt/yt-dlp/yt-dlp';
-    assert.equal(getYtdlpBinaryPath(), '/opt/yt-dlp/yt-dlp');
+    // An empty or whitespace-only YTDLP_PATH still resolves to /opt/yt-dlp/yt-dlp when that file exists
+    process.env.YTDLP_PATH = '';
+    assert.equal(
+      getYtdlpBinaryPath({
+        checkExecutable: (p) => p === '/opt/yt-dlp/yt-dlp',
+      }),
+      '/opt/yt-dlp/yt-dlp'
+    );
+
+    process.env.YTDLP_PATH = '   ';
+    assert.equal(
+      getYtdlpBinaryPath({
+        checkExecutable: (p) => p === '/opt/yt-dlp/yt-dlp',
+      }),
+      '/opt/yt-dlp/yt-dlp'
+    );
+
+    // Falls back to ./.bin/yt-dlp when /opt/yt-dlp/yt-dlp is absent
+    assert.equal(
+      getYtdlpBinaryPath({
+        checkExecutable: (p) => p === localBin,
+      }),
+      localBin
+    );
+
+    // Falls back to yt-dlp on PATH when neither file exists
+    assert.equal(
+      getYtdlpBinaryPath({
+        checkExecutable: () => false,
+      }),
+      'yt-dlp'
+    );
+
+    process.env.YTDLP_PATH = '/custom/yt-dlp';
+    assert.equal(getYtdlpBinaryPath(), '/custom/yt-dlp');
   } finally {
     if (prevEnv === undefined) {
       delete process.env.YTDLP_PATH;
@@ -730,4 +759,5 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
   );
   assert.equal(parseExpectedSha256(sampleSums, 'nonexistent'), null);
 });
+
 

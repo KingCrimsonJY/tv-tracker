@@ -54,8 +54,8 @@
 - **分数索引单行排序**：基于 `fractional-indexing` 与 `@dnd-kit`，移动端长按手柄拖拽排序每次仅更新单行记录。
 
 ### 数据来源
-- **TMDB 主数据源**：自动获取中英双语标题、原始片名、分季分集信息、开播日期、剧照与海报，打开详情页时按策略自动刷新连载元数据。
-- **多平台评分聚合**：结合 OMDb 获取 IMDb 评分、烂番茄 (Rotten Tomatoes) 与 Metacritic 评分（7 天缓存，按需拉取不消耗多余配额）；支持豆瓣评分尽力匹配、手动填写豆瓣评分/链接与一键跳转豆瓣搜索。
+- **TMDB 主数据源**：自动获取中英双语标题、原始片名、TMDB 评分、分季分集信息、开播日期、剧照与海报，打开详情页时按策略自动刷新连载元数据。
+- **多平台评分聚合**：展示 TMDB 评分，并结合 OMDb 获取 IMDb 评分、烂番茄 (Rotten Tomatoes) 与 Metacritic 评分（7 天缓存，按需拉取不消耗多余配额）。
 - **链接解析与自定义条目**：基于 **yt-dlp** 解析 YouTube、哔哩哔哩 (Bilibili) 等网站的单视频、分P、合集与播放列表（支持直接粘贴带标题的分享口令，支持后续增量「刷新列表」追加新集；检测到番剧/剧集时自动提示一键在 TMDB 搜索；未安装 `yt-dlp` 时自动降级为基础 Open Graph 解析），也可随时手动创建自定义影视条目。
 
 ### 同步与安全
@@ -116,7 +116,7 @@ npm run dev
 | `TMDB_READ_TOKEN` | **推荐** | 空 | TMDB API v4 读访问令牌（Bearer 认证），用于搜索影视与获取分季分集元数据 | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
 | `OMDB_API_KEY` | 可选 | 空 | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天） | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天） |
 | `DATA_DIR` | 可选 | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录 | Docker 容器内固定为 `/data` |
-| `YTDLP_PATH` | 可选 | `yt-dlp` | `yt-dlp` 可执行文件路径，用于外链视频与合集解析 | 默认优先查找 `./.bin/yt-dlp` 再查找系统 `PATH`；Docker 镜像内置于 `/opt/yt-dlp/yt-dlp` |
+| `YTDLP_PATH` | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置） | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp` |
 | `SETUP_CODE` | 可选 | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码 | 留空时会在服务端启动日志中自动生成并打印 |
 | `APP_PASSWORD_HASH` | 可选 | 空 | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码） | 通过 `npm run set-password` 交互式生成 |
 | `TRUST_PROXY` | 可选 | `0` | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流 | 使用 Cloudflare Tunnel 或 Nginx 反代时设为 `1` |
@@ -182,9 +182,9 @@ data/
 │   ├── app.ts                 # 认证、会话、CSRF 校验、SSE 广播与中间件组装
 │   ├── auth.ts                # scrypt 哈希、Cookie 工具与登录限流器
 │   ├── entityRoutes.ts        # 片库、分季、进度、原子动作、列表、设置、导入导出路由
-│   ├── providerRoutes.ts      # TMDB 搜索/详情、OMDb/豆瓣评分、外链解析路由
+│   ├── providerRoutes.ts      # TMDB 搜索/详情、OMDb 评分、外链解析路由
 │   ├── db/                    # SQLite 仓储层、事务封装、自动备份与 SQL 迁移文件
-│   ├── providers/             # TMDB、豆瓣（尽力匹配）、外链导入与 SSRF 防护
+│   ├── providers/             # TMDB、OMDb、yt-dlp 外链导入与 SSRF 防护
 │   └── scripts/               # set-password 密码重置与 seed-demo 演示数据脚本
 ├── src/
 │   ├── domain/                # 纯函数业务核心（进度状态推导、时间解析、Zod 校验与类型定义）
@@ -238,9 +238,8 @@ npm run seed:demo
 
 > **This product uses the TMDB API but is not endorsed or certified by TMDB.**
 
-- **[The Movie Database (TMDB)](https://www.themoviedb.org/)**：提供影视搜索、多语言标题、分季分集元数据以及海报与剧照图片。
+- **[The Movie Database (TMDB)](https://www.themoviedb.org/)**：提供影视搜索、多语言标题、TMDB 评分、分季分集元数据以及海报与剧照图片。
 - **[OMDb API](https://www.omdbapi.com/)**：提供 IMDb、Rotten Tomatoes 与 Metacritic 评分数据。
-- **豆瓣 (Douban)**：应用内的豆瓣自动查询为非官方尽力解析（Best-effort），仅供个人自托管学习与观影记录使用；若自动获取失败，随时可通过详情页手动填写评分或点击「在豆瓣搜索」跳转。
 - **开源社区项目**：感谢 [React](https://react.dev/)、[HeroUI v3](https://heroui.com/)、[Tailwind CSS v4](https://tailwindcss.com/)、[@dnd-kit](https://dndkit.com/)、[Lucide Icons](https://lucide.dev/) 与 [Zod](https://zod.dev/)。
 
 ---

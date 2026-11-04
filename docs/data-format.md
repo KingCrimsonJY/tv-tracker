@@ -60,8 +60,8 @@ DATA_DIR/
       "backdropPath": "https://image.tmdb.org/t/p/w1280/...",
       "overview": { "zh": "..." },
       "showStatus": "Returning Series",
-      "externalIds": { "imdb": "tt11280740", "douban": "34894753" },
-      "ratings": { "imdb": "8.7", "douban": "9.1", "fetchedAt": 1700000000000 },
+      "externalIds": { "imdb": "tt11280740" },
+      "ratings": { "tmdb": "8.4", "tmdbVotes": 1520, "imdb": "8.7", "fetchedAt": 1700000000000 },
       "manualState": null,
       "playthroughs": [
         { "id": "p1", "number": 1, "startedAt": 1700000000000 }
@@ -135,6 +135,7 @@ DATA_DIR/
 - **支持版本**：
   - **Version 2**：包含 `"format": "zhenji-export"` 与 `"version": 2`。
   - **Version 1（旧版兼容）**：不包含 `format` 字段，结构为 `{ version: 1, exportedAt, settings, titles, seasonsByTitle, progressByTitle, lists, entriesByList }`。
+  - **旧版字段清理**：旧版备份文件中若包含已废弃的 `ratings.douban` 或 `externalIds.douban` 字段，导入时会自动忽略并剥离，不影响其余数据。
 - **全量校验**：导入前通过 `src/domain/schemas.ts` 中的 Zod Schema 对全部字段进行严格校验，任何结构错误均会拒绝导入且不修改数据库。
 - **自动备份**：校验通过后、写入前，自动调用 `VACUUM INTO` 生成一份当前数据库的备份文件。
 - **单事务替换**：在单个 SQLite 事务中清空并写入 `titles`、`seasons`、`progress`、`lists`、`list_entries` 与 `settings['app']`，同时递增全局 `version` 并通过 SSE 推送给所有在线设备。

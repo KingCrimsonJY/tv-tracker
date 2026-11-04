@@ -54,8 +54,8 @@
 - **Single-Row Fractional Ordering**: Powered by `fractional-indexing` and `@dnd-kit` with pointer, touch (200ms press handle activation on mobile), and keyboard sensors.
 
 ### Data Sources
-- **TMDB Primary Metadata**: Fetches Simplified Chinese (`zh-CN`), English (`en-US`), and original titles, seasons, episodes, air dates, backdrops, posters, and episode stills, refreshing metadata automatically when opening details.
-- **Multi-Source Ratings**: Queries OMDb by IMDb ID for IMDb, Rotten Tomatoes, and Metacritic ratings (cached for 7 days, fetched lazily on detail open). Includes isolated best-effort Douban lookup with silent fallback to manual score/URL fields and a one-tap Douban search link.
+- **TMDB Primary Metadata**: Fetches Simplified Chinese (`zh-CN`), English (`en-US`), and original titles, TMDB ratings, seasons, episodes, air dates, backdrops, posters, and episode stills, refreshing metadata automatically when opening details.
+- **Multi-Source Ratings**: Displays TMDB ratings and queries OMDb by IMDb ID for IMDb, Rotten Tomatoes, and Metacritic ratings (cached for 7 days, fetched lazily on detail open).
 - **Link Import & Custom Items**: Powered by **yt-dlp** (`--dump-single-json --skip-download --flat-playlist`) to import single videos, multi-part videos (分P), collections (合集), and playlists from YouTube, Bilibili, and more (supports pasted share text, incremental playlist refresh to append new episodes, one-tap TMDB search suggestions for bangumi/TV episodes, and automatic Open Graph fallback if `yt-dlp` is not installed).
 
 ### Real-Time Sync & Security
@@ -116,7 +116,7 @@ All environment variables are read exclusively on the server from `.env` (see [`
 | `TMDB_READ_TOKEN` | **Recommended** | Empty | TMDB v4 Read Access Token (Bearer auth) for searching titles and fetching bilingual metadata | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
 | `OMDB_API_KEY` | Optional | Empty | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days) | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) |
 | `DATA_DIR` | Optional | `./data` | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports | Mounted at `/data` inside Docker |
-| `YTDLP_PATH` | Optional | `yt-dlp` | Path to the `yt-dlp` binary used by Link Import | Checks `./.bin/yt-dlp` first, then `PATH`; pre-installed at `/opt/yt-dlp/yt-dlp` in Docker |
+| `YTDLP_PATH` | Optional override | Auto-detected | Custom path to the `yt-dlp` binary (not listed in `.env.example`; set only to override the default lookup order) | When unset or empty, checks `/opt/yt-dlp/yt-dlp`, `./.bin/yt-dlp`, then `yt-dlp` on `PATH` |
 | `SETUP_CODE` | Optional | Random | One-time verification code required on the first-run password setup screen | If omitted, a random code is printed to server logs on first boot |
 | `APP_PASSWORD_HASH` | Optional | Empty | `scrypt` password hash override (takes priority over the database password hash) | Generate interactively via `npm run set-password` |
 | `TRUST_PROXY` | Optional | `0` | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy |
@@ -182,9 +182,9 @@ data/
 │   ├── app.ts                 # Auth, session middleware, CSRF check, SSE broadcast
 │   ├── auth.ts                # scrypt hashing, cookies, and login rate limiter
 │   ├── entityRoutes.ts        # Titles, seasons, progress, atomic actions, lists, settings, export/import
-│   ├── providerRoutes.ts      # TMDB search/details, OMDb/Douban ratings, link import routes
+│   ├── providerRoutes.ts      # TMDB search/details, OMDb ratings, link import routes
 │   ├── db/                    # SQLite repository, transactions, backups, and SQL migrations
-│   ├── providers/             # TMDB, Douban (best-effort), link import with SSRF guard
+│   ├── providers/             # TMDB, OMDb, yt-dlp link import with SSRF guard
 │   └── scripts/               # set-password CLI and seed-demo script
 ├── src/
 │   ├── domain/                # Pure domain logic (progress status, time parser, Zod schemas, types)
@@ -238,9 +238,8 @@ npm run seed:demo
 
 > **This product uses the TMDB API but is not endorsed or certified by TMDB.**
 
-- **[The Movie Database (TMDB)](https://www.themoviedb.org/)**: Primary source for movie & TV metadata, localized titles, season/episode listings, posters, and backdrops.
+- **[The Movie Database (TMDB)](https://www.themoviedb.org/)**: Primary source for movie & TV metadata, localized titles, TMDB ratings, season/episode listings, posters, and backdrops.
 - **[OMDb API](https://www.omdbapi.com/)**: Provides IMDb, Rotten Tomatoes, and Metacritic ratings.
-- **Douban (豆瓣)**: Automatic Douban rating lookup is unofficial best-effort scraping intended strictly for personal self-hosted use; manual Douban rating/URL fields and a direct Douban search link are always available per title.
 - **Open-Source Libraries**: Built with [React 19](https://react.dev/), [HeroUI v3](https://heroui.com/), [Tailwind CSS v4](https://tailwindcss.com/), [@dnd-kit](https://dndkit.com/), [Lucide Icons](https://lucide.dev/), and [Zod](https://zod.dev/).
 
 ---

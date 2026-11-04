@@ -16,7 +16,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Button, Modal, Switch } from '@heroui/react';
+import {
+  AlertDialog,
+  Button,
+  Switch,
+  toast,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@heroui/react';
 import { useTracker } from '../context/TrackerContext.tsx';
 import type { AppSettingsDoc, HomeSectionId } from '../domain/types.ts';
 import { AboutSection } from '../features/settings/AboutSection.tsx';
@@ -71,9 +78,9 @@ export const SettingsPage: React.FC = () => {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast(zh.settings.dataManagement.exportSuccessToast);
+      showToast(zh.settings.dataManagement.exportSuccessToast, 'success');
     } catch {
-      showToast(zh.settings.dataManagement.exportFailedToast);
+      showToast(zh.settings.dataManagement.exportFailedToast, 'danger');
     }
   };
 
@@ -90,13 +97,23 @@ export const SettingsPage: React.FC = () => {
 
   const confirmImport = async () => {
     if (!pendingImportText) return;
+    const rawText = pendingImportText;
+    setPendingImportText(null);
+    const runImport = async () => {
+      const parsed: unknown = JSON.parse(rawText);
+      await importBackupData(parsed);
+    };
     try {
-      await importBackupData(JSON.parse(pendingImportText));
+      const importPromise = runImport();
+      toast.promise(importPromise, {
+        loading: zh.settings.dataManagement.importingToast,
+        success: zh.settings.dataManagement.importSuccess,
+        error: zh.settings.dataManagement.importError,
+      });
+      await importPromise;
       setImportStatus(zh.settings.dataManagement.importSuccess);
-      setPendingImportText(null);
     } catch {
       setImportStatus(zh.settings.dataManagement.importError);
-      setPendingImportText(null);
     }
   };
 
@@ -130,12 +147,24 @@ export const SettingsPage: React.FC = () => {
             {zh.settings.defaultTitleLang.description}
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-2.5">
+        <ToggleButtonGroup
+          selectionMode="single"
+          selectedKeys={new Set([settings.defaultTitleLang])}
+          onSelectionChange={(keys) => {
+            const first = [...keys][0];
+            if (first != null) {
+              void updateSettings({
+                defaultTitleLang: String(first) as AppSettingsDoc['defaultTitleLang'],
+              });
+            }
+          }}
+          aria-label={zh.settings.defaultTitleLang.label}
+          className="grid grid-cols-3 gap-2.5 w-full"
+        >
           {titleLangOptions.map((opt) => (
-            <button
+            <ToggleButton
               key={opt.id}
-              type="button"
-              onClick={() => updateSettings({ defaultTitleLang: opt.id })}
+              id={opt.id}
               className={`px-3 py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-medium border transition-colors ${
                 settings.defaultTitleLang === opt.id
                   ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
@@ -143,9 +172,9 @@ export const SettingsPage: React.FC = () => {
               }`}
             >
               {opt.label}
-            </button>
+            </ToggleButton>
           ))}
-        </div>
+        </ToggleButtonGroup>
       </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 flex items-center justify-between gap-4">
@@ -175,14 +204,24 @@ export const SettingsPage: React.FC = () => {
           </h2>
           <p className="text-xs text-[var(--muted)] mt-0.5">{zh.settings.theme.description}</p>
         </div>
-        <div className="grid grid-cols-3 gap-2.5">
+        <ToggleButtonGroup
+          selectionMode="single"
+          selectedKeys={new Set([settings.theme])}
+          onSelectionChange={(keys) => {
+            const first = [...keys][0];
+            if (first != null) {
+              void updateSettings({ theme: String(first) as AppSettingsDoc['theme'] });
+            }
+          }}
+          aria-label={zh.settings.theme.label}
+          className="grid grid-cols-3 gap-2.5 w-full"
+        >
           {themeOptions.map((opt) => {
             const Icon = opt.icon;
             return (
-              <button
+              <ToggleButton
                 key={opt.id}
-                type="button"
-                onClick={() => updateSettings({ theme: opt.id })}
+                id={opt.id}
                 className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-medium border transition-colors ${
                   settings.theme === opt.id
                     ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
@@ -191,10 +230,10 @@ export const SettingsPage: React.FC = () => {
               >
                 <Icon className="w-4 h-4" />
                 <span>{opt.label}</span>
-              </button>
+              </ToggleButton>
             );
           })}
-        </div>
+        </ToggleButtonGroup>
       </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
@@ -293,49 +332,51 @@ export const SettingsPage: React.FC = () => {
 
       <AboutSection />
 
-      <Modal.Backdrop
+      <AlertDialog.Backdrop
         isOpen={Boolean(pendingImportText)}
         onOpenChange={(open) => !open && setPendingImportText(null)}
         isDismissable
       >
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
+        <AlertDialog.Container size="sm" placement="center">
+          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+            <AlertDialog.Header className="flex items-center gap-3">
+              <AlertDialog.Icon status="warning" />
+              <AlertDialog.Heading className="text-base font-semibold">
                 {zh.settings.dataManagement.importConfirmTitle}
-              </Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="mt-2 text-sm text-[var(--muted)] leading-relaxed">
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className="mt-2 text-sm text-[var(--muted)] leading-relaxed">
               <p>{zh.settings.dataManagement.importConfirmDescription}</p>
-            </Modal.Body>
-            <Modal.Footer className="mt-5 flex justify-end gap-2">
+            </AlertDialog.Body>
+            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onPress={() => setPendingImportText(null)}>
                 {zh.app.cancel}
               </Button>
               <Button variant="danger" size="sm" onPress={confirmImport}>
                 {zh.app.confirm}
               </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
 
-      <Modal.Backdrop
+      <AlertDialog.Backdrop
         isOpen={logoutAllConfirmOpen}
         onOpenChange={setLogoutAllConfirmOpen}
         isDismissable
       >
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
+        <AlertDialog.Container size="sm" placement="center">
+          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+            <AlertDialog.Header className="flex items-center gap-3">
+              <AlertDialog.Icon status="danger" />
+              <AlertDialog.Heading className="text-base font-semibold">
                 {zh.settings.account.signOutAll}
-              </Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="mt-2 text-sm text-[var(--muted)] leading-relaxed">
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className="mt-2 text-sm text-[var(--muted)] leading-relaxed">
               <p>{zh.settings.account.signOutAllConfirm}</p>
-            </Modal.Body>
-            <Modal.Footer className="mt-5 flex justify-end gap-2">
+            </AlertDialog.Body>
+            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onPress={() => setLogoutAllConfirmOpen(false)}>
                 {zh.app.cancel}
               </Button>
@@ -349,10 +390,10 @@ export const SettingsPage: React.FC = () => {
               >
                 {zh.app.confirm}
               </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </div>
   );
 };

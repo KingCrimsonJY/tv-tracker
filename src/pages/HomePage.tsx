@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Film, ListOrdered, Plus, Settings } from 'lucide-react';
-import { Button, ProgressBar } from '@heroui/react';
+import { Button, ProgressBar, Skeleton } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
@@ -183,36 +183,32 @@ export const HomePage: React.FC = () => {
                     </Link>
 
                     {quickMarkEpisodeKey ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                      <Button
+                        variant="ghost"
+                        isIconOnly
+                        onPress={() => {
                           void toggleEpisode(title.id, quickMarkEpisodeKey);
                         }}
                         aria-label={zh.home.markNextWatchedAria(
                           primary,
                           quickMarkEpisodeKey.toUpperCase()
                         )}
-                        title={zh.home.markNextWatched}
                         className="absolute right-3 bottom-5 z-10 min-w-[44px] min-h-[44px] rounded-xl bg-white/15 hover:bg-[var(--accent)] backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
                       >
                         <Check className="w-4 h-4" />
-                      </button>
+                      </Button>
                     ) : title.mediaType === 'movie' ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                      <Button
+                        variant="ghost"
+                        isIconOnly
+                        onPress={() => {
                           void markWholeTitle(title.id, true);
                         }}
                         aria-label={zh.home.markMovieWatchedAria(primary)}
-                        title={zh.home.markMovieWatched}
                         className="absolute right-3 bottom-5 z-10 min-w-[44px] min-h-[44px] rounded-xl bg-white/15 hover:bg-[var(--accent)] backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
                       >
                         <Check className="w-4 h-4" />
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 );
@@ -344,25 +340,26 @@ export const HomePage: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>{zh.library.addMediaButton}</span>
           </Button>
-          <button
-            type="button"
-            onClick={() => navigate('/settings')}
+          <Button
+            variant="secondary"
+            isIconOnly
+            onPress={() => navigate('/settings')}
             aria-label={zh.settings.title}
             className="w-11 h-11 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-colors"
           >
             <Settings className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
       </header>
 
       {loadingData ? (
         <div className="space-y-6" aria-label={zh.home.loadingAria}>
-          <div className="h-6 w-32 rounded-lg bg-[var(--surface-secondary)] animate-pulse" />
+          <Skeleton className="h-6 w-32 rounded-lg bg-[var(--surface-secondary)]" />
           <div className="flex gap-4 overflow-hidden">
             {[0, 1, 2].map((i) => (
-              <div
+              <Skeleton
                 key={i}
-                className="w-[280px] sm:w-[320px] aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] animate-pulse shrink-0"
+                className="w-[280px] sm:w-[320px] aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] shrink-0"
               />
             ))}
           </div>

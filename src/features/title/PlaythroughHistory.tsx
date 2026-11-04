@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Modal } from '@heroui/react';
+import { AlertDialog, Button } from '@heroui/react';
 import type { ComputedTitleState } from '../../domain/progress';
 import type { TitleDoc } from '../../domain/types';
 import { zh } from '../../i18n/zh';
@@ -60,18 +60,19 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
         ))}
       </div>
 
-      <Modal.Backdrop isOpen={confirmOpen} onOpenChange={setConfirmOpen} isDismissable>
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
+      <AlertDialog.Backdrop isOpen={confirmOpen} onOpenChange={setConfirmOpen} isDismissable>
+        <AlertDialog.Container size="sm" placement="center">
+          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+            <AlertDialog.Header className="flex items-center gap-3">
+              <AlertDialog.Icon status="danger" />
+              <AlertDialog.Heading className="text-base font-semibold">
                 {zh.detail.playthroughs.cancelRewatch}
-              </Modal.Heading>
-            </Modal.Header>
-            <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
-              {zh.detail.playthroughs.cancelRewatchConfirm}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
+              <p>{zh.detail.playthroughs.cancelRewatchConfirm}</p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onPress={() => setConfirmOpen(false)}>
                 {zh.app.cancel}
               </Button>
@@ -85,10 +86,10 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
               >
                 {zh.app.confirm}
               </Button>
-            </div>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </section>
   );
 };

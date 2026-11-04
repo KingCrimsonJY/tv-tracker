@@ -37,15 +37,15 @@ export interface LocalizedOverview {
 
 export interface ExternalIds {
   imdb?: string;
-  douban?: string;
 }
 
 export interface Ratings {
+  tmdb?: string;
+  tmdbVotes?: number;
   imdb?: string;
   imdbVotes?: string;
   rottenTomatoes?: string;
   metacritic?: string;
-  douban?: string;
   fetchedAt?: number;
 }
 

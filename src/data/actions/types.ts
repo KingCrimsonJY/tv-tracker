@@ -22,8 +22,6 @@ export interface CustomTitleInput {
   overview?: string;
   episodeCount?: number | null;
   episodes?: LinkImportEpisodeSeed[];
-  doubanScore?: string;
-  doubanUrl?: string;
   targetListId?: string;
 }
 
@@ -36,8 +34,6 @@ export interface UpdateTitleDetailsInput {
   posterPath?: string | null;
   overview?: string;
   episodeCount?: number | null;
-  doubanScore?: string;
-  doubanUrl?: string;
 }
 
 export interface InFlightProgressOp {
@@ -52,11 +48,13 @@ export interface InFlightProgressOp {
   titlePatch?: Partial<Omit<TitleDoc, 'id'>>;
 }
 
+export type ToastVariant = 'default' | 'accent' | 'success' | 'warning' | 'danger';
+
 export interface TrackerActionDeps {
   getState: () => AppStateSnapshot;
   setState: (updater: StateUpdater) => unknown;
   applyServerMutation: (mutation: StateMutationResult) => void;
-  showToast: (message: string) => void;
+  showToast: (message: string, variant?: ToastVariant) => void;
   refetchState?: () => Promise<void>;
   inFlightOps?: Map<string, InFlightProgressOp>;
 }

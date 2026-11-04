@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit3, Link2, Plus, Search } from 'lucide-react';
-import { Button, Modal } from '@heroui/react';
+import { Button, Modal, Tabs, toast } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext';
 import { searchTmdbApi } from '../data/api';
 import { LinkImportDialog } from '../features/search/LinkImportDialog';
@@ -20,7 +20,6 @@ export const SearchPage: React.FC = () => {
     lists,
     addTitleFromTmdb,
     createCustomOrLinkTitle,
-    showToast,
   } = useTracker();
   const navigate = useNavigate();
 
@@ -63,13 +62,19 @@ export const SearchPage: React.FC = () => {
     if (titles[id]) return;
 
     setAddingId(id);
-    if (hit.mediaType === 'tv') {
-      showToast(zh.search.fetchingDetailToast);
-    }
     try {
-      await addTitleFromTmdb(hit.mediaType, hit.sourceId);
-    } catch {
-      showToast(zh.search.addFailedToast);
+      const created = await addTitleFromTmdb(hit.mediaType, hit.sourceId);
+      const displayName = created.names.zh || created.names.original;
+      toast.success(zh.search.addedTitleToast(displayName), {
+        actionProps: {
+          children: zh.search.viewAction,
+          onPress: () => navigate(`/title/${created.id}`),
+        },
+      });
+    } catch (err) {
+      toast.danger(
+        err instanceof Error ? err.message : zh.search.addFailedToast
+      );
     } finally {
       setAddingId(null);
     }
@@ -80,16 +85,23 @@ export const SearchPage: React.FC = () => {
     listId: string
   ) => {
     const id = `tmdb_${hit.mediaType}_${hit.sourceId}`;
+    const targetList = lists[listId];
     setAddingId(id);
     try {
-      await addTitleFromTmdb(hit.mediaType, hit.sourceId, listId);
-      const targetList = lists[listId];
+      await toast.promise(
+        addTitleFromTmdb(hit.mediaType, hit.sourceId, listId),
+        {
+          loading: zh.search.addingToListToast,
+          success: targetList
+            ? zh.search.addedToListToast(targetList.name)
+            : zh.search.addedTitleToast(hit.names.zh || hit.names.original),
+          error: (err) =>
+            err instanceof Error
+              ? err.message
+              : zh.search.addToListFailedToast,
+        }
+      );
       setListPickerTarget(null);
-      if (targetList) {
-        showToast(zh.search.addedToListToast(targetList.name));
-      }
-    } catch {
-      showToast(zh.search.addToListFailedToast);
     } finally {
       setAddingId(null);
     }
@@ -102,56 +114,44 @@ export const SearchPage: React.FC = () => {
           {zh.search.title}
         </h1>
 
-        <div
-          role="tablist"
-          aria-label={zh.search.title}
-          className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]"
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={(key) => setTab(key as TabMode)}
         >
-          <button
-            role="tab"
-            aria-selected={tab === 'tmdb'}
-            type="button"
-            onClick={() => setTab('tmdb')}
-            className={`flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              tab === 'tmdb'
-                ? 'bg-[var(--accent)] text-[var(--accent-foreground)]'
-                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            <Search className="w-4 h-4" />
-            <span>{zh.search.tabTmdb}</span>
-          </button>
+          <Tabs.ListContainer className="inline-flex">
+            <Tabs.List
+              aria-label={zh.search.title}
+              className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] gap-1"
+            >
+              <Tabs.Tab
+                id="tmdb"
+                className="flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium"
+              >
+                <Search className="w-4 h-4" />
+                <span>{zh.search.tabTmdb}</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
 
-          <button
-            role="tab"
-            aria-selected={tab === 'link'}
-            type="button"
-            onClick={() => setTab('link')}
-            className={`flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              tab === 'link'
-                ? 'bg-[var(--accent)] text-[var(--accent-foreground)]'
-                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            <Link2 className="w-4 h-4" />
-            <span>{zh.search.tabLinkImport}</span>
-          </button>
+              <Tabs.Tab
+                id="link"
+                className="flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium"
+              >
+                <Link2 className="w-4 h-4" />
+                <span>{zh.search.tabLinkImport}</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
 
-          <button
-            role="tab"
-            aria-selected={tab === 'manual'}
-            type="button"
-            onClick={() => setTab('manual')}
-            className={`flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              tab === 'manual'
-                ? 'bg-[var(--accent)] text-[var(--accent-foreground)]'
-                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-            }`}
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>{zh.search.tabManual}</span>
-          </button>
-        </div>
+              <Tabs.Tab
+                id="manual"
+                className="flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>{zh.search.tabManual}</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs.ListContainer>
+        </Tabs>
       </header>
 
       {tab === 'tmdb' && (
@@ -176,8 +176,21 @@ export const SearchPage: React.FC = () => {
             setTab('tmdb');
           }}
           onSubmitCustomItem={async (input) => {
-            const created = await createCustomOrLinkTitle(input);
-            navigate(`/title/${created.id}`);
+            try {
+              const created = await createCustomOrLinkTitle(input);
+              const displayName = created.names.zh || created.names.original;
+              toast.success(zh.search.addedTitleToast(displayName), {
+                actionProps: {
+                  children: zh.search.viewAction,
+                  onPress: () => navigate(`/title/${created.id}`),
+                },
+              });
+              navigate(`/title/${created.id}`);
+            } catch (err) {
+              toast.danger(
+                err instanceof Error ? err.message : zh.search.addFailedToast
+              );
+            }
           }}
         />
       )}
@@ -185,8 +198,21 @@ export const SearchPage: React.FC = () => {
       {tab === 'manual' && (
         <ManualItemDialog
           onSubmitCustomItem={async (input) => {
-            const created = await createCustomOrLinkTitle(input);
-            navigate(`/title/${created.id}`);
+            try {
+              const created = await createCustomOrLinkTitle(input);
+              const displayName = created.names.zh || created.names.original;
+              toast.success(zh.search.addedTitleToast(displayName), {
+                actionProps: {
+                  children: zh.search.viewAction,
+                  onPress: () => navigate(`/title/${created.id}`),
+                },
+              });
+              navigate(`/title/${created.id}`);
+            } catch (err) {
+              toast.danger(
+                err instanceof Error ? err.message : zh.search.addFailedToast
+              );
+            }
           }}
         />
       )}
@@ -214,18 +240,19 @@ export const SearchPage: React.FC = () => {
                 </p>
               ) : (
                 Object.values(lists).map((list) => (
-                  <button
+                  <Button
                     key={list.id}
-                    type="button"
-                    onClick={() =>
+                    variant="ghost"
+                    fullWidth
+                    onPress={() =>
                       listPickerTarget &&
-                      handleAddStraightToList(listPickerTarget, list.id)
+                      void handleAddStraightToList(listPickerTarget, list.id)
                     }
-                    className="w-full flex items-center justify-between px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium bg-[var(--surface-secondary)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-left"
+                    className="w-full justify-between px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium bg-[var(--surface-secondary)] border border-[var(--border)] hover:border-[var(--accent)]"
                   >
                     <span className="truncate">{list.name}</span>
                     <Plus className="w-4 h-4 shrink-0 text-[var(--accent-text)]" />
-                  </button>
+                  </Button>
                 ))
               )}
             </div>

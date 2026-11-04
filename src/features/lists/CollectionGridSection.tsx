@@ -13,6 +13,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Button } from '@heroui/react';
 import { PosterCard } from '../../components/PosterCard';
 import { resolveDisplayTitle } from '../../domain/progress';
 import type {
@@ -87,14 +88,15 @@ const SortableCollectionCard: React.FC<SortableCollectionCardProps> = ({
             <GripVertical className="w-4 h-4" />
           </button>
 
-          <button
-            type="button"
-            onClick={onRemove}
+          <Button
+            variant="ghost"
+            isIconOnly
+            onPress={onRemove}
             aria-label={zh.lists.removeFromListAria(primary)}
             className="min-w-[40px] min-h-[40px] rounded-xl bg-black/75 backdrop-blur-md border border-white/20 flex items-center justify-center text-red-300 hover:text-red-200"
           >
             <Trash2 className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       )}
     </div>

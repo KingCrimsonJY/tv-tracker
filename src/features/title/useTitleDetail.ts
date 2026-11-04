@@ -75,8 +75,8 @@ export function useTitleDetail(titleId: string | undefined) {
   useEffect(() => {
     if (title && refreshedIdRef.current !== title.id) {
       refreshedIdRef.current = title.id;
-      void fetchAndCacheTitleRatings(title.id);
       if (title.source === 'tmdb') {
+        void fetchAndCacheTitleRatings(title.id);
         const now = Date.now();
         const ended = isShowEnded(title.showStatus, title.source);
         const ttl =

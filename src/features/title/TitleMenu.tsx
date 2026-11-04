@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import { Drawer } from '@heroui/react';
+import { Button, Drawer } from '@heroui/react';
 import type { UpdateTitleDetailsInput } from '../../context/TrackerContext';
 import type {
   DisplayLang,
@@ -46,6 +46,9 @@ interface TitleMenuProps {
   onRemoveEntryFromList: (listId: string, entryId: string) => Promise<void>;
   onDeleteTitle: () => Promise<void>;
 }
+
+const menuRowClass =
+  'w-full justify-start gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm font-normal text-[var(--foreground)] hover:bg-[var(--surface-secondary)]';
 
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
@@ -88,144 +91,155 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
               </Drawer.Heading>
             </Drawer.Header>
             <Drawer.Body className="py-3 space-y-1">
-              <button
-                type="button"
-                onClick={() => {
+              <Button
+                variant="ghost"
+                fullWidth
+                onPress={() => {
                   onMenuOpenChange(false);
                   onAddToListModalOpenChange(true);
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                className={menuRowClass}
               >
                 <FolderPlus className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.addToList}</span>
-              </button>
+              </Button>
 
-              <button
-                type="button"
-                onClick={onOpenResumeModal}
-                className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+              <Button
+                variant="ghost"
+                fullWidth
+                onPress={onOpenResumeModal}
+                className={menuRowClass}
               >
                 <Clock className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.recordResumeTime}</span>
-              </button>
+              </Button>
 
-              <button
-                type="button"
-                onClick={async () => {
+              <Button
+                variant="ghost"
+                fullWidth
+                onPress={async () => {
                   onMenuOpenChange(false);
                   await onMarkWholeTitleWatched();
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                className={menuRowClass}
               >
                 <CheckCheck className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.markAllWatched}</span>
-              </button>
+              </Button>
 
               {title.manualState !== 'paused' && (
-                <button
-                  type="button"
-                  onClick={async () => {
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onPress={async () => {
                     onMenuOpenChange(false);
                     await onSetManualState('paused');
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                  className={menuRowClass}
                 >
                   <PauseCircle className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.pause}</span>
-                </button>
+                </Button>
               )}
 
               {title.manualState !== 'dropped' && (
-                <button
-                  type="button"
-                  onClick={async () => {
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onPress={async () => {
                     onMenuOpenChange(false);
                     await onSetManualState('dropped');
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                  className={menuRowClass}
                 >
                   <Ban className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.drop}</span>
-                </button>
+                </Button>
               )}
 
               {title.manualState && (
-                <button
-                  type="button"
-                  onClick={async () => {
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onPress={async () => {
                     onMenuOpenChange(false);
                     await onSetManualState(null);
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                  className={menuRowClass}
                 >
                   <Play className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.clearManualState}</span>
-                </button>
+                </Button>
               )}
 
-              <button
-                type="button"
-                onClick={() => {
+              <Button
+                variant="ghost"
+                fullWidth
+                onPress={() => {
                   onMenuOpenChange(false);
                   onLangModalOpenChange(true);
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                className={menuRowClass}
               >
                 <Globe className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.titleLanguage}</span>
-              </button>
+              </Button>
 
-              <button
-                type="button"
-                onClick={() => {
+              <Button
+                variant="ghost"
+                fullWidth
+                onPress={() => {
                   onMenuOpenChange(false);
                   onEditModalOpenChange(true);
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                className={menuRowClass}
               >
                 <Edit3 className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.editMetadata}</span>
-              </button>
+              </Button>
 
               {title.source === 'tmdb' && (
-                <button
-                  type="button"
-                  onClick={async () => {
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onPress={async () => {
                     onMenuOpenChange(false);
                     await onRefreshMetadata();
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                  className={menuRowClass}
                 >
                   <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.refreshMetadata}</span>
-                </button>
+                </Button>
               )}
 
               {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
-                <button
-                  type="button"
-                  onClick={async () => {
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onPress={async () => {
                     onMenuOpenChange(false);
                     await onRefreshPlaylist();
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                  className={menuRowClass}
                 >
                   <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.refreshPlaylist}</span>
-                </button>
+                </Button>
               )}
 
-              <button
-                type="button"
-                onClick={() => {
+              <Button
+                variant="ghost"
+                fullWidth
+                onPress={() => {
                   onMenuOpenChange(false);
                   setDeleteConfirmOpen(true);
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm text-[var(--danger)] hover:bg-red-500/10 transition-colors text-left"
+                className="w-full justify-start gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm font-normal text-[var(--danger)] hover:bg-red-500/10"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{zh.detail.menu.deleteTitle}</span>
-              </button>
+              </Button>
             </Drawer.Body>
           </Drawer.Dialog>
         </Drawer.Content>

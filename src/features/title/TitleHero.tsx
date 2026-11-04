@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Button } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import type { ComputedTitleState } from '../../domain/progress';
 import type { TitleDoc } from '../../domain/types';
@@ -37,14 +38,15 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/65 to-black/30" />
 
         <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
-          <button
-            type="button"
-            onClick={onBack}
+          <Button
+            variant="secondary"
+            isIconOnly
+            onPress={onBack}
             aria-label={zh.app.back}
-            className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+            className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white hover:bg-black/70"
           >
             <ArrowLeft className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
       </div>
 

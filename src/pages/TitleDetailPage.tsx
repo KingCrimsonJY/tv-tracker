@@ -104,15 +104,16 @@ export const TitleDetailPage: React.FC = () => {
             {overviewText}
           </p>
           {overviewText.length > 110 && (
-            <button
-              type="button"
-              onClick={() => setOverviewExpanded((v) => !v)}
-              className="mt-1.5 text-xs font-medium text-[var(--accent-text)] hover:underline"
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => setOverviewExpanded((v) => !v)}
+              className="mt-1.5 px-2 h-7 text-xs font-medium text-[var(--accent-text)]"
             >
               {overviewExpanded
                 ? zh.detail.overview.collapse
                 : zh.detail.overview.expand}
-            </button>
+            </Button>
           )}
         </div>
 

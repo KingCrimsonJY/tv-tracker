@@ -25,9 +25,8 @@ async function resolveDemoTitle(
           externalIds: {
             ...fetched.title.externalIds,
             imdb: fetched.title.externalIds.imdb || spec.imdbId,
-            douban: spec.doubanId,
           },
-          ratings: { ...spec.ratings, fetchedAt: now },
+          ratings: { ...spec.ratings, ...fetched.title.ratings, fetchedAt: now },
         },
         seasons:
           fetched.seasons.length > 0
@@ -287,8 +286,8 @@ async function main() {
         zh: '故事发生在从近未来到两百年后的历史跨度上，地球文明被三体用智子锁死后，人类组建太空舰队，章北海在危机纪元中坚定执行深空战略。',
       },
       showStatus: 'Ended',
-      externalIds: { douban: '33437152' },
-      ratings: { douban: '9.6', fetchedAt: now },
+      externalIds: {},
+      ratings: {},
       manualState: null,
       playthroughs: [{ id: 'p1', number: 1, startedAt: now - 12 * dayMs }],
       activePlaythroughId: 'p1',

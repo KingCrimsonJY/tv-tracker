@@ -35,8 +35,8 @@ function makeSampleTitle(id = 'tmdb_tv_100', name = '人生切割术'): TitleDoc
       en: 'Mark leads a team of office workers whose memories have been surgically divided.',
     },
     showStatus: 'Returning Series',
-    externalIds: { imdb: 'tt11280740', douban: '35033654' },
-    ratings: { imdb: '8.7', douban: '9.1', fetchedAt: now },
+    externalIds: { imdb: 'tt11280740' },
+    ratings: { tmdb: '8.4', tmdbVotes: 1520, imdb: '8.7', fetchedAt: now },
     manualState: null,
     playthroughs: [{ id: 'p1', number: 1, startedAt: now }],
     activePlaythroughId: 'p1',
@@ -268,6 +268,43 @@ describe('TrackerRepository (in-memory SQLite)', () => {
     expect(state.settings.theme).toBe('light');
     expect(state.titles[title.id].names.zh).toBe('搏击俱乐部');
     expect(state.progressByTitle[title.id].p1.movieWatchedAt).toBe(1700000000000);
+
+    // Also verify legacy douban keys in externalIds and ratings are ignored and stripped on import
+    const legacyWithDouban = {
+      ...v1Payload,
+      titles: {
+        [title.id]: {
+          ...title,
+          externalIds: { imdb: 'tt0137523', douban: '1292000' },
+          ratings: { imdb: '8.8', douban: '9.0', fetchedAt: 1700000000000 },
+        },
+      },
+    };
+    repo.importData(legacyWithDouban);
+    const stateAfter = repo.getState();
+    expect(stateAfter.titles[title.id].externalIds).toEqual({ imdb: 'tt0137523' });
+    expect(stateAfter.titles[title.id].ratings).toEqual({
+      imdb: '8.8',
+      fetchedAt: 1700000000000,
+    });
+  });
+
+  it('sorts collection entries by TMDB rating, falling back to IMDb rating', async () => {
+    const { sortListEntries } = await import('../../src/domain/ordering.ts');
+    const t1 = makeSampleTitle('tmdb_movie_1', 'A');
+    t1.ratings = { tmdb: '7.5', imdb: '9.0' }; // Uses TMDB 7.5
+    const t2 = makeSampleTitle('tmdb_movie_2', 'B');
+    t2.ratings = { imdb: '8.2' }; // No TMDB -> falls back to IMDb 8.2
+    const t3 = makeSampleTitle('tmdb_movie_3', 'C');
+    t3.ratings = { tmdb: '8.9', imdb: '7.0' }; // Uses TMDB 8.9
+
+    const hydrated = [
+      { entry: { id: 'e1', titleId: t1.id, rank: 'a0', addedAt: 1 }, title: t1 },
+      { entry: { id: 'e2', titleId: t2.id, rank: 'a1', addedAt: 2 }, title: t2 },
+      { entry: { id: 'e3', titleId: t3.id, rank: 'a2', addedAt: 3 }, title: t3 },
+    ];
+    const sorted = sortListEntries(hydrated, 'collection', 'rating', 'zh');
+    expect(sorted.map((h) => h.title.id)).toEqual([t3.id, t2.id, t1.id]);
   });
 
   it('enforces one-time password setup in repository', () => {

@@ -23,7 +23,10 @@ export function createTitleSyncActions(
 
   async function fetchAndCacheTitleRatings(titleId: string): Promise<void> {
     const current = getState().titles[titleId];
-    if (!current) return;
+    if (!current || current.source === 'custom' || current.source === 'url') return;
+
+    const imdbId = current.externalIds?.imdb || '';
+    if (!imdbId) return;
 
     const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
     const now = Date.now();
@@ -31,22 +34,12 @@ export function createTitleSyncActions(
       return;
     }
 
-    const imdbId = current.externalIds?.imdb || '';
-    const doubanId = current.externalIds?.douban || '';
-    const titleQuery = current.names.zh || current.names.original || '';
-
     try {
-      const data = await fetchRatingsApi({
-        imdbId: imdbId || undefined,
-        title: titleQuery || undefined,
-        year: current.year,
-        doubanId: doubanId || undefined,
-      });
+      const data = await fetchRatingsApi({ imdbId });
 
       const latest = getState().titles[titleId];
       if (!latest) return;
       const prevRatings = latest.ratings;
-      const prevExternalIds = latest.externalIds;
       const prevUpdatedAt = latest.updatedAt;
 
       const mergedRatings: Ratings = {
@@ -55,19 +48,7 @@ export function createTitleSyncActions(
         ...(data.ratings?.imdbVotes ? { imdbVotes: data.ratings.imdbVotes } : {}),
         ...(data.ratings?.rottenTomatoes ? { rottenTomatoes: data.ratings.rottenTomatoes } : {}),
         ...(data.ratings?.metacritic ? { metacritic: data.ratings.metacritic } : {}),
-        ...(data.ratings?.douban
-          ? { douban: data.ratings.douban }
-          : latest.ratings?.douban
-            ? { douban: latest.ratings.douban }
-            : {}),
         fetchedAt: now,
-      };
-
-      const mergedExternalIds = {
-        ...latest.externalIds,
-        ...(data.externalIds?.douban && !latest.externalIds?.douban
-          ? { douban: data.externalIds.douban }
-          : {}),
       };
 
       setState((prev) =>
@@ -79,7 +60,6 @@ export function createTitleSyncActions(
                 [titleId]: {
                   ...prev.titles[titleId],
                   ratings: mergedRatings,
-                  externalIds: mergedExternalIds,
                   updatedAt: now,
                 },
               },
@@ -90,7 +70,6 @@ export function createTitleSyncActions(
       try {
         const mut = await patchTitleApi(titleId, {
           ratings: mergedRatings,
-          externalIds: mergedExternalIds,
           updatedAt: now,
         });
         applyServerMutation(mut);
@@ -104,14 +83,13 @@ export function createTitleSyncActions(
                   [titleId]: {
                     ...curr.titles[titleId],
                     ratings: prevRatings,
-                    externalIds: prevExternalIds,
                     updatedAt: prevUpdatedAt,
                   },
                 },
               }
             : curr
         );
-        showToast(zh.app.writeRollbackToast);
+        showToast(zh.app.writeRollbackToast, 'danger');
         await triggerRefetch();
       }
     } catch {
@@ -141,6 +119,13 @@ export function createTitleSyncActions(
         zh: nextZh,
         en: data.title.names.en,
       };
+      const nextRatings: Ratings = {
+        ...latest.ratings,
+        ...(data.title.ratings?.tmdb ? { tmdb: data.title.ratings.tmdb } : {}),
+        ...(data.title.ratings?.tmdbVotes !== undefined
+          ? { tmdbVotes: data.title.ratings.tmdbVotes }
+          : {}),
+      };
       const patch: Partial<Omit<TitleDoc, 'id'>> = {
         names: nextNames,
         year: data.title.year ?? latest.year,
@@ -153,6 +138,7 @@ export function createTitleSyncActions(
           en: data.title.overview.en || latest.overview.en,
         },
         showStatus: data.title.showStatus || latest.showStatus,
+        ratings: nextRatings,
         metaFetchedAt: now,
         updatedAt: now,
       };
@@ -206,7 +192,7 @@ export function createTitleSyncActions(
               }
             : curr
         );
-        showToast(zh.app.writeRollbackToast);
+        showToast(zh.app.writeRollbackToast, 'danger');
         await triggerRefetch();
       }
     } catch {
@@ -224,11 +210,15 @@ export function createTitleSyncActions(
       showToast(
         res.addedCount > 0
           ? zh.detail.menu.refreshPlaylistAddedToast(res.addedCount)
-          : zh.detail.menu.refreshPlaylistNoNewToast
+          : zh.detail.menu.refreshPlaylistNoNewToast,
+        res.addedCount > 0 ? 'success' : 'default'
       );
       return res.addedCount;
     } catch (err) {
-      showToast(err instanceof Error ? err.message : zh.detail.menu.refreshPlaylistFailedToast);
+      showToast(
+        err instanceof Error ? err.message : zh.detail.menu.refreshPlaylistFailedToast,
+        'danger'
+      );
       throw err;
     }
   }
@@ -293,7 +283,7 @@ export function createTitleSyncActions(
           entriesByList: nextEntries,
         };
       });
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

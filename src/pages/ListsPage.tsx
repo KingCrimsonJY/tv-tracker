@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bookmark, Film, Layers, ListOrdered, Pin, Plus } from 'lucide-react';
-import { Button, Modal, ProgressBar } from '@heroui/react';
+import {
+  Button,
+  FieldError,
+  Input,
+  Label,
+  Modal,
+  ProgressBar,
+  Skeleton,
+  Switch,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
@@ -85,9 +97,9 @@ export const ListsPage: React.FC = () => {
           aria-label={zh.lists.loadingAria}
         >
           {[0, 1, 2].map((i) => (
-            <div
+            <Skeleton
               key={i}
-              className="h-56 rounded-2xl border border-[var(--border)] bg-[var(--surface)] animate-pulse"
+              className="h-56 rounded-2xl border border-[var(--border)] bg-[var(--surface)]"
             />
           ))}
         </div>
@@ -246,33 +258,42 @@ export const ListsPage: React.FC = () => {
             </Modal.Header>
 
             <form onSubmit={handleCreateSubmit} className="mt-4 space-y-4">
-              <div className="space-y-1.5">
-                <label htmlFor="new-list-name" className="block text-xs text-[var(--muted)]">
+              <TextField
+                value={name}
+                onChange={(val) => {
+                  setName(val);
+                  setNameError(null);
+                }}
+                isInvalid={Boolean(nameError)}
+                className="space-y-1.5"
+              >
+                <Label className="block text-xs text-[var(--muted)]">
                   {zh.lists.createModal.nameLabel}
-                </label>
-                <input
-                  id="new-list-name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setNameError(null);
-                  }}
+                </Label>
+                <Input
                   placeholder={zh.lists.createModal.namePlaceholder}
                   className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
                 />
-                {nameError && <p className="text-xs text-[var(--danger)]">{nameError}</p>}
-              </div>
+                {nameError && <FieldError className="text-xs text-[var(--danger)]">{nameError}</FieldError>}
+              </TextField>
 
               <div className="space-y-2">
                 <span className="block text-xs text-[var(--muted)]">
                   {zh.lists.createModal.kindLabel}
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setKind('ordered')}
-                    className={`p-3 rounded-xl border text-left transition-colors ${
+                <ToggleButtonGroup
+                  selectionMode="single"
+                  selectedKeys={new Set([kind])}
+                  onSelectionChange={(keys) => {
+                    const first = [...keys][0];
+                    if (first != null) setKind(String(first) as ListKind);
+                  }}
+                  aria-label={zh.lists.createModal.kindLabel}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full"
+                >
+                  <ToggleButton
+                    id="ordered"
+                    className={`h-auto p-3 rounded-xl border text-left transition-colors flex flex-col items-start justify-start ${
                       kind === 'ordered'
                         ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--foreground)]'
                         : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)]'
@@ -282,15 +303,14 @@ export const ListsPage: React.FC = () => {
                       <ListOrdered className="w-4 h-4 text-[var(--accent-text)]" />
                       <span>{zh.lists.orderedType}</span>
                     </div>
-                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug">
+                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug font-normal">
                       {zh.lists.orderedTypeHint}
                     </p>
-                  </button>
+                  </ToggleButton>
 
-                  <button
-                    type="button"
-                    onClick={() => setKind('collection')}
-                    className={`p-3 rounded-xl border text-left transition-colors ${
+                  <ToggleButton
+                    id="collection"
+                    className={`h-auto p-3 rounded-xl border text-left transition-colors flex flex-col items-start justify-start ${
                       kind === 'collection'
                         ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--foreground)]'
                         : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)]'
@@ -300,38 +320,41 @@ export const ListsPage: React.FC = () => {
                       <Bookmark className="w-4 h-4 text-[var(--accent-text)]" />
                       <span>{zh.lists.collectionType}</span>
                     </div>
-                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug">
+                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug font-normal">
                       {zh.lists.collectionTypeHint}
                     </p>
-                  </button>
-                </div>
+                  </ToggleButton>
+                </ToggleButtonGroup>
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="new-list-desc" className="block text-xs text-[var(--muted)]">
+              <TextField
+                value={description}
+                onChange={setDescription}
+                className="space-y-1.5"
+              >
+                <Label className="block text-xs text-[var(--muted)]">
                   {zh.lists.createModal.descriptionLabel}
-                </label>
-                <input
-                  id="new-list-desc"
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                </Label>
+                <Input
                   placeholder={zh.lists.createModal.descriptionPlaceholder}
                   className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
                 />
-              </div>
+              </TextField>
 
-              <label className="flex items-center gap-2.5 cursor-pointer select-none pt-1">
-                <input
-                  type="checkbox"
-                  checked={pinned}
-                  onChange={(e) => setPinned(e.target.checked)}
-                  className="w-4 h-4 rounded accent-[var(--accent)]"
-                />
+              <div className="flex items-center justify-between gap-2.5 pt-1">
                 <span className="text-sm text-[var(--foreground-secondary)]">
                   {zh.lists.createModal.pinnedLabel}
                 </span>
-              </label>
+                <Switch
+                  aria-label={zh.lists.createModal.pinnedLabel}
+                  isSelected={pinned}
+                  onChange={setPinned}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+              </div>
 
               <div className="flex justify-end gap-2 pt-3">
                 <Button

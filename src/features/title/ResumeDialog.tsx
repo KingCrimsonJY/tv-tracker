@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Modal } from '@heroui/react';
+import {
+  Button,
+  Description,
+  FieldError,
+  Input,
+  Label,
+  ListBox,
+  Modal,
+  Select,
+  TextField,
+} from '@heroui/react';
 import { formatSeconds, parseTimeInput } from '../../domain/progress';
 import type { SeasonDoc, TitleDoc } from '../../domain/types';
 import { zh } from '../../i18n/zh';
@@ -75,62 +85,74 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
           </Modal.Header>
           <form onSubmit={handleSubmit} className="mt-4 space-y-4">
             {(title.mediaType === 'tv' || regularSeasons.length > 0) && (
-              <div>
-                <label
-                  htmlFor="resume-ep-select"
-                  className="block text-xs text-[var(--muted)] mb-1.5"
-                >
+              <Select
+                selectedKey={episodeKey}
+                onSelectionChange={(key) => {
+                  if (key != null) setEpisodeKey(String(key));
+                }}
+                fullWidth
+              >
+                <Label className="block text-xs text-[var(--muted)] mb-1.5">
                   {zh.detail.resumeModal.episodeLabel}
-                </label>
-                <select
-                  id="resume-ep-select"
-                  value={episodeKey}
-                  onChange={(e) => setEpisodeKey(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-                >
-                  {regularSeasons.flatMap((s) =>
-                    s.episodes.map((ep) => (
-                      <option key={ep.key} value={ep.key}>
-                        {zh.detail.resumeModal.episodeSelectOption(
+                </Label>
+                <Select.Trigger className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] flex items-center justify-between">
+                  <Select.Value className="truncate" />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover className="bg-[var(--overlay)] border border-[var(--border)] rounded-xl p-1 max-h-64 overflow-y-auto">
+                  <ListBox aria-label={zh.detail.resumeModal.episodeLabel}>
+                    {regularSeasons.flatMap((s) =>
+                      s.episodes.map((ep) => {
+                        const label = zh.detail.resumeModal.episodeSelectOption(
                           s.seasonNumber,
                           ep.number,
                           ep.name ||
                             zh.detail.seasons.episodeDefaultName(ep.number)
-                        )}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
+                        );
+                        return (
+                          <ListBox.Item
+                            key={ep.key}
+                            id={ep.key}
+                            textValue={label}
+                            className="px-3 py-2 rounded-lg text-xs text-[var(--foreground)] hover:bg-[var(--surface-secondary)] cursor-pointer outline-none"
+                          >
+                            {label}
+                          </ListBox.Item>
+                        );
+                      })
+                    )}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             )}
 
-            <div>
-              <label
-                htmlFor="resume-time-input"
-                className="block text-xs text-[var(--muted)] mb-1.5"
-              >
+            <TextField
+              value={timeInput}
+              onChange={(val) => {
+                setTimeInput(val);
+                setError(null);
+              }}
+              isInvalid={Boolean(error)}
+              fullWidth
+            >
+              <Label className="block text-xs text-[var(--muted)] mb-1.5">
                 {zh.detail.resumeModal.timeLabel}
-              </label>
-              <input
-                id="resume-time-input"
-                type="text"
-                value={timeInput}
-                onChange={(e) => {
-                  setTimeInput(e.target.value);
-                  setError(null);
-                }}
+              </Label>
+              <Input
                 placeholder={zh.detail.resumeModal.timePlaceholder}
                 className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] tabular-nums"
               />
               {title.runtimeMin && (
-                <p className="mt-1 text-xs text-[var(--muted)]">
+                <Description className="mt-1 text-xs text-[var(--muted)]">
                   {zh.detail.resumeModal.runtimeHint(title.runtimeMin)}
-                </p>
+                </Description>
               )}
               {error && (
-                <p className="mt-1 text-xs text-[var(--danger)]">{error}</p>
+                <FieldError className="mt-1 text-xs text-[var(--danger)]">
+                  {error}
+                </FieldError>
               )}
-            </div>
+            </TextField>
 
             <div className="flex items-center justify-between gap-2 pt-2">
               {title.resume && (

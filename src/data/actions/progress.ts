@@ -180,7 +180,7 @@ export function createProgressActions(
         };
       });
 
-      showToast(zh.app.writeRollbackToast);
+      showToast(zh.app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

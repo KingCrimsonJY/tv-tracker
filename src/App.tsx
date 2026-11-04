@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AlertCircle, KeyRound, Lock, RefreshCw, ShieldCheck, WifiOff } from 'lucide-react';
-import { Button, Card } from '@heroui/react';
+import { KeyRound, Lock, RefreshCw, ShieldCheck, WifiOff } from 'lucide-react';
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  Skeleton,
+  Spinner,
+  TextField,
+  Toast,
+} from '@heroui/react';
 import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
 import { ApiError } from './data/api.ts';
@@ -82,58 +92,52 @@ const AuthScreen: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="w-full space-y-4">
             {needsSetup && (
-              <div>
-                <label
-                  htmlFor="auth-setup-code-input"
-                  className="block text-xs font-medium text-[var(--muted)] mb-1.5"
-                >
+              <TextField
+                value={setupCode}
+                onChange={(val) => {
+                  setSetupCode(val);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                fullWidth
+              >
+                <Label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
                   {zh.app.setupCodeLabel}
-                </label>
+                </Label>
                 <div className="relative">
-                  <input
-                    id="auth-setup-code-input"
-                    type="text"
-                    value={setupCode}
-                    onChange={(e) => {
-                      setSetupCode(e.target.value);
-                      if (errorMsg) setErrorMsg(null);
-                    }}
+                  <Input
                     placeholder={zh.app.setupCodePlaceholder}
                     autoFocus
                     autoComplete="off"
-                    className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
+                    className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
                   />
                   <ShieldCheck className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
-              </div>
+              </TextField>
             )}
 
-            <div>
-              <label
-                htmlFor="auth-password-input"
-                className={
-                  needsSetup
-                    ? 'block text-xs font-medium text-[var(--muted)] mb-1.5'
-                    : 'sr-only'
-                }
-              >
-                {needsSetup ? zh.app.setupPasswordTitle : zh.app.passwordLabel}
-              </label>
+            <TextField
+              type="password"
+              value={password}
+              onChange={(val) => {
+                setPassword(val);
+                if (errorMsg) setErrorMsg(null);
+              }}
+              aria-label={!needsSetup ? zh.app.passwordLabel : undefined}
+              fullWidth
+            >
+              {needsSetup && (
+                <Label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
+                  {zh.app.setupPasswordTitle}
+                </Label>
+              )}
               <div className="relative">
-                <input
-                  id="auth-password-input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errorMsg) setErrorMsg(null);
-                  }}
+                <Input
                   placeholder={
                     needsSetup ? zh.app.passwordPlaceholder : zh.app.loginPasswordPlaceholder
                   }
                   autoFocus={!needsSetup}
                   autoComplete={needsSetup ? 'new-password' : 'current-password'}
-                  className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)]"
+                  className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
                 />
                 {needsSetup ? (
                   <KeyRound className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -141,16 +145,15 @@ const AuthScreen: React.FC = () => {
                   <Lock className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 )}
               </div>
-            </div>
+            </TextField>
 
             {errorMsg && (
-              <div
-                role="alert"
-                className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-[var(--danger)]"
-              >
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
+              <Alert status="danger" className="rounded-xl">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description className="text-xs">{errorMsg}</Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
 
             <Button
@@ -158,9 +161,10 @@ const AuthScreen: React.FC = () => {
               variant="primary"
               size="lg"
               fullWidth
-              isDisabled={submitting}
+              isPending={submitting}
               className="min-h-[48px] rounded-xl font-semibold gap-2"
             >
+              {submitting && <Spinner size="sm" color="current" />}
               <span>{needsSetup ? zh.app.setupPasswordSubmit : zh.app.loginSubmit}</span>
             </Button>
           </form>
@@ -206,11 +210,15 @@ const OfflineScreen: React.FC = () => {
               variant="primary"
               size="lg"
               fullWidth
-              isDisabled={retrying}
+              isPending={retrying}
               onPress={handleRetry}
               className="min-h-[48px] rounded-xl font-semibold gap-2"
             >
-              <RefreshCw className={`w-4 h-4 ${retrying ? 'animate-spin' : ''}`} />
+              {retrying ? (
+                <Spinner size="sm" color="current" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
               <span>{zh.app.offlineRetry}</span>
             </Button>
           </div>
@@ -230,11 +238,11 @@ const AppRoutes: React.FC = () => {
   if (!authReady) {
     return (
       <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-3xl bg-[var(--surface)] border border-[var(--border)] p-8 space-y-5 animate-pulse">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--surface-secondary)] mx-auto" />
-          <div className="h-6 w-32 rounded-lg bg-[var(--surface-secondary)] mx-auto" />
-          <div className="h-4 w-56 rounded-lg bg-[var(--surface-secondary)] mx-auto" />
-          <div className="h-12 w-full rounded-xl bg-[var(--surface-secondary)]" />
+        <div className="w-full max-w-md rounded-3xl bg-[var(--surface)] border border-[var(--border)] p-8 space-y-5">
+          <Skeleton className="w-14 h-14 rounded-2xl mx-auto" />
+          <Skeleton className="h-6 w-32 rounded-lg mx-auto" />
+          <Skeleton className="h-4 w-56 rounded-lg mx-auto" />
+          <Skeleton className="h-12 w-full rounded-xl" />
         </div>
       </div>
     );
@@ -264,6 +272,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <TrackerProvider>
+        <Toast.Provider
+          placement="bottom"
+          className="max-sm:bottom-[calc(64px+env(safe-area-inset-bottom,0px)+12px)]"
+        />
         <AppRoutes />
       </TrackerProvider>
     </BrowserRouter>
