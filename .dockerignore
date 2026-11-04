@@ -9,6 +9,7 @@ data-demo/
 .gitignore
 .aistudio/
 .playwright-cli/
+.bin/
 .DS_Store
 *.log
 .env*

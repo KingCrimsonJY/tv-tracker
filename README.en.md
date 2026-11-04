@@ -116,7 +116,7 @@ All environment variables are read exclusively on the server from `.env` (see [`
 | `TMDB_READ_TOKEN` | **Recommended** | Empty | TMDB v4 Read Access Token (Bearer auth) for searching titles and fetching bilingual metadata | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
 | `OMDB_API_KEY` | Optional | Empty | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days) | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) |
 | `DATA_DIR` | Optional | `./data` | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports | Mounted at `/data` inside Docker |
-| `YTDLP_PATH` | Optional | `yt-dlp` | Path to the `yt-dlp` binary used by Link Import | Looked up on `PATH` by default; pre-installed at `/usr/local/bin/yt-dlp` in Docker |
+| `YTDLP_PATH` | Optional | `yt-dlp` | Path to the `yt-dlp` binary used by Link Import | Checks `./.bin/yt-dlp` first, then `PATH`; pre-installed at `/opt/yt-dlp/yt-dlp` in Docker |
 | `SETUP_CODE` | Optional | Random | One-time verification code required on the first-run password setup screen | If omitted, a random code is printed to server logs on first boot |
 | `APP_PASSWORD_HASH` | Optional | Empty | `scrypt` password hash override (takes priority over the database password hash) | Generate via `npm run set-password -- "new-password"` |
 | `TRUST_PROXY` | Optional | `0` | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy |

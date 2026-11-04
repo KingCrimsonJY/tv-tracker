@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
 import { assertSafePublicUrl, type DnsLookupFn } from '../security/ssrf.ts';
@@ -112,7 +114,10 @@ export function getYtdlpBinaryPath(customPath?: string): string {
   const fromArg = customPath?.trim();
   if (fromArg) return fromArg;
   const fromEnv = process.env.YTDLP_PATH?.trim();
-  return fromEnv || 'yt-dlp';
+  if (fromEnv) return fromEnv;
+  const localBin = path.resolve(process.cwd(), '.bin', 'yt-dlp');
+  if (fs.existsSync(localBin)) return localBin;
+  return 'yt-dlp';
 }
 
 export function buildYtdlpArgs(url: string): string[] {
@@ -123,6 +128,8 @@ export function buildYtdlpArgs(url: string): string[] {
     '--no-warnings',
     '--js-runtimes',
     'node',
+    '--use-extractors',
+    'default,-generic',
     '--',
     url,
   ];

@@ -116,7 +116,7 @@ npm run dev
 | `TMDB_READ_TOKEN` | **推荐** | 空 | TMDB API v4 读访问令牌（Bearer 认证），用于搜索影视与获取分季分集元数据 | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
 | `OMDB_API_KEY` | 可选 | 空 | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天） | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天） |
 | `DATA_DIR` | 可选 | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录 | Docker 容器内固定为 `/data` |
-| `YTDLP_PATH` | 可选 | `yt-dlp` | `yt-dlp` 可执行文件路径，用于外链视频与合集解析 | 默认从系统 `PATH` 查找；Docker 镜像内置于 `/usr/local/bin/yt-dlp` |
+| `YTDLP_PATH` | 可选 | `yt-dlp` | `yt-dlp` 可执行文件路径，用于外链视频与合集解析 | 默认优先查找 `./.bin/yt-dlp` 再查找系统 `PATH`；Docker 镜像内置于 `/opt/yt-dlp/yt-dlp` |
 | `SETUP_CODE` | 可选 | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码 | 留空时会在服务端启动日志中自动生成并打印 |
 | `APP_PASSWORD_HASH` | 可选 | 空 | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码） | 通过 `npm run set-password -- "新密码"` 生成 |
 | `TRUST_PROXY` | 可选 | `0` | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流 | 使用 Cloudflare Tunnel 或 Nginx 反代时设为 `1` |

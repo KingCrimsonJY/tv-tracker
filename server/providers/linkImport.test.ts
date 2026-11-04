@@ -241,6 +241,8 @@ test('1. Single YouTube video via yt-dlp maps title, cover, runtimeMin, year, an
   assert.ok(capturedArgs.includes('--no-warnings'));
   const jsIdx = capturedArgs.indexOf('--js-runtimes');
   assert.ok(jsIdx !== -1 && capturedArgs[jsIdx + 1] === 'node');
+  const extractorsIdx = capturedArgs.indexOf('--use-extractors');
+  assert.ok(extractorsIdx !== -1 && capturedArgs[extractorsIdx + 1] === 'default,-generic');
 
   assert.equal(result.kind, 'video');
   assert.equal(result.fallbackUsed, 'yt-dlp');
@@ -684,3 +686,48 @@ test('decodeHtmlEntities and extractMetaContent handle quotes and decimal/hex en
   assert.equal(extractMetaContent(html, 'og:title'), 'It\'s "Great" ✨');
   assert.equal(extractMetaContent(html, 'og:description'), 'Single "Quoted" Value');
 });
+
+test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlpBinaryPath prefers ./.bin/yt-dlp when YTDLP_PATH is unset', async () => {
+  const { buildYtdlpArgs, getYtdlpBinaryPath } = await import('./ytdlp.ts');
+  const { parseExpectedSha256 } = await import('../scripts/setup-ytdlp.ts');
+
+  const args = buildYtdlpArgs('https://example.com/video');
+  const idx = args.indexOf('--use-extractors');
+  assert.ok(idx !== -1, 'args must include --use-extractors');
+  assert.equal(args[idx + 1], 'default,-generic');
+  assert.equal(args[args.length - 2], '--');
+  assert.equal(args[args.length - 1], 'https://example.com/video');
+
+  const localBin = path.resolve(process.cwd(), '.bin', 'yt-dlp');
+  const prevEnv = process.env.YTDLP_PATH;
+  try {
+    delete process.env.YTDLP_PATH;
+    if (fs.existsSync(localBin)) {
+      assert.equal(getYtdlpBinaryPath(), localBin);
+    }
+    process.env.YTDLP_PATH = '/opt/yt-dlp/yt-dlp';
+    assert.equal(getYtdlpBinaryPath(), '/opt/yt-dlp/yt-dlp');
+  } finally {
+    if (prevEnv === undefined) {
+      delete process.env.YTDLP_PATH;
+    } else {
+      process.env.YTDLP_PATH = prevEnv;
+    }
+  }
+
+  const sampleSums = [
+    '1111111111111111111111111111111111111111111111111111111111111111  yt-dlp',
+    '767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795  yt-dlp_linux',
+    '2222222222222222222222222222222222222222222222222222222222222222 *yt-dlp_linux_aarch64',
+  ].join('\n');
+  assert.equal(
+    parseExpectedSha256(sampleSums, 'yt-dlp_linux'),
+    '767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795'
+  );
+  assert.equal(
+    parseExpectedSha256(sampleSums, 'yt-dlp_linux_aarch64'),
+    '2222222222222222222222222222222222222222222222222222222222222222'
+  );
+  assert.equal(parseExpectedSha256(sampleSums, 'nonexistent'), null);
+});
+
