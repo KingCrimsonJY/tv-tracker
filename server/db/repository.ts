@@ -4,7 +4,9 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   AppSettingsDoc,
   AppStateSnapshot,
+  LinkImportEpisodeSeed,
   ListEntryDoc,
+  PlaylistRefreshResult,
   ProgressDoc,
   SeasonDoc,
   StateMutationResult,
@@ -40,8 +42,10 @@ import {
   verifyAndTouchSession,
 } from './settingsAuthRepo.ts';
 import {
+  appendPlaylistEpisodes,
   applyTitleAtomicAction,
   deleteTitle,
+  getTitle,
   patchTitle,
   putTitle,
   replaceSeasons,
@@ -202,6 +206,10 @@ export class TrackerRepository {
     return getState(this.ctx);
   }
 
+  public getTitle(id: string): TitleDoc | null {
+    return getTitle(this.ctx, id);
+  }
+
   public putTitle(
     id: string,
     input: {
@@ -223,6 +231,14 @@ export class TrackerRepository {
 
   public replaceSeasons(titleId: string, seasons: SeasonDoc[]): StateMutationResult {
     return replaceSeasons(this.ctx, titleId, seasons);
+  }
+
+  public appendPlaylistEpisodes(
+    titleId: string,
+    incomingEpisodes: LinkImportEpisodeSeed[],
+    now = Date.now()
+  ): PlaylistRefreshResult {
+    return appendPlaylistEpisodes(this.ctx, titleId, incomingEpisodes, now);
   }
 
   public applyTitleAtomicAction(

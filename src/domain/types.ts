@@ -96,6 +96,7 @@ export interface EpisodeMeta {
   runtime: number | null;
   stillPath: string | null;
   overview: LocalizedOverview;
+  sourceVideoId?: string;
 }
 
 export interface SeasonDoc {
@@ -208,5 +209,43 @@ export interface ZhenjiExportV2 {
   progressByTitle: Record<string, Record<string, ProgressDoc>>;
   lists: Record<string, WatchListDoc>;
   entriesByList: Record<string, ListEntryDoc[]>;
+}
+
+export interface TmdbSearchItem {
+  sourceId: string;
+  mediaType: 'movie' | 'tv';
+  names: { zh?: string; original: string; en?: string };
+  year?: number | null;
+  posterPath?: string | null;
+  backdropPath?: string | null;
+  overview?: string;
+}
+
+export interface LinkImportEpisodeSeed {
+  name: string;
+  sourceVideoId?: string;
+  runtime?: number | null;
+}
+
+export interface LinkImportResult {
+  kind: 'video' | 'playlist' | 'tmdb-suggestion';
+  title: string;
+  posterUrl: string | null;
+  overview: string;
+  sourceUrl: string;
+  year?: number | null;
+  runtimeMin?: number | null;
+  episodes: LinkImportEpisodeSeed[];
+  fallbackUsed: 'yt-dlp' | 'og' | 'manual';
+  warning?: string;
+}
+
+export interface PlaylistRefreshResult extends StateMutationResult {
+  addedCount: number;
+}
+
+export interface SystemInfoResponse {
+  appVersion: string;
+  ytdlpVersion: string | null;
 }
 

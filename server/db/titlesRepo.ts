@@ -1,5 +1,7 @@
 import { titleDocSchema } from '../../src/domain/schemas.ts';
 import type {
+  LinkImportEpisodeSeed,
+  PlaylistRefreshResult,
   ProgressDoc,
   SeasonDoc,
   StateDeletes,
@@ -15,6 +17,15 @@ import {
   serializeTitleData,
   type StoredProgressData,
 } from './types.ts';
+
+export function getTitle(ctx: DbContext, id: string): TitleDoc | null {
+  const row = ctx.db.prepare('SELECT data FROM titles WHERE id = ?').get(id) as
+    | { data: string }
+    | undefined;
+  if (!row) return null;
+  const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
+  return { ...parsed, id };
+}
 
 export function putTitle(
   ctx: DbContext,
@@ -304,3 +315,104 @@ export function applyTitleAtomicAction(
     };
   });
 }
+
+export function appendPlaylistEpisodes(
+  ctx: DbContext,
+  titleId: string,
+  incomingEpisodes: LinkImportEpisodeSeed[],
+  now = Date.now()
+): PlaylistRefreshResult {
+  return ctx.runInTransaction(() => {
+    const titleRow = ctx.db.prepare('SELECT data FROM titles WHERE id = ?').get(titleId) as
+      | { data: string }
+      | undefined;
+    if (!titleRow) {
+      throw new NotFoundError(`未找到作品: ${titleId}`);
+    }
+
+    const existingTitle = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
+    const seasonRows = ctx.db
+      .prepare(
+        'SELECT season_number, data FROM seasons WHERE title_id = ? ORDER BY season_number ASC'
+      )
+      .all(titleId) as Array<{ season_number: number; data: string }>;
+
+    const seasons: SeasonDoc[] = seasonRows.map((r) => JSON.parse(r.data) as SeasonDoc);
+    let season1 = seasons.find((s) => s.seasonNumber === 1);
+    if (!season1) {
+      season1 = { seasonNumber: 1, name: '第 1 季', episodes: [] };
+      seasons.push(season1);
+      seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
+    }
+
+    const existingVideoIds = new Set<string>();
+    let maxEpNumber = 0;
+    for (const s of seasons) {
+      for (const ep of s.episodes) {
+        if (ep.sourceVideoId) {
+          existingVideoIds.add(ep.sourceVideoId);
+        }
+        if (s.seasonNumber === 1 && ep.number > maxEpNumber) {
+          maxEpNumber = ep.number;
+        }
+      }
+    }
+
+    let addedCount = 0;
+    const appendedEpisodes = [...season1.episodes];
+    for (const item of incomingEpisodes) {
+      const vidId = item.sourceVideoId?.trim();
+      if (!vidId || existingVideoIds.has(vidId)) {
+        continue;
+      }
+      existingVideoIds.add(vidId);
+      maxEpNumber += 1;
+      addedCount += 1;
+      appendedEpisodes.push({
+        number: maxEpNumber,
+        key: `s1e${maxEpNumber}`,
+        name: item.name.trim() || `第 ${maxEpNumber} 集`,
+        airDate: '2020-01-01',
+        runtime: item.runtime ?? existingTitle.runtimeMin ?? null,
+        stillPath: null,
+        overview: {},
+        sourceVideoId: vidId,
+      });
+    }
+
+    const updatedSeasons = seasons.map((s) =>
+      s.seasonNumber === 1 ? { ...s, episodes: appendedEpisodes } : s
+    );
+
+    ctx.db.prepare('DELETE FROM seasons WHERE title_id = ?').run(titleId);
+    const insertSeason = ctx.db.prepare(
+      'INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)'
+    );
+    for (const s of updatedSeasons) {
+      insertSeason.run(titleId, s.seasonNumber, JSON.stringify(s));
+    }
+
+    const updatedTitle: TitleDoc = {
+      ...existingTitle,
+      id: titleId,
+      metaFetchedAt: now,
+      updatedAt: now,
+    };
+    const dataJson = serializeTitleData(updatedTitle);
+    ctx.db
+      .prepare('UPDATE titles SET data = ?, added_at = ?, updated_at = ? WHERE id = ?')
+      .run(dataJson, updatedTitle.addedAt, updatedTitle.updatedAt, titleId);
+
+    const version = ctx.bumpVersionInTx();
+    return {
+      version,
+      addedCount,
+      upserts: {
+        titles: { [titleId]: updatedTitle },
+        seasonsByTitle: { [titleId]: updatedSeasons },
+      },
+      deletes: {},
+    };
+  });
+}
+

@@ -1,6 +1,7 @@
 import type { StateUpdater } from '../store.ts';
 import type {
   AppStateSnapshot,
+  LinkImportEpisodeSeed,
   MediaType,
   ProgressDoc,
   StateMutationResult,
@@ -20,6 +21,7 @@ export interface CustomTitleInput {
   posterUrl?: string | null;
   overview?: string;
   episodeCount?: number | null;
+  episodes?: LinkImportEpisodeSeed[];
   doubanScore?: string;
   doubanUrl?: string;
   targetListId?: string;

@@ -25,6 +25,7 @@ import {
 import { ConflictError, NotFoundError, type TrackerRepository } from './db/repository.ts';
 import { registerEntityRoutes } from './entityRoutes.ts';
 import { registerProviderRoutes } from './providerRoutes.ts';
+import type { LinkImportDependencies } from './providers/linkImport.ts';
 
 export interface CreateAppOptions {
   repo: TrackerRepository;
@@ -35,6 +36,7 @@ export interface CreateAppOptions {
   trustProxy?: boolean;
   isProduction?: boolean;
   rateLimiter?: LoginRateLimiter;
+  linkDeps?: LinkImportDependencies;
 }
 
 interface SseClient {
@@ -302,7 +304,12 @@ export function createApp(options: CreateAppOptions): Express {
   });
 
   registerEntityRoutes(app, repo, broadcastMutation);
-  registerProviderRoutes(app);
+  registerProviderRoutes(app, {
+    repo,
+    broadcastMutation,
+    nowFn,
+    linkDeps: options.linkDeps,
+  });
 
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json({ error: '未找到请求的 API 路径' });

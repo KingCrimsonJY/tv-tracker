@@ -1,12 +1,17 @@
 import type {
   AppSettingsDoc,
   AppStateSnapshot,
+  LinkImportResult,
   ListEntryDoc,
+  PlaylistRefreshResult,
   ProgressDoc,
+  Ratings,
   SeasonDoc,
   StateMutationResult,
+  SystemInfoResponse,
   TitleAtomicActionInput,
   TitleDoc,
+  TmdbSearchItem,
   WatchListDoc,
 } from '../domain/types.ts';
 
@@ -81,7 +86,7 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
   });
 }
 
-export async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
+async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || {});
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json');
@@ -336,3 +341,58 @@ export async function importDataApi(payload: unknown): Promise<StateMutationResu
     body: JSON.stringify(payload),
   });
 }
+
+export async function searchTmdbApi(
+  query: string
+): Promise<{ configured?: boolean; results: TmdbSearchItem[] }> {
+  return apiJson<{ configured?: boolean; results: TmdbSearchItem[] }>(
+    `/api/tmdb/search?q=${encodeURIComponent(query)}`
+  );
+}
+
+export async function fetchTmdbDetailsApi(
+  mediaType: 'movie' | 'tv',
+  sourceId: string
+): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
+  return apiJson<{ title: TitleDoc; seasons: SeasonDoc[] }>(
+    `/api/tmdb/${encodeURIComponent(mediaType)}/${encodeURIComponent(sourceId)}`
+  );
+}
+
+export async function fetchRatingsApi(params: {
+  imdbId?: string;
+  title?: string;
+  year?: number | null;
+  doubanId?: string;
+}): Promise<{
+  ratings?: Ratings;
+  externalIds?: { douban?: string };
+}> {
+  const query = new URLSearchParams();
+  if (params.imdbId) query.set('imdbId', params.imdbId);
+  if (params.title) query.set('title', params.title);
+  if (params.year) query.set('year', String(params.year));
+  if (params.doubanId) query.set('doubanId', params.doubanId);
+  return apiJson(`/api/ratings?${query.toString()}`);
+}
+
+export async function importLinkApi(url: string, force?: boolean): Promise<LinkImportResult> {
+  return apiJson<LinkImportResult>('/api/import/link', {
+    method: 'POST',
+    body: JSON.stringify({ url, ...(force ? { force: true } : {}) }),
+  });
+}
+
+export async function refreshLinkPlaylistApi(titleId: string): Promise<PlaylistRefreshResult> {
+  return apiJson<PlaylistRefreshResult>(
+    `/api/titles/${encodeURIComponent(titleId)}/refresh-link`,
+    {
+      method: 'POST',
+    }
+  );
+}
+
+export async function fetchSystemInfoApi(): Promise<SystemInfoResponse> {
+  return apiJson<SystemInfoResponse>('/api/system/info');
+}
+

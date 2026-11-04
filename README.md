@@ -56,7 +56,7 @@
 ### 数据来源
 - **TMDB 主数据源**：自动获取中英双语标题、原始片名、分季分集信息、开播日期、剧照与海报，打开详情页时按策略自动刷新连载元数据。
 - **多平台评分聚合**：结合 OMDb 获取 IMDb 评分、烂番茄 (Rotten Tomatoes) 与 Metacritic 评分（7 天缓存，按需拉取不消耗多余配额）；支持豆瓣评分尽力匹配、手动填写豆瓣评分/链接与一键跳转豆瓣搜索。
-- **链接解析与自定义条目**：支持通过 YouTube (oEmbed) 或哔哩哔哩 (Bilibili / Open Graph) 视频链接一键解析标题与封面，或手动创建任意自定义影视条目。
+- **链接解析与自定义条目**：基于 **yt-dlp** 解析 YouTube、哔哩哔哩 (Bilibili) 等网站的单视频、分P、合集与播放列表（支持直接粘贴带标题的分享口令，支持后续增量「刷新列表」追加新集；检测到番剧/剧集时自动提示一键在 TMDB 搜索；未安装 `yt-dlp` 时自动降级为基础 Open Graph 解析），也可随时手动创建自定义影视条目。
 
 ### 同步与安全
 - **多端实时同步 (SSE)**：服务端基于单调递增版本号 (`version`) 与进程纪元 (`epoch`) 通过 Server-Sent Events 实时推送变更；乐观更新配合原子事务接口，快速连点不同剧集绝不互相覆盖。
@@ -75,6 +75,7 @@
 ### 环境要求
 - **Node.js `>= 22.13.0`**（推荐使用 **Node.js 24 LTS**；`node:sqlite` 内置模块自 Node.js `22.13.0` 起无需任何实验性命令行标志即可直接使用）
 - **npm `>= 10`**
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)**（可选但推荐，用于「通过链接添加」解析视频、合集与播放列表；Docker 镜像已内置独立二进制文件，本地开发若未安装会自动回退至基础 Open Graph 解析）
 
 ### 启动步骤
 
@@ -115,6 +116,7 @@ npm run dev
 | `TMDB_READ_TOKEN` | **推荐** | 空 | TMDB API v4 读访问令牌（Bearer 认证），用于搜索影视与获取分季分集元数据 | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
 | `OMDB_API_KEY` | 可选 | 空 | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天） | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天） |
 | `DATA_DIR` | 可选 | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录 | Docker 容器内固定为 `/data` |
+| `YTDLP_PATH` | 可选 | `yt-dlp` | `yt-dlp` 可执行文件路径，用于外链视频与合集解析 | 默认从系统 `PATH` 查找；Docker 镜像内置于 `/usr/local/bin/yt-dlp` |
 | `SETUP_CODE` | 可选 | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码 | 留空时会在服务端启动日志中自动生成并打印 |
 | `APP_PASSWORD_HASH` | 可选 | 空 | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码） | 通过 `npm run set-password -- "新密码"` 生成 |
 | `TRUST_PROXY` | 可选 | `0` | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流 | 使用 Cloudflare Tunnel 或 Nginx 反代时设为 `1` |

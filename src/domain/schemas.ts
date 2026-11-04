@@ -61,7 +61,7 @@ export const resumePointSchema = z.object({
 export const titleDocSchema = z.object({
   id: z.string().min(1),
   source: mediaSourceSchema,
-  sourceId: z.string().nullable(),
+  sourceId: z.string().max(2048).nullable(),
   mediaType: mediaTypeSchema,
   names: localizedNamesSchema,
   displayLang: displayLangSchema.nullable(),
@@ -92,6 +92,7 @@ export const episodeMetaSchema = z.object({
   runtime: z.number().nullable(),
   stillPath: z.string().nullable(),
   overview: localizedOverviewSchema,
+  sourceVideoId: z.string().max(500).optional(),
 });
 
 export const seasonDocSchema = z.object({
@@ -271,3 +272,9 @@ export const exportV1Schema = z.object({
 });
 
 export const importPayloadSchema = z.union([exportV2Schema, exportV1Schema]);
+
+export const linkImportRequestSchema = z.object({
+  url: z.string().trim().min(1).max(4096),
+  force: z.boolean().optional(),
+});
+

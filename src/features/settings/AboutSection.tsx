@@ -1,8 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
+import { fetchSystemInfoApi } from '../../data/api.ts';
 import { zh } from '../../i18n/zh.ts';
 
 export const AboutSection: React.FC = () => {
+  const [ytdlpVersion, setYtdlpVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchSystemInfoApi()
+      .then((info) => {
+        if (active) setYtdlpVersion(info.ytdlpVersion);
+      })
+      .catch(() => {
+        if (active) setYtdlpVersion(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -10,8 +27,10 @@ export const AboutSection: React.FC = () => {
           <h2 className="text-base font-semibold text-[var(--foreground)]">
             {zh.settings.about.label} · {zh.app.name}
           </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">
-            {zh.app.tagline} · {zh.settings.about.versionLabel}
+          <p className="text-xs text-[var(--muted)] mt-0.5 tabular-nums">
+            {zh.app.tagline} · {zh.settings.about.versionLabel} ·{' '}
+            {zh.settings.about.ytdlpLabel}:{' '}
+            {ytdlpVersion || zh.settings.about.ytdlpNotInstalled}
           </p>
         </div>
         <a

@@ -169,6 +169,9 @@ export const TitleDetailPage: React.FC = () => {
           await tracker.refreshTitleMetadata(title.id);
           await tracker.fetchAndCacheTitleRatings(title.id);
         }}
+        onRefreshPlaylist={async () => {
+          await tracker.refreshLinkTitlePlaylist(title.id);
+        }}
         onUpdateTitleLanguage={(displayLang) =>
           tracker.updateTitleLanguage(title.id, displayLang)
         }

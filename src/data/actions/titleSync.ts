@@ -1,15 +1,16 @@
 import type {
   ListEntryDoc,
   Ratings,
-  SeasonDoc,
   TitleDoc,
 } from '../../domain/types.ts';
 import { zh } from '../../i18n/zh.ts';
 import {
-  apiJson,
   deleteTitleApi,
+  fetchRatingsApi,
+  fetchTmdbDetailsApi,
   patchTitleApi,
   putSeasonsApi,
+  refreshLinkPlaylistApi,
 } from '../api.ts';
 import type { TrackerActionDeps } from './types.ts';
 
@@ -33,17 +34,14 @@ export function createTitleSyncActions(
     const imdbId = current.externalIds?.imdb || '';
     const doubanId = current.externalIds?.douban || '';
     const titleQuery = current.names.zh || current.names.original || '';
-    const params = new URLSearchParams();
-    if (imdbId) params.set('imdbId', imdbId);
-    if (titleQuery) params.set('title', titleQuery);
-    if (current.year) params.set('year', String(current.year));
-    if (doubanId) params.set('doubanId', doubanId);
 
     try {
-      const data = await apiJson<{
-        ratings?: Ratings;
-        externalIds?: { douban?: string };
-      }>(`/api/ratings?${params.toString()}`);
+      const data = await fetchRatingsApi({
+        imdbId: imdbId || undefined,
+        title: titleQuery || undefined,
+        year: current.year,
+        doubanId: doubanId || undefined,
+      });
 
       const latest = getState().titles[titleId];
       if (!latest) return;
@@ -127,9 +125,7 @@ export function createTitleSyncActions(
     if (current.mediaType !== 'movie' && current.mediaType !== 'tv') return;
 
     try {
-      const data = await apiJson<{ title: TitleDoc; seasons: SeasonDoc[] }>(
-        `/api/tmdb/${current.mediaType}/${current.sourceId}`
-      );
+      const data = await fetchTmdbDetailsApi(current.mediaType, current.sourceId);
       const latest = getState().titles[titleId];
       if (!latest) return;
       const prevSeasons = getState().seasonsByTitle[titleId] || [];
@@ -218,6 +214,25 @@ export function createTitleSyncActions(
     }
   }
 
+  async function refreshLinkTitlePlaylist(titleId: string): Promise<number> {
+    const current = getState().titles[titleId];
+    if (!current || current.source !== 'url' || !current.sourceId) return 0;
+
+    try {
+      const res = await refreshLinkPlaylistApi(titleId);
+      applyServerMutation(res);
+      showToast(
+        res.addedCount > 0
+          ? zh.detail.menu.refreshPlaylistAddedToast(res.addedCount)
+          : zh.detail.menu.refreshPlaylistNoNewToast
+      );
+      return res.addedCount;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : zh.detail.menu.refreshPlaylistFailedToast);
+      throw err;
+    }
+  }
+
   async function removeTitle(titleId: string): Promise<void> {
     const state = getState();
     const removedTitle = state.titles[titleId];
@@ -286,6 +301,7 @@ export function createTitleSyncActions(
   return {
     fetchAndCacheTitleRatings,
     refreshTitleMetadata,
+    refreshLinkTitlePlaylist,
     removeTitle,
   };
 }

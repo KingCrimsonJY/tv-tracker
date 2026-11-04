@@ -39,6 +39,7 @@ interface TitleMenuProps {
   onMarkWholeTitleWatched: () => Promise<void>;
   onSetManualState: (state: ManualState) => Promise<void>;
   onRefreshMetadata: () => Promise<void>;
+  onRefreshPlaylist?: () => Promise<void>;
   onUpdateTitleLanguage: (displayLang: DisplayLang | null) => Promise<void>;
   onUpdateTitleDetails: (input: UpdateTitleDetailsInput) => Promise<void>;
   onAddTitleToList: (listId: string, titleId: string) => Promise<void>;
@@ -62,6 +63,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
   onMarkWholeTitleWatched,
   onSetManualState,
   onRefreshMetadata,
+  onRefreshPlaylist,
   onUpdateTitleLanguage,
   onUpdateTitleDetails,
   onAddTitleToList,
@@ -196,6 +198,20 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                 >
                   <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.refreshMetadata}</span>
+                </button>
+              )}
+
+              {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    onMenuOpenChange(false);
+                    await onRefreshPlaylist();
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm hover:bg-[var(--surface-secondary)] transition-colors text-left"
+                >
+                  <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
+                  <span>{zh.detail.menu.refreshPlaylist}</span>
                 </button>
               )}
 

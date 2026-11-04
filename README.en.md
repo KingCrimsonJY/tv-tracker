@@ -56,7 +56,7 @@
 ### Data Sources
 - **TMDB Primary Metadata**: Fetches Simplified Chinese (`zh-CN`), English (`en-US`), and original titles, seasons, episodes, air dates, backdrops, posters, and episode stills, refreshing metadata automatically when opening details.
 - **Multi-Source Ratings**: Queries OMDb by IMDb ID for IMDb, Rotten Tomatoes, and Metacritic ratings (cached for 7 days, fetched lazily on detail open). Includes isolated best-effort Douban lookup with silent fallback to manual score/URL fields and a one-tap Douban search link.
-- **Link Import & Custom Items**: Import videos not on TMDB via YouTube (oEmbed) or Bilibili / general URLs (server-side Open Graph parser with SSRF protection), or add custom movies and multi-episode series manually.
+- **Link Import & Custom Items**: Powered by **yt-dlp** (`--dump-single-json --skip-download --flat-playlist`) to import single videos, multi-part videos (分P), collections (合集), and playlists from YouTube, Bilibili, and more (supports pasted share text, incremental playlist refresh to append new episodes, one-tap TMDB search suggestions for bangumi/TV episodes, and automatic Open Graph fallback if `yt-dlp` is not installed).
 
 ### Real-Time Sync & Security
 - **Server-Sent Events (SSE) & Atomic Actions**: Every mutation executes in a single SQLite transaction, increments `version`, and broadcasts `{ version, epoch, upserts, deletes }` to all connected devices. Optimistic client updates run against an external store (`useSyncExternalStore`) so rapid taps on different episodes never overwrite each other.
@@ -75,6 +75,7 @@
 ### Prerequisites
 - **Node.js `>= 22.13.0`** (**Node.js 24 LTS** recommended; Node's built-in `node:sqlite` module is available without experimental CLI flags starting in Node.js `22.13.0`)
 - **npm `>= 10`**
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Optional for local dev, recommended for Link Import of videos and playlists; bundled automatically in the Docker image, and falls back to Open Graph scraping if absent)
 
 ### Steps
 
@@ -115,6 +116,7 @@ All environment variables are read exclusively on the server from `.env` (see [`
 | `TMDB_READ_TOKEN` | **Recommended** | Empty | TMDB v4 Read Access Token (Bearer auth) for searching titles and fetching bilingual metadata | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
 | `OMDB_API_KEY` | Optional | Empty | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days) | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) |
 | `DATA_DIR` | Optional | `./data` | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports | Mounted at `/data` inside Docker |
+| `YTDLP_PATH` | Optional | `yt-dlp` | Path to the `yt-dlp` binary used by Link Import | Looked up on `PATH` by default; pre-installed at `/usr/local/bin/yt-dlp` in Docker |
 | `SETUP_CODE` | Optional | Random | One-time verification code required on the first-run password setup screen | If omitted, a random code is printed to server logs on first boot |
 | `APP_PASSWORD_HASH` | Optional | Empty | `scrypt` password hash override (takes priority over the database password hash) | Generate via `npm run set-password -- "new-password"` |
 | `TRUST_PROXY` | Optional | `0` | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy |

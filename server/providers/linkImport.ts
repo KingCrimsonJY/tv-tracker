@@ -1,44 +1,96 @@
+import type { LinkImportResult } from '../../src/domain/types.ts';
 import {
   assertSafePublicUrl,
-  safeFetchFollowingRedirects,
-  UnsafeUrlError,
   type DnsLookupFn,
   type FetchFn,
+  safeFetchFollowingRedirects,
+  UnsafeUrlError,
 } from '../security/ssrf.ts';
+import {
+  resolveWithYtdlp,
+  type YtdlpExecFn,
+  YtdlpNotInstalledError,
+} from './ytdlp.ts';
 
-export interface LinkImportResult {
-  title: string;
-  posterUrl: string | null;
-  overview: string;
-  sourceUrl: string;
-  suggestedMediaType: 'movie' | 'tv' | 'other';
-}
+export const YTDLP_MISSING_WARNING = '未安装 yt-dlp，已使用基础解析';
+const MAX_HTML_BYTES = 512 * 1024; // 512 KB cap
 
-export interface ResolveLinkOptions {
-  timeoutMs?: number;
+export interface LinkImportDependencies {
   lookupFn?: DnsLookupFn;
   fetchFn?: FetchFn;
+  execFn?: YtdlpExecFn;
+  ytdlpPath?: string;
+  forceImport?: boolean;
 }
 
-const MAX_HTML_BYTES = 512 * 1024; // 512 KB
+/**
+ * Extracts the first http(s):// URL from pasted share text such as:
+ * "【标题-哔哩哔哩】 https://b23.tv/AbCdEf"
+ * If no http(s):// substring is found, returns the trimmed input so URL validation
+ * can report an appropriate error (e.g. UnsafeUrlError on ftp://).
+ */
+export function extractFirstHttpUrl(rawInput: string): string {
+  const trimmed = rawInput.trim();
+  const match = trimmed.match(/https?:\/\/[^\s"'<>【】（）[\]]+/i);
+  if (!match) {
+    return trimmed.slice(0, 2048);
+  }
+  const cleaned = match[0].replace(/[，。！？；：、,.!?;:)+】）\]]+$/u, '');
+  return (cleaned || match[0]).slice(0, 2048);
+}
 
-function decodeHtmlEntities(str: string): string {
+export function decodeHtmlEntities(str: string): string {
   return str
+    .replace(/&#(\d+);/g, (_m, dec: string) => {
+      const code = Number.parseInt(dec, 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : _m;
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => {
+      const code = Number.parseInt(hex, 16);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : _m;
+    })
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'");
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .trim();
 }
 
-export function isHostOrSubdomain(hostname: string, domain: string): boolean {
-  const h = hostname.toLowerCase();
-  const d = domain.toLowerCase();
-  return h === d || h.endsWith(`.${d}`);
+export function extractMetaContent(html: string, key: string): string {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(
+      `<meta[^>]+(?:property|name)\\s*=\\s*(?:"${escaped}"|'${escaped}')[^>]+content\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
+      'i'
+    ),
+    new RegExp(
+      `<meta[^>]+content\\s*=\\s*(?:"([^"]*)"|'([^']*)')[^>]+(?:property|name)\\s*=\\s*(?:"${escaped}"|'${escaped}')`,
+      'i'
+    ),
+  ];
+  for (const re of patterns) {
+    const match = html.match(re);
+    const val = match?.[1] ?? match?.[2];
+    if (val && val.trim()) {
+      return decodeHtmlEntities(val);
+    }
+  }
+  return '';
 }
 
-async function readStreamUpToLimit(response: Response, maxBytes = MAX_HTML_BYTES): Promise<string> {
+function extractTitleTag(html: string): string {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return match?.[1] ? decodeHtmlEntities(match[1].replace(/\s+/g, ' ')) : '';
+}
+
+async function readHtmlUpToLimit(response: Response, maxBytes: number): Promise<string> {
   if (!response.body) {
     const text = await response.text();
     return text.slice(0, maxBytes);
@@ -46,308 +98,162 @@ async function readStreamUpToLimit(response: Response, maxBytes = MAX_HTML_BYTES
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8');
-  const chunks: string[] = [];
   let totalBytes = 0;
+  let result = '';
 
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       if (value) {
-        if (totalBytes + value.byteLength >= maxBytes) {
-          const remaining = maxBytes - totalBytes;
+        totalBytes += value.byteLength;
+        if (totalBytes >= maxBytes) {
+          const remaining = maxBytes - (totalBytes - value.byteLength);
           if (remaining > 0) {
-            chunks.push(decoder.decode(value.subarray(0, remaining), { stream: false }));
+            result += decoder.decode(value.subarray(0, remaining), { stream: false });
           }
-          await reader.cancel().catch(() => {});
+          await reader.cancel().catch(() => undefined);
           break;
         }
-        totalBytes += value.byteLength;
-        chunks.push(decoder.decode(value, { stream: true }));
+        result += decoder.decode(value, { stream: true });
+        if (/<\/head>/i.test(result)) {
+          await reader.cancel().catch(() => undefined);
+          break;
+        }
       }
     }
-    chunks.push(decoder.decode());
+    result += decoder.decode();
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // ignore
+    reader.releaseLock();
+  }
+
+  return result;
+}
+
+function resolveRelativeUrl(candidate: string, baseUrl: URL): string | null {
+  if (!candidate) return null;
+  try {
+    let resolved = new URL(candidate, baseUrl);
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') {
+      return null;
+    }
+    if (
+      resolved.protocol === 'http:' &&
+      (resolved.hostname.endsWith('.hdslb.com') || resolved.hostname.endsWith('.biliimg.com'))
+    ) {
+      resolved = new URL(resolved.toString().replace(/^http:\/\//i, 'https://'));
+    }
+    return resolved.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function scrapeOpenGraphMetadata(
+  safeUrl: URL,
+  lookupFn: DnsLookupFn | undefined,
+  fetchFn: FetchFn | undefined
+): Promise<Omit<LinkImportResult, 'warning'> | null> {
+  const { response, finalUrl } = await safeFetchFollowingRedirects(
+    safeUrl.toString(),
+    {
+      headers: {
+        'User-Agent':
+          'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php) Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
+        Accept: 'text/html,application/xhtml+xml',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      },
+    },
+    { lookupFn, fetchFn }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const finalUrlObj = new URL(finalUrl);
+  const html = await readHtmlUpToLimit(response, MAX_HTML_BYTES);
+  const title =
+    extractMetaContent(html, 'og:title') ||
+    extractMetaContent(html, 'twitter:title') ||
+    extractTitleTag(html);
+
+  if (!title) {
+    return null;
+  }
+
+  const rawImage =
+    extractMetaContent(html, 'og:image') || extractMetaContent(html, 'twitter:image');
+  const posterUrl = resolveRelativeUrl(rawImage, finalUrlObj);
+  const overview =
+    extractMetaContent(html, 'og:description') ||
+    extractMetaContent(html, 'twitter:description') ||
+    extractMetaContent(html, 'description') ||
+    '';
+
+  return {
+    kind: 'video',
+    title: title.slice(0, 200),
+    posterUrl: posterUrl ? posterUrl.slice(0, 1000) : null,
+    overview: overview.slice(0, 2000),
+    sourceUrl: finalUrl.slice(0, 2048),
+    episodes: [],
+    fallbackUsed: 'og',
+  };
+}
+
+export async function resolveLinkMetadata(
+  rawInput: string,
+  deps: LinkImportDependencies = {}
+): Promise<LinkImportResult> {
+  const { lookupFn, fetchFn } = deps;
+
+  const candidateUrlStr = extractFirstHttpUrl(rawInput);
+  const safeUrl = await assertSafePublicUrl(candidateUrlStr, lookupFn);
+
+  let warning: string | undefined;
+
+  // Step 1: Primary resolver — yt-dlp subprocess
+  try {
+    return await resolveWithYtdlp(safeUrl.toString(), {
+      binaryPath: deps.ytdlpPath,
+      lookupFn,
+      execFn: deps.execFn,
+      forceImport: deps.forceImport,
+    });
+  } catch (err) {
+    if (err instanceof UnsafeUrlError) {
+      throw err;
+    }
+    if (err instanceof YtdlpNotInstalledError) {
+      warning = YTDLP_MISSING_WARNING;
     }
   }
 
-  return chunks.join('');
-}
-
-const YOUTUBE_REGEX =
-  /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|(?:embed|shorts|live)\/))([a-zA-Z0-9_-]{6,15})/i;
-const BILI_BV_REGEX = /(BV[0-9a-zA-Z]{10})/i;
-const BILI_AV_REGEX = /(?:^|\/|\?|&)av([0-9]+)/i;
-const BILI_AID_REGEX = /[?&]aid=([0-9]+)/i;
-
-/**
- * Resolves metadata for an imported URL with strict SSRF defenses.
- * Supports specialized fast paths for YouTube and Bilibili, and Open Graph scraping
- * with graceful fallback for any other public webpage.
- */
-export async function resolveLinkMetadata(
-  rawUrl: string,
-  options: ResolveLinkOptions | number = {}
-): Promise<LinkImportResult> {
-  const opts: ResolveLinkOptions =
-    typeof options === 'number' ? { timeoutMs: options } : options;
-  const timeoutMs = opts.timeoutMs ?? 8000;
-  const safeFetchOpts = {
-    lookupFn: opts.lookupFn,
-    fetchFn: opts.fetchFn,
-  };
-
-  const safeInitialUrl = await assertSafePublicUrl(rawUrl, opts.lookupFn);
-  const hostname = safeInitialUrl.hostname.toLowerCase();
-
-  const isYouTube =
-    isHostOrSubdomain(hostname, 'youtube.com') || isHostOrSubdomain(hostname, 'youtu.be');
-  const isBilibili =
-    isHostOrSubdomain(hostname, 'bilibili.com') || isHostOrSubdomain(hostname, 'b23.tv');
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
+  // Step 2: Fallback #1 — Generic Open Graph scrape
   try {
-    // 1. YouTube specialized fast path
-    if (isYouTube) {
-      const ytMatch = safeInitialUrl.toString().match(YOUTUBE_REGEX);
-      const videoId = ytMatch?.[1];
-
-      if (videoId) {
-        const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const fallbackThumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-
-        try {
-          const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(
-            canonicalUrl
-          )}&format=json`;
-
-          const { response: ytRes } = await safeFetchFollowingRedirects(
-            oembedUrl,
-            { signal: controller.signal },
-            safeFetchOpts
-          );
-
-          if (ytRes.ok) {
-            const ytData = (await ytRes.json()) as {
-              title?: string;
-              author_name?: string;
-              thumbnail_url?: string;
-            };
-
-            return {
-              title: ytData.title?.trim() || `YouTube 视频 (${videoId})`,
-              posterUrl: ytData.thumbnail_url || fallbackThumbnail,
-              overview: ytData.author_name
-                ? `YouTube · ${ytData.author_name}`
-                : '通过 YouTube 链接导入',
-              sourceUrl: canonicalUrl,
-              suggestedMediaType: 'other',
-            };
-          }
-        } catch (err) {
-          if (err instanceof UnsafeUrlError) {
-            throw err;
-          }
-          // oEmbed network error or timeout: fall back to video ID metadata
-        }
-
-        return {
-          title: `YouTube 视频 (${videoId})`,
-          posterUrl: fallbackThumbnail,
-          overview: '通过 YouTube 链接导入',
-          sourceUrl: canonicalUrl,
-          suggestedMediaType: 'other',
-        };
-      }
-    }
-
-    // 2. Bilibili specialized fast path via public web-interface API
-    if (isBilibili) {
-      let currentUrl = safeInitialUrl.toString();
-
-      if (isHostOrSubdomain(hostname, 'b23.tv')) {
-        try {
-          const { finalUrl } = await safeFetchFollowingRedirects(
-            currentUrl,
-            { signal: controller.signal },
-            safeFetchOpts
-          );
-          currentUrl = finalUrl;
-        } catch (err) {
-          if (err instanceof UnsafeUrlError) {
-            throw err;
-          }
-        }
-      }
-
-      const bvMatch = currentUrl.match(BILI_BV_REGEX);
-      const avMatch = currentUrl.match(BILI_AV_REGEX) || currentUrl.match(BILI_AID_REGEX);
-
-      if (bvMatch || avMatch) {
-        const queryParam = bvMatch ? `bvid=${bvMatch[1]}` : `aid=${avMatch![1]}`;
-        const apiUrl = `https://api.bilibili.com/x/web-interface/view?${queryParam}`;
-
-        try {
-          const { response: biliRes } = await safeFetchFollowingRedirects(
-            apiUrl,
-            {
-              signal: controller.signal,
-              headers: {
-                'User-Agent':
-                  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-                Referer: 'https://www.bilibili.com/',
-                Accept: 'application/json',
-              },
-            },
-            safeFetchOpts
-          );
-
-          if (biliRes.ok) {
-            const biliData = (await biliRes.json()) as {
-              code?: number;
-              data?: {
-                title?: string;
-                pic?: string;
-                desc?: string;
-                owner?: { name?: string };
-              };
-            };
-
-            if (biliData.code === 0 && biliData.data) {
-              const d = biliData.data;
-              let cover = (d.pic || '').trim();
-              if (cover.startsWith('http:')) {
-                cover = cover.replace(/^http:/, 'https:');
-              }
-
-              const cleanedTitle = (d.title || '')
-                .replace(/_哔哩哔哩_bilibili$/i, '')
-                .replace(/\s*-\s*bilibili$/i, '')
-                .trim();
-
-              const desc =
-                d.desc && d.desc.trim() !== '-'
-                  ? d.desc.trim()
-                  : d.owner?.name
-                    ? `UP主：${d.owner.name}`
-                    : '通过哔哩哔哩链接导入';
-
-              return {
-                title: cleanedTitle || (bvMatch ? `哔哩哔哩 (${bvMatch[1]})` : '哔哩哔哩视频'),
-                posterUrl: cover || null,
-                overview: desc,
-                sourceUrl: safeInitialUrl.toString(),
-                suggestedMediaType: 'other',
-              };
-            }
-          }
-        } catch (err) {
-          if (err instanceof UnsafeUrlError) {
-            throw err;
-          }
-        }
-
-        if (bvMatch) {
-          return {
-            title: `哔哩哔哩 (${bvMatch[1]})`,
-            posterUrl: null,
-            overview: '通过哔哩哔哩链接导入',
-            sourceUrl: safeInitialUrl.toString(),
-            suggestedMediaType: 'other',
-          };
-        }
-      }
-    }
-
-    // 3. General Open Graph / HTML metadata scrape (stream up to 512 KB)
-    const { response: htmlRes, finalUrl } = await safeFetchFollowingRedirects(
-      safeInitialUrl.toString(),
-      {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        },
-      },
-      safeFetchOpts
-    );
-
-    if (htmlRes.ok) {
-      const finalUrlObj = new URL(finalUrl);
-      const html = await readStreamUpToLimit(htmlRes, MAX_HTML_BYTES);
-
-      const extractMeta = (prop: string): string | null => {
-        const r1 = new RegExp(
-          `<meta[^>]+(?:property|name|itemprop)=["']${prop}["'][^>]+content=["']([^"']+)["']`,
-          'i'
-        );
-        const r2 = new RegExp(
-          `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name|itemprop)=["']${prop}["']`,
-          'i'
-        );
-        const m = html.match(r1) || html.match(r2);
-        return m?.[1] ? decodeHtmlEntities(m[1].trim()) : null;
-      };
-
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      const ogTitle =
-        extractMeta('og:title') ||
-        extractMeta('twitter:title') ||
-        (titleMatch?.[1] ? decodeHtmlEntities(titleMatch[1].trim()) : null) ||
-        finalUrlObj.toString();
-
-      const cleanedTitle = ogTitle
-        .replace(/_哔哩哔哩_bilibili$/i, '')
-        .replace(/\s*-\s*YouTube$/i, '')
-        .trim();
-
-      const rawOgImage = extractMeta('og:image') || extractMeta('twitter:image') || null;
-      let resolvedOgImage: string | null = null;
-      if (rawOgImage) {
-        try {
-          resolvedOgImage = new URL(rawOgImage, finalUrl).toString();
-        } catch {
-          resolvedOgImage = null;
-        }
-      }
-
-      const ogDesc =
-        extractMeta('og:description') ||
-        extractMeta('description') ||
-        extractMeta('twitter:description') ||
-        '';
-
+    const ogResult = await scrapeOpenGraphMetadata(safeUrl, lookupFn, fetchFn);
+    if (ogResult) {
       return {
-        title: cleanedTitle || finalUrlObj.hostname,
-        posterUrl: resolvedOgImage,
-        overview: ogDesc,
-        sourceUrl: finalUrlObj.toString(),
-        suggestedMediaType: 'other',
+        ...ogResult,
+        ...(warning ? { warning } : {}),
       };
     }
   } catch (err) {
     if (err instanceof UnsafeUrlError) {
       throw err;
     }
-    // Upstream connection/timeout errors fall through to basic URL fallback
-  } finally {
-    clearTimeout(timer);
   }
 
+  // Step 3: Fallback #2 — Manual entry seed with URL prefilled
   return {
-    title:
-      safeInitialUrl.hostname + (safeInitialUrl.pathname !== '/' ? safeInitialUrl.pathname : ''),
+    kind: 'video',
+    title: safeUrl.hostname,
     posterUrl: null,
-    overview: `来自链接：${safeInitialUrl.toString()}`,
-    sourceUrl: safeInitialUrl.toString(),
-    suggestedMediaType: 'other',
+    overview: '',
+    sourceUrl: safeUrl.toString().slice(0, 2048),
+    episodes: [],
+    fallbackUsed: 'manual',
+    ...(warning ? { warning } : {}),
   };
 }

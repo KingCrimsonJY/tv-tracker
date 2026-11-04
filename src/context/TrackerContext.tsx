@@ -78,6 +78,7 @@ export interface TrackerContextValue {
   setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
   fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
   refreshTitleMetadata: (titleId: string) => Promise<void>;
+  refreshLinkTitlePlaylist: (titleId: string) => Promise<number>;
   removeTitle: (titleId: string) => Promise<void>;
   toggleEpisode: (titleId: string, episodeKey: string) => Promise<void>;
   toggleSeason: (titleId: string, seasonNumber: number, markWatched: boolean) => Promise<void>;

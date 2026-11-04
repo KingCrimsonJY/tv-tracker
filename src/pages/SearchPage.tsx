@@ -3,11 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Edit3, Link2, Plus, Search } from 'lucide-react';
 import { Button, Modal } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext';
-import { apiJson } from '../data/api';
-import {
-  LinkImportDialog,
-  type ParsedLinkSeed,
-} from '../features/search/LinkImportDialog';
+import { searchTmdbApi } from '../data/api';
+import { LinkImportDialog } from '../features/search/LinkImportDialog';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
 import {
   SearchResults,
@@ -36,7 +33,6 @@ export const SearchPage: React.FC = () => {
 
   const [listPickerTarget, setListPickerTarget] =
     useState<TmdbSearchHit | null>(null);
-  const [parsedSeed, setParsedSeed] = useState<ParsedLinkSeed | null>(null);
 
   // Debounced TMDB search
   useEffect(() => {
@@ -49,10 +45,7 @@ export const SearchPage: React.FC = () => {
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const data = await apiJson<{
-          configured?: boolean;
-          results?: TmdbSearchHit[];
-        }>(`/api/tmdb/search?q=${encodeURIComponent(trimmed)}`);
+        const data = await searchTmdbApi(trimmed);
         setTmdbConfigured(data.configured !== false);
         setResults(data.results || []);
       } catch {
@@ -148,10 +141,7 @@ export const SearchPage: React.FC = () => {
             role="tab"
             aria-selected={tab === 'manual'}
             type="button"
-            onClick={() => {
-              setParsedSeed(null);
-              setTab('manual');
-            }}
+            onClick={() => setTab('manual')}
             className={`flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               tab === 'manual'
                 ? 'bg-[var(--accent)] text-[var(--accent-foreground)]'
@@ -181,16 +171,19 @@ export const SearchPage: React.FC = () => {
 
       {tab === 'link' && (
         <LinkImportDialog
-          onParsedSuccess={(seed) => {
-            setParsedSeed(seed);
-            setTab('manual');
+          onSearchTmdb={(suggestedTitle) => {
+            setQuery(suggestedTitle);
+            setTab('tmdb');
+          }}
+          onSubmitCustomItem={async (input) => {
+            const created = await createCustomOrLinkTitle(input);
+            navigate(`/title/${created.id}`);
           }}
         />
       )}
 
       {tab === 'manual' && (
         <ManualItemDialog
-          initialSeed={parsedSeed}
           onSubmitCustomItem={async (input) => {
             const created = await createCustomOrLinkTitle(input);
             navigate(`/title/${created.id}`);

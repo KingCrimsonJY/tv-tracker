@@ -3,13 +3,19 @@ import { makeEpisodeKey } from '../../domain/progress.ts';
 import type {
   DisplayLang,
   EpisodeMeta,
+  LinkImportEpisodeSeed,
   ManualState,
   ProgressDoc,
   SeasonDoc,
   TitleDoc,
 } from '../../domain/types.ts';
 import { zh } from '../../i18n/zh.ts';
-import { apiJson, patchTitleApi, putSeasonsApi, putTitleApi } from '../api.ts';
+import {
+  fetchTmdbDetailsApi,
+  patchTitleApi,
+  putSeasonsApi,
+  putTitleApi,
+} from '../api.ts';
 import type {
   CustomTitleInput,
   TrackerActionDeps,
@@ -19,24 +25,30 @@ import type {
 function buildCustomSeasons(
   epCount: number,
   runtimeMin: number | null,
-  prevSeasons: SeasonDoc[] = []
+  prevSeasons: SeasonDoc[] = [],
+  episodeSeeds?: LinkImportEpisodeSeed[]
 ): SeasonDoc[] {
-  if (epCount <= 0) return [];
+  const seedList = episodeSeeds && episodeSeeds.length > 0 ? episodeSeeds : [];
+  const totalCount = epCount > 0 ? epCount : seedList.length;
+  if (totalCount <= 0) return [];
+
   const existingS1 = prevSeasons.find((s) => s.seasonNumber === 1);
-  const episodes: EpisodeMeta[] = Array.from({ length: epCount }, (_, idx) => {
+  const episodes: EpisodeMeta[] = Array.from({ length: totalCount }, (_, idx) => {
     const epNum = idx + 1;
     const prevEp = existingS1?.episodes.find((e) => e.number === epNum);
-    return (
-      prevEp || {
-        number: epNum,
-        key: makeEpisodeKey(1, epNum),
-        name: `第 ${epNum} 集`,
-        airDate: '2020-01-01',
-        runtime: runtimeMin,
-        stillPath: null,
-        overview: {},
-      }
-    );
+    if (prevEp) return prevEp;
+
+    const seed = seedList[idx];
+    return {
+      number: epNum,
+      key: makeEpisodeKey(1, epNum),
+      name: seed?.name?.trim() || `第 ${epNum} 集`,
+      airDate: '2020-01-01',
+      runtime: seed?.runtime ?? runtimeMin,
+      stillPath: null,
+      overview: {},
+      ...(seed?.sourceVideoId ? { sourceVideoId: seed.sourceVideoId } : {}),
+    };
   });
   return [{ seasonNumber: 1, name: '第 1 季', episodes }];
 }
@@ -73,9 +85,7 @@ export function createTitleActions(
     if (!titleDoc) {
       let data: { title: TitleDoc; seasons: SeasonDoc[] };
       try {
-        data = await apiJson<{ title: TitleDoc; seasons: SeasonDoc[] }>(
-          `/api/tmdb/${mediaType}/${sourceId}`
-        );
+        data = await fetchTmdbDetailsApi(mediaType, sourceId);
       } catch (err) {
         showToast(err instanceof Error ? err.message : zh.search.tmdbErrorTitle);
         throw err;
@@ -128,15 +138,18 @@ export function createTitleActions(
     const id = createRandomId(input.source);
     const trimmedName = input.name.trim() || '未命名作品';
     const trimmedOrig = input.originalName?.trim() || trimmedName;
+    const seedEpisodes = input.episodes && input.episodes.length > 0 ? input.episodes : undefined;
     const epCount =
       input.episodeCount && input.episodeCount > 0
         ? Math.min(2000, Math.floor(input.episodeCount))
-        : 0;
+        : seedEpisodes
+          ? Math.min(2000, seedEpisodes.length)
+          : 0;
 
     const rawPoster = input.posterPath ?? input.posterUrl;
-    const posterUrl = rawPoster?.trim() ? rawPoster.trim().slice(0, 500) : null;
+    const posterUrl = rawPoster?.trim() ? rawPoster.trim().slice(0, 1000) : null;
     const rawSource = input.sourceUrl ?? input.sourceId;
-    const sourceId = rawSource?.trim() ? rawSource.trim().slice(0, 128) : null;
+    const sourceId = rawSource?.trim() ? rawSource.trim().slice(0, 2048) : null;
 
     let doubanField = input.doubanUrl?.trim() || undefined;
     if (doubanField) {
@@ -170,7 +183,7 @@ export function createTitleActions(
       lastActivityAt: now,
     };
 
-    const seasons = buildCustomSeasons(epCount, input.runtimeMin || null);
+    const seasons = buildCustomSeasons(epCount, input.runtimeMin || null, [], seedEpisodes);
     const initialProgress: ProgressDoc = { playthroughId: 'p1', watched: {} };
 
     setState((prev) => ({
