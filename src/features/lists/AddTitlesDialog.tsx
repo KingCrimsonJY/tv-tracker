@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button, Modal, SearchField, toast } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import { resolveDisplayTitle } from '../../domain/progress';
@@ -40,29 +40,27 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
       <Modal.Container size="md" placement="center" scroll="inside">
-        <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+        <Modal.Dialog>
           <Modal.Header>
-            <Modal.Heading className="text-base font-semibold">
-              {zh.lists.addTitlesToList}
-            </Modal.Heading>
+            <Modal.Heading>{zh.lists.addTitlesToList}</Modal.Heading>
           </Modal.Header>
 
-          <div className="mt-4 space-y-3">
+          <Modal.Body className="space-y-3">
             <SearchField
               value={searchQuery}
               onChange={setSearchQuery}
               aria-label={zh.lists.searchLibraryPlaceholder}
-              className="w-full"
+              variant="secondary"
+              fullWidth
             >
-              <SearchField.Group className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center gap-2">
-                <SearchField.SearchIcon>
-                  <Search className="w-4 h-4 text-[var(--muted)]" />
-                </SearchField.SearchIcon>
+              <SearchField.Group>
+                <SearchField.SearchIcon />
                 <SearchField.Input
                   placeholder={zh.lists.searchLibraryPlaceholder}
-                  className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none"
                 />
-                <SearchField.ClearButton aria-label={zh.search.clearSearchAria} />
+                <SearchField.ClearButton
+                  aria-label={zh.search.clearSearchAria}
+                />
               </SearchField.Group>
             </SearchField>
 
@@ -113,7 +111,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                             error: zh.search.addToListFailedToast,
                           });
                         }}
-                        className="gap-1 shrink-0"
+                        className="shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>{zh.lists.addActionShort}</span>
@@ -123,9 +121,9 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                 })
               )}
             </div>
-          </div>
+          </Modal.Body>
 
-          <div className="mt-5 flex justify-end">
+          <Modal.Footer>
             <Button
               variant="secondary"
               size="sm"
@@ -133,7 +131,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
             >
               {zh.app.close}
             </Button>
-          </div>
+          </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>

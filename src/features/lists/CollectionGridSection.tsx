@@ -89,11 +89,11 @@ const SortableCollectionCard: React.FC<SortableCollectionCardProps> = ({
           </button>
 
           <Button
-            variant="ghost"
+            variant="danger"
+            size="sm"
             isIconOnly
             onPress={onRemove}
             aria-label={zh.lists.removeFromListAria(primary)}
-            className="min-w-[40px] min-h-[40px] rounded-xl bg-black/75 backdrop-blur-md border border-white/20 flex items-center justify-center text-red-300 hover:text-red-200"
           >
             <Trash2 className="w-4 h-4" />
           </Button>

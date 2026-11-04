@@ -43,7 +43,6 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
             isIconOnly
             onPress={onBack}
             aria-label={zh.app.back}
-            className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white hover:bg-black/70"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

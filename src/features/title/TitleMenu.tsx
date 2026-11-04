@@ -47,9 +47,6 @@ interface TitleMenuProps {
   onDeleteTitle: () => Promise<void>;
 }
 
-const menuRowClass =
-  'w-full justify-start gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm font-normal text-[var(--foreground)] hover:bg-[var(--surface-secondary)]';
-
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
   menuOpen,
@@ -83,14 +80,12 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
         isDismissable
       >
         <Drawer.Content placement="bottom" className="sm:max-w-md sm:mx-auto">
-          <Drawer.Dialog className="bg-[var(--overlay)] border-t sm:border border-[var(--border)] rounded-t-3xl sm:rounded-2xl sm:mb-6 p-5 text-[var(--foreground)] outline-none">
+          <Drawer.Dialog>
             <Drawer.Handle />
-            <Drawer.Header className="pb-3 border-b border-[var(--separator)]">
-              <Drawer.Heading className="text-base font-semibold">
-                {zh.detail.menu.title}
-              </Drawer.Heading>
+            <Drawer.Header>
+              <Drawer.Heading>{zh.detail.menu.title}</Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body className="py-3 space-y-1">
+            <Drawer.Body className="space-y-1">
               <Button
                 variant="ghost"
                 fullWidth
@@ -98,7 +93,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   onMenuOpenChange(false);
                   onAddToListModalOpenChange(true);
                 }}
-                className={menuRowClass}
+                className="justify-start gap-3"
               >
                 <FolderPlus className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.addToList}</span>
@@ -108,7 +103,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                 variant="ghost"
                 fullWidth
                 onPress={onOpenResumeModal}
-                className={menuRowClass}
+                className="justify-start gap-3"
               >
                 <Clock className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.recordResumeTime}</span>
@@ -121,7 +116,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   onMenuOpenChange(false);
                   await onMarkWholeTitleWatched();
                 }}
-                className={menuRowClass}
+                className="justify-start gap-3"
               >
                 <CheckCheck className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.markAllWatched}</span>
@@ -135,7 +130,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                     onMenuOpenChange(false);
                     await onSetManualState('paused');
                   }}
-                  className={menuRowClass}
+                  className="justify-start gap-3"
                 >
                   <PauseCircle className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.pause}</span>
@@ -150,7 +145,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                     onMenuOpenChange(false);
                     await onSetManualState('dropped');
                   }}
-                  className={menuRowClass}
+                  className="justify-start gap-3"
                 >
                   <Ban className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.drop}</span>
@@ -165,7 +160,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                     onMenuOpenChange(false);
                     await onSetManualState(null);
                   }}
-                  className={menuRowClass}
+                  className="justify-start gap-3"
                 >
                   <Play className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.clearManualState}</span>
@@ -179,7 +174,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   onMenuOpenChange(false);
                   onLangModalOpenChange(true);
                 }}
-                className={menuRowClass}
+                className="justify-start gap-3"
               >
                 <Globe className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.titleLanguage}</span>
@@ -192,7 +187,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   onMenuOpenChange(false);
                   onEditModalOpenChange(true);
                 }}
-                className={menuRowClass}
+                className="justify-start gap-3"
               >
                 <Edit3 className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.editMetadata}</span>
@@ -206,7 +201,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                     onMenuOpenChange(false);
                     await onRefreshMetadata();
                   }}
-                  className={menuRowClass}
+                  className="justify-start gap-3"
                 >
                   <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.refreshMetadata}</span>
@@ -221,7 +216,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                     onMenuOpenChange(false);
                     await onRefreshPlaylist();
                   }}
-                  className={menuRowClass}
+                  className="justify-start gap-3"
                 >
                   <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
                   <span>{zh.detail.menu.refreshPlaylist}</span>
@@ -229,13 +224,13 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
               )}
 
               <Button
-                variant="ghost"
+                variant="danger-soft"
                 fullWidth
                 onPress={() => {
                   onMenuOpenChange(false);
                   setDeleteConfirmOpen(true);
                 }}
-                className="w-full justify-start gap-3 px-3.5 py-3 min-h-[44px] rounded-xl text-sm font-normal text-[var(--danger)] hover:bg-red-500/10"
+                className="justify-start gap-3"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{zh.detail.menu.deleteTitle}</span>

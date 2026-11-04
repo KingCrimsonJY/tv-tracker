@@ -153,10 +153,11 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
 
       <Button
         variant="ghost"
+        size="sm"
         isIconOnly
         onPress={onRemove}
         aria-label={zh.lists.removeFromListAria(primary)}
-        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--danger)] hover:bg-red-500/10 transition-colors shrink-0"
+        className="shrink-0"
       >
         <Trash2 className="w-4 h-4" />
       </Button>

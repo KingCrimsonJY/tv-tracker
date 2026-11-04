@@ -3,16 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Bookmark, Film, Layers, ListOrdered, Pin, Plus } from 'lucide-react';
 import {
   Button,
+  Description,
   FieldError,
   Input,
   Label,
   Modal,
   ProgressBar,
+  Radio,
+  RadioGroup,
   Skeleton,
   Switch,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
 } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
@@ -84,7 +85,6 @@ export const ListsPage: React.FC = () => {
           variant="primary"
           size="sm"
           onPress={() => setCreateOpen(true)}
-          className="gap-1.5 font-medium"
         >
           <Plus className="w-4 h-4" />
           <span>{zh.lists.createList}</span>
@@ -97,10 +97,7 @@ export const ListsPage: React.FC = () => {
           aria-label={zh.lists.loadingAria}
         >
           {[0, 1, 2].map((i) => (
-            <Skeleton
-              key={i}
-              className="h-56 rounded-2xl border border-[var(--border)] bg-[var(--surface)]"
-            />
+            <Skeleton key={i} className="h-56 rounded-2xl" />
           ))}
         </div>
       ) : sortedLists.length === 0 ? (
@@ -114,7 +111,7 @@ export const ListsPage: React.FC = () => {
           <p className="text-sm text-[var(--muted)] leading-relaxed">
             {zh.lists.emptyListsDescription}
           </p>
-          <Button variant="primary" onPress={() => setCreateOpen(true)} className="gap-2">
+          <Button variant="primary" onPress={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4" />
             <span>{zh.lists.createList}</span>
           </Button>
@@ -235,8 +232,8 @@ export const ListsPage: React.FC = () => {
                       size="sm"
                       className="w-full"
                     >
-                      <ProgressBar.Track className="h-1 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
-                        <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+                      <ProgressBar.Track>
+                        <ProgressBar.Fill />
                       </ProgressBar.Track>
                     </ProgressBar>
                   </div>
@@ -250,113 +247,84 @@ export const ListsPage: React.FC = () => {
       {/* Create List Modal */}
       <Modal.Backdrop isOpen={createOpen} onOpenChange={setCreateOpen} isDismissable>
         <Modal.Container size="md" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+          <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading className="text-lg font-semibold">
-                {zh.lists.createModal.title}
-              </Modal.Heading>
+              <Modal.Heading>{zh.lists.createModal.title}</Modal.Heading>
             </Modal.Header>
 
-            <form onSubmit={handleCreateSubmit} className="mt-4 space-y-4">
-              <TextField
-                value={name}
-                onChange={(val) => {
-                  setName(val);
-                  setNameError(null);
-                }}
-                isInvalid={Boolean(nameError)}
-                className="space-y-1.5"
-              >
-                <Label className="block text-xs text-[var(--muted)]">
-                  {zh.lists.createModal.nameLabel}
-                </Label>
-                <Input
-                  placeholder={zh.lists.createModal.namePlaceholder}
-                  className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
-                />
-                {nameError && <FieldError className="text-xs text-[var(--danger)]">{nameError}</FieldError>}
-              </TextField>
-
-              <div className="space-y-2">
-                <span className="block text-xs text-[var(--muted)]">
-                  {zh.lists.createModal.kindLabel}
-                </span>
-                <ToggleButtonGroup
-                  selectionMode="single"
-                  selectedKeys={new Set([kind])}
-                  onSelectionChange={(keys) => {
-                    const first = [...keys][0];
-                    if (first != null) setKind(String(first) as ListKind);
+            <form onSubmit={handleCreateSubmit}>
+              <Modal.Body className="space-y-4">
+                <TextField
+                  value={name}
+                  onChange={(val) => {
+                    setName(val);
+                    setNameError(null);
                   }}
-                  aria-label={zh.lists.createModal.kindLabel}
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full"
+                  isInvalid={Boolean(nameError)}
+                  fullWidth
+                  variant="secondary"
                 >
-                  <ToggleButton
-                    id="ordered"
-                    className={`h-auto p-3 rounded-xl border text-left transition-colors flex flex-col items-start justify-start ${
-                      kind === 'ordered'
-                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--foreground)]'
-                        : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
-                      <ListOrdered className="w-4 h-4 text-[var(--accent-text)]" />
-                      <span>{zh.lists.orderedType}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug font-normal">
-                      {zh.lists.orderedTypeHint}
-                    </p>
-                  </ToggleButton>
+                  <Label>{zh.lists.createModal.nameLabel}</Label>
+                  <Input placeholder={zh.lists.createModal.namePlaceholder} />
+                  {nameError && <FieldError>{nameError}</FieldError>}
+                </TextField>
 
-                  <ToggleButton
-                    id="collection"
-                    className={`h-auto p-3 rounded-xl border text-left transition-colors flex flex-col items-start justify-start ${
-                      kind === 'collection'
-                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--foreground)]'
-                        : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
-                      <Bookmark className="w-4 h-4 text-[var(--accent-text)]" />
-                      <span>{zh.lists.collectionType}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-[var(--muted)] leading-snug font-normal">
-                      {zh.lists.collectionTypeHint}
-                    </p>
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </div>
-
-              <TextField
-                value={description}
-                onChange={setDescription}
-                className="space-y-1.5"
-              >
-                <Label className="block text-xs text-[var(--muted)]">
-                  {zh.lists.createModal.descriptionLabel}
-                </Label>
-                <Input
-                  placeholder={zh.lists.createModal.descriptionPlaceholder}
-                  className="w-full h-10 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)]"
-                />
-              </TextField>
-
-              <div className="flex items-center justify-between gap-2.5 pt-1">
-                <span className="text-sm text-[var(--foreground-secondary)]">
-                  {zh.lists.createModal.pinnedLabel}
-                </span>
-                <Switch
-                  aria-label={zh.lists.createModal.pinnedLabel}
-                  isSelected={pinned}
-                  onChange={setPinned}
+                <RadioGroup
+                  value={kind}
+                  onChange={(val) => setKind(val as ListKind)}
+                  variant="secondary"
                 >
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                </Switch>
-              </div>
+                  <Label>{zh.lists.createModal.kindLabel}</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-1">
+                    <Radio value="ordered">
+                      <Radio.Content>
+                        <Radio.Control>
+                          <Radio.Indicator />
+                        </Radio.Control>
+                        <div className="flex flex-col gap-0.5">
+                          <Label>{zh.lists.orderedType}</Label>
+                          <Description>{zh.lists.orderedTypeHint}</Description>
+                        </div>
+                      </Radio.Content>
+                    </Radio>
 
-              <div className="flex justify-end gap-2 pt-3">
+                    <Radio value="collection">
+                      <Radio.Content>
+                        <Radio.Control>
+                          <Radio.Indicator />
+                        </Radio.Control>
+                        <div className="flex flex-col gap-0.5">
+                          <Label>{zh.lists.collectionType}</Label>
+                          <Description>{zh.lists.collectionTypeHint}</Description>
+                        </div>
+                      </Radio.Content>
+                    </Radio>
+                  </div>
+                </RadioGroup>
+
+                <TextField
+                  value={description}
+                  onChange={setDescription}
+                  fullWidth
+                  variant="secondary"
+                >
+                  <Label>{zh.lists.createModal.descriptionLabel}</Label>
+                  <Input placeholder={zh.lists.createModal.descriptionPlaceholder} />
+                </TextField>
+
+                <div className="pt-1">
+                  <Switch isSelected={pinned} onChange={setPinned}>
+                    <Switch.Content>
+                      <Switch.Control>
+                        <Switch.Thumb />
+                      </Switch.Control>
+                      <Label>{zh.lists.createModal.pinnedLabel}</Label>
+                    </Switch.Content>
+                  </Switch>
+                </div>
+              </Modal.Body>
+
+              <Modal.Footer>
                 <Button
                   type="button"
                   variant="secondary"
@@ -368,7 +336,7 @@ export const ListsPage: React.FC = () => {
                 <Button type="submit" variant="primary" size="sm">
                   {zh.lists.createModal.submit}
                 </Button>
-              </div>
+              </Modal.Footer>
             </form>
           </Modal.Dialog>
         </Modal.Container>

@@ -46,25 +46,22 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         aria-label={zh.search.title}
         value={query}
         onChange={onQueryChange}
+        variant="secondary"
         fullWidth
         className="max-w-2xl"
       >
-        <SearchField.Group className="w-full h-12 px-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center gap-3">
-          <SearchField.SearchIcon className="w-5 h-5 text-[var(--muted)] shrink-0" />
-          <SearchField.Input
-            placeholder={zh.search.placeholder}
-            autoFocus
-            className="flex-1 bg-transparent text-sm sm:text-base text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none"
-          />
+        <SearchField.Group>
+          <SearchField.SearchIcon />
+          <SearchField.Input placeholder={zh.search.placeholder} />
           <SearchField.ClearButton aria-label={zh.search.clearSearchAria} />
         </SearchField.Group>
       </SearchField>
 
       {!tmdbConfigured && (
-        <Alert status="warning" className="max-w-2xl rounded-2xl">
+        <Alert status="warning" className="max-w-2xl">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Description className="text-xs sm:text-sm">
+            <Alert.Description>
               {zh.search.tmdbUnconfiguredHint}
             </Alert.Description>
           </Alert.Content>
@@ -123,40 +120,39 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {inLibrary ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onPress={() => onNavigateTitle(id)}
-                      className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-[var(--accent-subtle)] text-[var(--accent-text)] gap-1.5 text-xs font-medium"
-                    >
+                  <Button
+                    variant={inLibrary ? 'secondary' : 'primary'}
+                    size="sm"
+                    isPending={isAdding}
+                    onPress={() =>
+                      inLibrary ? onNavigateTitle(id) : onAddTmdbHit(hit)
+                    }
+                    aria-label={
+                      inLibrary
+                        ? undefined
+                        : `${zh.search.addToLibrary} ${zhTitle}`
+                    }
+                  >
+                    {isAdding ? (
+                      <Spinner size="sm" color="current" />
+                    ) : inLibrary ? (
                       <Check className="w-4 h-4" />
-                      <span>{zh.search.addedToLibrary}</span>
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      isPending={isAdding}
-                      onPress={() => onAddTmdbHit(hit)}
-                      aria-label={`${zh.search.addToLibrary} ${zhTitle}`}
-                      className="min-w-[44px] min-h-[44px] px-3 rounded-xl gap-1 text-xs font-medium"
-                    >
-                      {isAdding ? (
-                        <Spinner size="sm" color="current" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                      <span>{zh.search.addToLibrary}</span>
-                    </Button>
-                  )}
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    <span>
+                      {inLibrary
+                        ? zh.search.addedToLibrary
+                        : zh.search.addToLibrary}
+                    </span>
+                  </Button>
 
                   <Button
                     variant="secondary"
+                    size="sm"
                     isIconOnly
                     onPress={() => onOpenAddToList(hit)}
                     aria-label={zh.search.addToListAria(zhTitle)}
-                    className="min-w-[44px] min-h-[44px] rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"
                   >
                     <FolderPlus className="w-4 h-4" />
                   </Button>

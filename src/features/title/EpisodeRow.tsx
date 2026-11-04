@@ -1,6 +1,6 @@
 import React from 'react';
 import { Check, CheckCheck, Clock, MoreHorizontal } from 'lucide-react';
-import { Button, Dropdown, ProgressBar } from '@heroui/react';
+import { Button, Dropdown, Label, ProgressBar } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import { formatSeconds } from '../../domain/progress';
 import type { EpisodeMeta, ProgressDoc, TitleDoc } from '../../domain/types';
@@ -56,17 +56,16 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {/* >= 44px tap target check circle */}
-        <Button
-          variant="ghost"
-          isIconOnly
-          isDisabled={!aired}
-          onPress={() => onToggleWatched(ep.key)}
+        <button
+          type="button"
+          disabled={!aired}
+          onClick={() => onToggleWatched(ep.key)}
           aria-label={zh.detail.seasons.checkEpisodeAria(
             seasonNumber,
             ep.number,
             watched
           )}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-full p-0"
+          className="min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-full cursor-pointer disabled:cursor-not-allowed"
         >
           <span
             className={`w-6 h-6 rounded-full flex items-center justify-center border transition-colors ${
@@ -79,7 +78,7 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
           >
             {watched && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
           </span>
-        </Button>
+        </button>
 
         {/* Episode Still Thumbnail on tablet and up */}
         {ep.stillPath && (
@@ -131,8 +130,8 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
                 size="sm"
                 className="w-full"
               >
-                <ProgressBar.Track className="h-1 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
-                  <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
                 </ProgressBar.Track>
               </ProgressBar>
             </div>
@@ -143,15 +142,17 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
       {/* Episode Row Actions Menu */}
       {aired && (
         <Dropdown>
-          <Dropdown.Trigger
+          <Button
+            variant="ghost"
+            size="sm"
+            isIconOnly
             aria-label={zh.detail.seasons.episodeMoreAria(
               seasonNumber,
               ep.number
             )}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-tertiary)] transition-colors outline-none cursor-pointer"
           >
             <MoreHorizontal className="w-4 h-4" />
-          </Dropdown.Trigger>
+          </Button>
           <Dropdown.Popover placement="bottom end">
             <Dropdown.Menu
               aria-label={zh.detail.seasons.episodeMoreAria(
@@ -170,19 +171,15 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
                 id="up-to-here"
                 textValue={zh.detail.seasons.episodeMenu.markUpToHere}
               >
-                <div className="flex items-center gap-2 text-xs">
-                  <CheckCheck className="w-3.5 h-3.5" />
-                  <span>{zh.detail.seasons.episodeMenu.markUpToHere}</span>
-                </div>
+                <CheckCheck className="w-4 h-4 text-[var(--muted)]" />
+                <Label>{zh.detail.seasons.episodeMenu.markUpToHere}</Label>
               </Dropdown.Item>
               <Dropdown.Item
                 id="record-time"
                 textValue={zh.detail.seasons.episodeMenu.recordTime}
               >
-                <div className="flex items-center gap-2 text-xs">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{zh.detail.seasons.episodeMenu.recordTime}</span>
-                </div>
+                <Clock className="w-4 h-4 text-[var(--muted)]" />
+                <Label>{zh.detail.seasons.episodeMenu.recordTime}</Label>
               </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>

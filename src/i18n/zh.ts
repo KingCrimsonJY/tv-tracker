@@ -227,7 +227,7 @@ export const zh = {
       posterUrlPlaceholder: 'https://...',
       episodeCountLabel: '总集数（可选，剧集/系列适用）',
       episodeCountPlaceholder: '例如：12（自动生成 1…N 集且默认已开播）',
-      runtimeLabel: '单集/电影时长（分钟，可选）',
+      runtimeLabel: '时长（分钟，可选）',
       overviewLabel: '简介（可选）',
       sourceUrlLabel: '来源链接（可选）',
       submitButton: '添加到片库',

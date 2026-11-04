@@ -90,13 +90,11 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         isDismissable
       >
         <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+          <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
-                {zh.detail.menu.titleLanguage}
-              </Modal.Heading>
+              <Modal.Heading>{zh.detail.menu.titleLanguage}</Modal.Heading>
             </Modal.Header>
-            <div className="mt-4 space-y-2">
+            <Modal.Body className="space-y-2">
               {(
                 [
                   { id: null, label: zh.detail.languageOptions.default },
@@ -109,24 +107,20 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                 return (
                   <Button
                     key={opt.id ?? 'default'}
-                    variant={selected ? 'secondary' : 'ghost'}
+                    variant={selected ? 'primary' : 'secondary'}
                     fullWidth
                     onPress={async () => {
                       await onUpdateTitleLanguage(opt.id);
                       onLangModalOpenChange(false);
                     }}
-                    className={`w-full justify-between px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium border ${
-                      selected
-                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
-                        : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--foreground)]'
-                    }`}
+                    className="justify-between"
                   >
                     <span>{opt.label}</span>
                     {selected && <Check className="w-4 h-4" />}
                   </Button>
                 );
               })}
-            </div>
+            </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -138,13 +132,11 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         isDismissable
       >
         <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+          <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
-                {zh.detail.menu.addToList}
-              </Modal.Heading>
+              <Modal.Heading>{zh.detail.menu.addToList}</Modal.Heading>
             </Modal.Header>
-            <div className="mt-4 space-y-2 max-h-72 overflow-y-auto">
+            <Modal.Body className="space-y-2 max-h-72 overflow-y-auto">
               {Object.values(lists).length === 0 ? (
                 <p className="text-sm text-[var(--muted)]">
                   {zh.lists.emptyListsTitle}
@@ -156,7 +148,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                   return (
                     <Button
                       key={list.id}
-                      variant={existing ? 'secondary' : 'ghost'}
+                      variant={existing ? 'primary' : 'secondary'}
                       fullWidth
                       onPress={async () => {
                         if (existing) {
@@ -175,11 +167,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                           );
                         }
                       }}
-                      className={`w-full justify-between px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium border ${
-                        existing
-                          ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
-                          : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--foreground)]'
-                      }`}
+                      className="justify-between"
                     >
                       <span className="truncate">{list.name}</span>
                       {existing ? (
@@ -191,8 +179,8 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                   );
                 })
               )}
-            </div>
-            <div className="mt-5 flex justify-end">
+            </Modal.Body>
+            <Modal.Footer>
               <Button
                 variant="secondary"
                 size="sm"
@@ -200,7 +188,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
               >
                 {zh.app.close}
               </Button>
-            </div>
+            </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -212,46 +200,55 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         isDismissable
       >
         <Modal.Container size="md" placement="center" scroll="inside">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+          <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
-                {zh.detail.editModal.title}
-              </Modal.Heading>
+              <Modal.Heading>{zh.detail.editModal.title}</Modal.Heading>
             </Modal.Header>
-            <form onSubmit={handleSaveEdit} className="mt-4 space-y-3.5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TextField value={editZhName} onChange={setEditZhName} fullWidth>
-                  <Label className="block text-xs text-[var(--muted)] mb-1">
-                    {zh.detail.editModal.zhNameLabel}
-                  </Label>
-                  <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
+            <form onSubmit={handleSaveEdit}>
+              <Modal.Body className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <TextField
+                    value={editZhName}
+                    onChange={setEditZhName}
+                    variant="secondary"
+                    fullWidth
+                  >
+                    <Label>{zh.detail.editModal.zhNameLabel}</Label>
+                    <Input />
+                  </TextField>
+                  <TextField
+                    value={editOrigName}
+                    onChange={setEditOrigName}
+                    variant="secondary"
+                    fullWidth
+                  >
+                    <Label>{zh.detail.editModal.originalNameLabel}</Label>
+                    <Input />
+                  </TextField>
+                </div>
+
+                <TextField
+                  value={editPoster}
+                  onChange={setEditPoster}
+                  variant="secondary"
+                  fullWidth
+                >
+                  <Label>{zh.detail.editModal.posterPathLabel}</Label>
+                  <Input />
                 </TextField>
-                <TextField value={editOrigName} onChange={setEditOrigName} fullWidth>
-                  <Label className="block text-xs text-[var(--muted)] mb-1">
-                    {zh.detail.editModal.originalNameLabel}
-                  </Label>
-                  <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
+
+                <TextField
+                  value={editOverview}
+                  onChange={setEditOverview}
+                  variant="secondary"
+                  fullWidth
+                >
+                  <Label>{zh.detail.editModal.overviewLabel}</Label>
+                  <TextArea rows={3} />
                 </TextField>
-              </div>
+              </Modal.Body>
 
-              <TextField value={editPoster} onChange={setEditPoster} fullWidth>
-                <Label className="block text-xs text-[var(--muted)] mb-1">
-                  {zh.detail.editModal.posterPathLabel}
-                </Label>
-                <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
-              </TextField>
-
-              <TextField value={editOverview} onChange={setEditOverview} fullWidth>
-                <Label className="block text-xs text-[var(--muted)] mb-1">
-                  {zh.detail.editModal.overviewLabel}
-                </Label>
-                <TextArea
-                  rows={3}
-                  className="w-full p-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-                />
-              </TextField>
-
-              <div className="flex justify-end gap-2 pt-2">
+              <Modal.Footer>
                 <Button
                   type="button"
                   variant="secondary"
@@ -263,7 +260,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                 <Button type="submit" variant="primary" size="sm">
                   {zh.app.save}
                 </Button>
-              </div>
+              </Modal.Footer>
             </form>
           </Modal.Dialog>
         </Modal.Container>
@@ -276,17 +273,17 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         isDismissable
       >
         <AlertDialog.Container size="sm" placement="center">
-          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <AlertDialog.Header className="flex items-center gap-3">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
               <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading className="text-base font-semibold">
+              <AlertDialog.Heading>
                 {zh.detail.menu.deleteTitle}
               </AlertDialog.Heading>
             </AlertDialog.Header>
-            <AlertDialog.Body className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
+            <AlertDialog.Body>
               <p>{zh.detail.deleteConfirm}</p>
             </AlertDialog.Body>
-            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
+            <AlertDialog.Footer>
               <Button
                 variant="secondary"
                 size="sm"

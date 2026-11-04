@@ -32,7 +32,6 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
           size="lg"
           isDisabled={state.status === 'unaired'}
           onPress={onPrimaryAction}
-          className="min-h-[48px] px-6 font-semibold gap-2 rounded-xl shadow-lg"
         >
           {state.status === 'completed' || state.status === 'caught_up' ? (
             <RotateCcw className="w-4 h-4" />
@@ -46,10 +45,10 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
 
         <Button
           variant="secondary"
+          size="lg"
           isIconOnly
           onPress={onOpenMenu}
           aria-label={zh.detail.moreActionsAria}
-          className="min-w-[48px] min-h-[48px] rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--surface-secondary)]"
         >
           <MoreHorizontal className="w-5 h-5" />
         </Button>
@@ -75,8 +74,8 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
             size="sm"
             className="w-full"
           >
-            <ProgressBar.Track className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
-              <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
             </ProgressBar.Track>
           </ProgressBar>
         </div>

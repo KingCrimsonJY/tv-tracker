@@ -7,18 +7,32 @@
   [data-theme="dark"] {
     --background: rgb(18 18 21);
     --surface: rgb(26 26 31);
+    --surface-foreground: rgb(244 244 246);
     --surface-secondary: rgb(34 34 40);
+    --surface-secondary-foreground: rgb(244 244 246);
     --surface-tertiary: rgb(42 42 50);
+    --surface-tertiary-foreground: rgb(244 244 246);
     --surface-glass: rgb(22 22 26 / 0.94);
     --overlay: rgb(30 30 36);
+    --overlay-foreground: rgb(244 244 246);
     --foreground: rgb(244 244 246);
     --foreground-secondary: rgb(209 213 219);
     --muted: rgb(156 163 175);
+    --default: rgb(38 38 46);
+    --default-foreground: rgb(244 244 246);
+    --segment: rgb(52 52 62);
+    --segment-foreground: rgb(244 244 246);
+    --field-background: rgb(34 34 40);
+    --field-foreground: rgb(244 244 246);
+    --field-placeholder: rgb(156 163 175);
+    --field-border: rgb(255 255 255 / 0.1);
+    --border-width-field: 1px;
     --accent: rgb(59 130 246);
     --accent-hover: rgb(37 99 235);
     --accent-subtle: rgb(59 130 246 / 0.16);
     --accent-text: rgb(96 165 250);
     --accent-foreground: rgb(255 255 255);
+    --focus: rgb(59 130 246);
     --border: rgb(255 255 255 / 0.08);
     --separator: rgb(255 255 255 / 0.06);
     --success: rgb(16 185 129);
@@ -35,24 +49,39 @@
     --scrim-chip: rgb(15 15 20 / 0.65);
     --scrim-track: rgb(255 255 255 / 0.25);
     --backdrop-scrim: rgb(9 9 12 / 0.72);
+    color-scheme: dark;
   }
 
   .light,
   [data-theme="light"] {
     --background: rgb(245 245 248);
     --surface: rgb(255 255 255);
+    --surface-foreground: rgb(20 20 24);
     --surface-secondary: rgb(238 240 245);
+    --surface-secondary-foreground: rgb(20 20 24);
     --surface-tertiary: rgb(226 230 238);
+    --surface-tertiary-foreground: rgb(20 20 24);
     --surface-glass: rgb(255 255 255 / 0.94);
     --overlay: rgb(255 255 255);
+    --overlay-foreground: rgb(20 20 24);
     --foreground: rgb(20 20 24);
     --foreground-secondary: rgb(51 65 85);
     --muted: rgb(100 116 139);
+    --default: rgb(232 235 242);
+    --default-foreground: rgb(20 20 24);
+    --segment: rgb(255 255 255);
+    --segment-foreground: rgb(20 20 24);
+    --field-background: rgb(248 249 252);
+    --field-foreground: rgb(20 20 24);
+    --field-placeholder: rgb(100 116 139);
+    --field-border: rgb(15 23 42 / 0.12);
+    --border-width-field: 1px;
     --accent: rgb(37 99 235);
     --accent-hover: rgb(29 78 216);
     --accent-subtle: rgb(37 99 235 / 0.12);
     --accent-text: rgb(37 99 235);
     --accent-foreground: rgb(255 255 255);
+    --focus: rgb(37 99 235);
     --border: rgb(15 23 42 / 0.1);
     --separator: rgb(15 23 42 / 0.07);
     --success: rgb(5 150 105);
@@ -88,6 +117,79 @@
     color: var(--foreground);
     min-height: 100dvh;
     overflow-x: hidden;
+  }
+}
+
+@layer components {
+  /* 1. Focus rings: show only during keyboard navigation (data-focus-visible="true"),
+        never after a mouse click or touch tap where Chromium's :focus-visible heuristic
+        may stay active after typing in an input. */
+  .button:focus-visible:not([data-focus-visible="true"]),
+  .tabs__tab:focus-visible:not([data-focus-visible="true"]),
+  .toggle-button:focus-visible:not([data-focus-visible="true"]),
+  .select__trigger:focus-visible:not([data-focus-visible="true"]),
+  .modal__trigger:focus-visible:not([data-focus-visible="true"]),
+  .drawer__trigger:focus-visible:not([data-focus-visible="true"]) {
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-offset-width: 0px;
+    outline: none;
+  }
+
+  /* 2. Tabs: keep horizontal tab lists content-sized instead of stretching into a long
+        empty pill, prevent tab labels from wrapping, and align tab panels flush with content. */
+  .tabs__list-container {
+    @apply w-fit max-w-full;
+  }
+
+  .tabs__list[data-orientation="horizontal"] {
+    @apply min-w-0;
+  }
+
+  .tabs__tab {
+    @apply w-fit shrink-0 whitespace-nowrap;
+  }
+
+  .tabs__panel {
+    @apply p-0;
+  }
+
+  /* 3. Card-style Radio items: when a Radio has a Description inside Radio.Content,
+        render the clickable label as a full-width card with border and selected state. */
+  .radio:has(.radio__content [data-slot="description"]) {
+    @apply mt-0 w-full;
+
+    .radio__content {
+      @apply flex w-full items-start gap-3 rounded-2xl border border-border bg-surface-secondary p-3.5 transition-colors;
+    }
+
+    .radio__control {
+      @apply mt-0.5;
+    }
+
+    &[data-selected="true"] .radio__content,
+    &:has(input:checked) .radio__content {
+      @apply border-accent bg-accent-soft;
+    }
+  }
+
+  /* 4. Toast: keep bottom toast region clear of the mobile tab bar, and vertically align
+        the indicator icon, text content, and action button on a single row. */
+  .toast-region--bottom {
+    @apply max-sm:bottom-[calc(64px+env(safe-area-inset-bottom,0px)+12px)];
+  }
+
+  .toast {
+    @apply grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0;
+  }
+
+  .toast__indicator,
+  .toast__content,
+  .toast__action {
+    @apply row-start-1 self-center;
+  }
+
+  .toast__action {
+    @apply col-start-3;
   }
 }
 

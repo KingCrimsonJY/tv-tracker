@@ -176,27 +176,22 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             }}
             isInvalid={Boolean(manualError)}
             isRequired
+            variant="secondary"
             fullWidth
           >
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.nameLabel}
-            </Label>
-            <Input
-              placeholder={zh.search.manual.namePlaceholder}
-              className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-            />
-            {manualError && (
-              <FieldError className="mt-1 text-xs text-[var(--danger)]">
-                {manualError}
-              </FieldError>
-            )}
+            <Label>{zh.search.manual.nameLabel}</Label>
+            <Input placeholder={zh.search.manual.namePlaceholder} />
+            {manualError && <FieldError>{manualError}</FieldError>}
           </TextField>
 
-          <TextField value={manualOrigName} onChange={setManualOrigName} fullWidth>
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.originalNameLabel}
-            </Label>
-            <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
+          <TextField
+            value={manualOrigName}
+            onChange={setManualOrigName}
+            variant="secondary"
+            fullWidth
+          >
+            <Label>{zh.search.manual.originalNameLabel}</Label>
+            <Input />
           </TextField>
         </div>
 
@@ -206,16 +201,15 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             onSelectionChange={(key) => {
               if (key != null) setManualType(key as MediaType);
             }}
+            variant="secondary"
             fullWidth
           >
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.typeLabel}
-            </Label>
-            <Select.Trigger className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] flex items-center justify-between">
+            <Label>{zh.search.manual.typeLabel}</Label>
+            <Select.Trigger>
               <Select.Value />
               <Select.Indicator />
             </Select.Trigger>
-            <Select.Popover className="bg-[var(--overlay)] border border-[var(--border)] rounded-xl p-1">
+            <Select.Popover>
               <ListBox aria-label={zh.search.manual.typeLabel}>
                 {(
                   [
@@ -228,9 +222,9 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
                     key={item.id}
                     id={item.id}
                     textValue={item.label}
-                    className="px-3 py-2 rounded-lg text-sm text-[var(--foreground)] hover:bg-[var(--surface-secondary)] cursor-pointer outline-none"
                   >
-                    {item.label}
+                    <Label>{item.label}</Label>
+                    <ListBox.ItemIndicator />
                   </ListBox.Item>
                 ))}
               </ListBox>
@@ -243,16 +237,12 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             minValue={1888}
             maxValue={2100}
             formatOptions={{ useGrouping: false }}
+            variant="secondary"
             fullWidth
           >
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.yearLabel}
-            </Label>
-            <NumberField.Group className="w-full h-10 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center overflow-hidden">
-              <NumberField.Input
-                placeholder="2025"
-                className="w-full h-full px-3 bg-transparent text-sm text-[var(--foreground)] tabular-nums outline-none"
-              />
+            <Label>{zh.search.manual.yearLabel}</Label>
+            <NumberField.Group>
+              <NumberField.Input placeholder="2025" />
             </NumberField.Group>
           </NumberField>
 
@@ -262,16 +252,12 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             minValue={1}
             maxValue={10000}
             formatOptions={{ useGrouping: false }}
+            variant="secondary"
             fullWidth
           >
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.runtimeLabel}
-            </Label>
-            <NumberField.Group className="w-full h-10 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center overflow-hidden">
-              <NumberField.Input
-                placeholder="45"
-                className="w-full h-full px-3 bg-transparent text-sm text-[var(--foreground)] tabular-nums outline-none"
-              />
+            <Label>{zh.search.manual.runtimeLabel}</Label>
+            <NumberField.Group>
+              <NumberField.Input placeholder="45" />
             </NumberField.Group>
           </NumberField>
         </div>
@@ -283,56 +269,52 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             minValue={1}
             maxValue={2000}
             formatOptions={{ useGrouping: false }}
+            variant="secondary"
             fullWidth
           >
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.episodeCountLabel}
-            </Label>
-            <NumberField.Group className="w-full h-10 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] flex items-center overflow-hidden">
+            <Label>{zh.search.manual.episodeCountLabel}</Label>
+            <NumberField.Group>
               <NumberField.Input
                 placeholder={zh.search.manual.episodeCountPlaceholder}
-                className="w-full h-full px-3 bg-transparent text-sm text-[var(--foreground)] tabular-nums outline-none"
               />
             </NumberField.Group>
           </NumberField>
         )}
 
-        <TextField value={manualPoster} onChange={setManualPoster} fullWidth>
-          <Label className="block text-xs text-[var(--muted)] mb-1">
-            {zh.search.manual.posterUrlLabel}
-          </Label>
-          <Input
-            placeholder={zh.search.manual.posterUrlPlaceholder}
-            className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-          />
+        <TextField
+          value={manualPoster}
+          onChange={setManualPoster}
+          variant="secondary"
+          fullWidth
+        >
+          <Label>{zh.search.manual.posterUrlLabel}</Label>
+          <Input placeholder={zh.search.manual.posterUrlPlaceholder} />
         </TextField>
 
         {manualSourceUrl && (
-          <TextField value={manualSourceUrl} onChange={setManualSourceUrl} fullWidth>
-            <Label className="block text-xs text-[var(--muted)] mb-1">
-              {zh.search.manual.sourceUrlLabel}
-            </Label>
-            <Input className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]" />
+          <TextField
+            value={manualSourceUrl}
+            onChange={setManualSourceUrl}
+            variant="secondary"
+            fullWidth
+          >
+            <Label>{zh.search.manual.sourceUrlLabel}</Label>
+            <Input />
           </TextField>
         )}
 
-        <TextField value={manualOverview} onChange={setManualOverview} fullWidth>
-          <Label className="block text-xs text-[var(--muted)] mb-1">
-            {zh.search.manual.overviewLabel}
-          </Label>
-          <TextArea
-            rows={3}
-            className="w-full p-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-          />
+        <TextField
+          value={manualOverview}
+          onChange={setManualOverview}
+          variant="secondary"
+          fullWidth
+        >
+          <Label>{zh.search.manual.overviewLabel}</Label>
+          <TextArea rows={3} />
         </TextField>
 
         <div className="pt-2">
-          <Button
-            type="submit"
-            variant="primary"
-            isPending={submitting}
-            className="gap-2"
-          >
+          <Button type="submit" variant="primary" isPending={submitting}>
             {submitting && <Spinner size="sm" color="current" />}
             <span>{zh.search.manual.submitButton}</span>
           </Button>

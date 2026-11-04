@@ -19,6 +19,8 @@ import {
 import {
   AlertDialog,
   Button,
+  Description,
+  Label,
   Switch,
   toast,
   ToggleButton,
@@ -149,6 +151,8 @@ export const SettingsPage: React.FC = () => {
         </div>
         <ToggleButtonGroup
           selectionMode="single"
+          disallowEmptySelection
+          size="sm"
           selectedKeys={new Set([settings.defaultTitleLang])}
           onSelectionChange={(keys) => {
             const first = [...keys][0];
@@ -159,41 +163,30 @@ export const SettingsPage: React.FC = () => {
             }
           }}
           aria-label={zh.settings.defaultTitleLang.label}
-          className="grid grid-cols-3 gap-2.5 w-full"
         >
           {titleLangOptions.map((opt) => (
-            <ToggleButton
-              key={opt.id}
-              id={opt.id}
-              className={`px-3 py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-medium border transition-colors ${
-                settings.defaultTitleLang === opt.id
-                  ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
-                  : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
-              }`}
-            >
+            <ToggleButton key={opt.id} id={opt.id}>
               {opt.label}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.includeSpecials.label}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">
-            {zh.settings.includeSpecials.description}
-          </p>
-        </div>
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <Switch
-          aria-label={zh.settings.includeSpecials.label}
           isSelected={settings.includeSpecials}
           onChange={(val) => updateSettings({ includeSpecials: val })}
+          className="w-full"
         >
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
+          <Switch.Content className="w-full justify-between">
+            <div className="flex flex-col gap-0.5">
+              <Label>{zh.settings.includeSpecials.label}</Label>
+              <Description>{zh.settings.includeSpecials.description}</Description>
+            </div>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch.Content>
         </Switch>
       </section>
 
@@ -206,6 +199,8 @@ export const SettingsPage: React.FC = () => {
         </div>
         <ToggleButtonGroup
           selectionMode="single"
+          disallowEmptySelection
+          size="sm"
           selectedKeys={new Set([settings.theme])}
           onSelectionChange={(keys) => {
             const first = [...keys][0];
@@ -214,20 +209,11 @@ export const SettingsPage: React.FC = () => {
             }
           }}
           aria-label={zh.settings.theme.label}
-          className="grid grid-cols-3 gap-2.5 w-full"
         >
           {themeOptions.map((opt) => {
             const Icon = opt.icon;
             return (
-              <ToggleButton
-                key={opt.id}
-                id={opt.id}
-                className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-medium border transition-colors ${
-                  settings.theme === opt.id
-                    ? 'bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--accent-text)]'
-                    : 'bg-[var(--surface-secondary)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                }`}
-              >
+              <ToggleButton key={opt.id} id={opt.id}>
                 <Icon className="w-4 h-4" />
                 <span>{opt.label}</span>
               </ToggleButton>
@@ -277,12 +263,7 @@ export const SettingsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={handleExportDownload}
-            className="gap-2 min-h-[40px]"
-          >
+          <Button variant="secondary" size="sm" onPress={handleExportDownload}>
             <Download className="w-4 h-4" />
             <span>{zh.settings.dataManagement.exportJson}</span>
           </Button>
@@ -297,7 +278,6 @@ export const SettingsPage: React.FC = () => {
             variant="secondary"
             size="sm"
             onPress={() => fileInputRef.current?.click()}
-            className="gap-2 min-h-[40px]"
           >
             <Upload className="w-4 h-4" />
             <span>{zh.settings.dataManagement.importJson}</span>
@@ -314,7 +294,7 @@ export const SettingsPage: React.FC = () => {
           <p className="text-xs text-[var(--muted)] mt-0.5">{zh.settings.account.description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" size="sm" onPress={() => signOut()} className="gap-2 min-h-[40px]">
+          <Button variant="secondary" size="sm" onPress={() => signOut()}>
             <LogOut className="w-4 h-4" />
             <span>{zh.settings.account.signOut}</span>
           </Button>
@@ -322,7 +302,6 @@ export const SettingsPage: React.FC = () => {
             variant="danger-soft"
             size="sm"
             onPress={() => setLogoutAllConfirmOpen(true)}
-            className="gap-2 min-h-[40px]"
           >
             <ShieldAlert className="w-4 h-4" />
             <span>{zh.settings.account.signOutAll}</span>
@@ -338,17 +317,17 @@ export const SettingsPage: React.FC = () => {
         isDismissable
       >
         <AlertDialog.Container size="sm" placement="center">
-          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <AlertDialog.Header className="flex items-center gap-3">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
               <AlertDialog.Icon status="warning" />
-              <AlertDialog.Heading className="text-base font-semibold">
+              <AlertDialog.Heading>
                 {zh.settings.dataManagement.importConfirmTitle}
               </AlertDialog.Heading>
             </AlertDialog.Header>
-            <AlertDialog.Body className="mt-2 text-sm text-[var(--muted)] leading-relaxed">
+            <AlertDialog.Body>
               <p>{zh.settings.dataManagement.importConfirmDescription}</p>
             </AlertDialog.Body>
-            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
+            <AlertDialog.Footer>
               <Button variant="secondary" size="sm" onPress={() => setPendingImportText(null)}>
                 {zh.app.cancel}
               </Button>
@@ -366,17 +345,17 @@ export const SettingsPage: React.FC = () => {
         isDismissable
       >
         <AlertDialog.Container size="sm" placement="center">
-          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <AlertDialog.Header className="flex items-center gap-3">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
               <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading className="text-base font-semibold">
+              <AlertDialog.Heading>
                 {zh.settings.account.signOutAll}
               </AlertDialog.Heading>
             </AlertDialog.Header>
-            <AlertDialog.Body className="mt-2 text-sm text-[var(--muted)] leading-relaxed">
+            <AlertDialog.Body>
               <p>{zh.settings.account.signOutAllConfirm}</p>
             </AlertDialog.Body>
-            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
+            <AlertDialog.Footer>
               <Button variant="secondary" size="sm" onPress={() => setLogoutAllConfirmOpen(false)}>
                 {zh.app.cancel}
               </Button>

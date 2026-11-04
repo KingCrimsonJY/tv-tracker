@@ -60,8 +60,8 @@ export const PosterCard: React.FC<PosterCardProps> = ({
               size="sm"
               className="w-full"
             >
-              <ProgressBar.Track className="h-1 bg-[var(--scrim-track)] rounded-full overflow-hidden">
-                <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+              <ProgressBar.Track>
+                <ProgressBar.Fill />
               </ProgressBar.Track>
             </ProgressBar>
           </div>

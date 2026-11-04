@@ -113,7 +113,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               size="sm"
               fullWidth
               onPress={() => (isInstallable ? install() : setShowIosGuide(true))}
-              className="justify-start gap-2 text-xs"
+              className="justify-start"
             >
               <Download className="w-4 h-4" />
               <span>{zh.app.installApp}</span>
@@ -121,11 +121,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           )}
 
           <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-[var(--surface-secondary)]">
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => navigate('/settings')}
-              className="flex items-center justify-start gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 h-auto"
+            <NavLink
+              to="/settings"
+              className="flex items-center gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 rounded-lg hover:bg-[var(--surface-tertiary)] transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)] shrink-0 font-semibold text-xs">
                 {zh.app.logoChar}
@@ -138,14 +136,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                   {zh.app.syncConnected}
                 </p>
               </div>
-            </Button>
+            </NavLink>
             <Button
               variant="ghost"
               size="sm"
               isIconOnly
               onPress={() => void signOut()}
               aria-label={zh.app.signOut}
-              className="min-w-[36px] min-h-[36px] rounded-lg text-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <LogOut className="w-4 h-4" />
             </Button>
@@ -195,7 +192,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             isIconOnly
             onPress={() => navigate('/settings')}
             aria-label={zh.settings.title}
-            className="w-11 h-11 rounded-full bg-[var(--surface-secondary)] text-[var(--muted)] hover:text-[var(--foreground)]"
           >
             <Settings className="w-4 h-4" />
           </Button>
@@ -204,7 +200,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             isIconOnly
             onPress={() => void signOut()}
             aria-label={zh.app.signOut}
-            className="w-11 h-11 rounded-full bg-[var(--surface-secondary)] text-[var(--muted)] hover:text-[var(--foreground)]"
           >
             <LogOut className="w-4 h-4" />
           </Button>
@@ -254,16 +249,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       {/* iOS PWA Install Guide Modal */}
       <Modal.Backdrop isOpen={showIosGuide} onOpenChange={setShowIosGuide} isDismissable>
         <Modal.Container size="sm" placement="center">
-          <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)]">
+          <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading className="text-base font-semibold">
-                {zh.app.installIosGuideTitle}
-              </Modal.Heading>
+              <Modal.Heading>{zh.app.installIosGuideTitle}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body className="mt-2 text-sm text-[var(--muted)]">
+            <Modal.Body>
               <p>{zh.app.installIosGuideBody}</p>
             </Modal.Body>
-            <Modal.Footer className="mt-5 flex justify-end">
+            <Modal.Footer>
               <Button variant="secondary" size="sm" onPress={() => setShowIosGuide(false)}>
                 {zh.app.close}
               </Button>

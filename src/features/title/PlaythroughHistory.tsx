@@ -30,7 +30,6 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
             variant="danger-soft"
             size="sm"
             onPress={() => setConfirmOpen(true)}
-            className="text-xs"
           >
             {zh.detail.playthroughs.cancelRewatch}
           </Button>
@@ -62,17 +61,17 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
 
       <AlertDialog.Backdrop isOpen={confirmOpen} onOpenChange={setConfirmOpen} isDismissable>
         <AlertDialog.Container size="sm" placement="center">
-          <AlertDialog.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
-            <AlertDialog.Header className="flex items-center gap-3">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
               <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading className="text-base font-semibold">
+              <AlertDialog.Heading>
                 {zh.detail.playthroughs.cancelRewatch}
               </AlertDialog.Heading>
             </AlertDialog.Header>
-            <AlertDialog.Body className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
+            <AlertDialog.Body>
               <p>{zh.detail.playthroughs.cancelRewatchConfirm}</p>
             </AlertDialog.Body>
-            <AlertDialog.Footer className="mt-5 flex justify-end gap-2">
+            <AlertDialog.Footer>
               <Button variant="secondary" size="sm" onPress={() => setConfirmOpen(false)}>
                 {zh.app.cancel}
               </Button>

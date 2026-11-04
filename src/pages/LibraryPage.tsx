@@ -1,7 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Film, Plus } from 'lucide-react';
-import { Button, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
+import {
+  Button,
+  Label,
+  ListBox,
+  Select,
+  Skeleton,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@heroui/react';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
 import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
@@ -112,7 +120,6 @@ export const LibraryPage: React.FC = () => {
           variant="primary"
           size="sm"
           onPress={() => navigate('/search')}
-          className="gap-1.5 font-medium"
         >
           <Plus className="w-4 h-4" />
           <span>{zh.library.addMediaButton}</span>
@@ -120,85 +127,82 @@ export const LibraryPage: React.FC = () => {
       </header>
 
       {/* Filter & Sort Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-2 border-b border-[var(--separator)]">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[var(--separator)]">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Status segmented control */}
-          <Tabs
-            selectedKey={statusFilter}
-            onSelectionChange={(key) => setStatusFilter(String(key) as StatusFilter)}
+          {/* Status filter */}
+          <ToggleButtonGroup
+            selectionMode="single"
+            disallowEmptySelection
+            size="sm"
+            selectedKeys={new Set([statusFilter])}
+            onSelectionChange={(keys) => {
+              const first = [...keys][0];
+              if (first != null) setStatusFilter(String(first) as StatusFilter);
+            }}
+            aria-label={zh.library.statusFilterAria}
+            className="flex-wrap"
           >
-            <Tabs.ListContainer className="overflow-x-auto max-w-full">
-              <Tabs.List
-                aria-label={zh.library.statusFilterAria}
-                className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]"
-              >
-                {statusTabs.map((tab) => (
-                  <Tabs.Tab
-                    key={tab.id}
-                    id={tab.id}
-                    className="px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-lg whitespace-nowrap shrink-0"
-                  >
-                    {tab.label}
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
+            {statusTabs.map((tab, index) => (
+              <ToggleButton key={tab.id} id={tab.id}>
+                {index > 0 && <ToggleButtonGroup.Separator />}
+                {tab.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
 
-          {/* Type segmented control */}
-          <Tabs
-            selectedKey={typeFilter}
-            onSelectionChange={(key) => setTypeFilter(String(key) as TypeFilter)}
+          {/* Type filter */}
+          <ToggleButtonGroup
+            selectionMode="single"
+            disallowEmptySelection
+            size="sm"
+            selectedKeys={new Set([typeFilter])}
+            onSelectionChange={(keys) => {
+              const first = [...keys][0];
+              if (first != null) setTypeFilter(String(first) as TypeFilter);
+            }}
+            aria-label={zh.library.typeFilterAria}
+            className="flex-wrap"
           >
-            <Tabs.ListContainer>
-              <Tabs.List
-                aria-label={zh.library.typeFilterAria}
-                className="inline-flex items-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)]"
-              >
-                {typeTabs.map((tab) => (
-                  <Tabs.Tab
-                    key={tab.id}
-                    id={tab.id}
-                    className="px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-lg whitespace-nowrap shrink-0"
-                  >
-                    {tab.label}
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
+            {typeTabs.map((tab, index) => (
+              <ToggleButton key={tab.id} id={tab.id}>
+                {index > 0 && <ToggleButtonGroup.Separator />}
+                {tab.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
         </div>
 
         {/* Sort selector */}
         <Select
+          variant="secondary"
           selectedKey={sortMode}
           onSelectionChange={(key) => {
             if (key !== null) setSortMode(String(key) as SortMode);
           }}
-          className="flex items-center gap-2 self-end lg:self-auto"
+          className="flex-row items-center gap-2 self-start lg:self-auto"
         >
-          <Label className="text-xs text-[var(--muted)] whitespace-nowrap">
-            {zh.library.sortLabel}
-          </Label>
-          <Select.Trigger className="h-9 min-w-[116px] px-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs font-medium text-[var(--foreground)]">
+          <Label className="whitespace-nowrap">{zh.library.sortLabel}</Label>
+          <Select.Trigger className="w-32">
             <Select.Value />
             <Select.Indicator />
           </Select.Trigger>
           <Select.Popover>
-            <ListBox className="p-1 bg-[var(--overlay)] border border-[var(--border)] rounded-xl text-xs text-[var(--foreground)]">
-              <ListBox.Item id="recent" textValue={zh.library.sort.recent} className="px-3 py-2 rounded-lg cursor-pointer">
-                {zh.library.sort.recent}
+            <ListBox>
+              <ListBox.Item id="recent" textValue={zh.library.sort.recent}>
+                <Label>{zh.library.sort.recent}</Label>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
-              <ListBox.Item id="added" textValue={zh.library.sort.added} className="px-3 py-2 rounded-lg cursor-pointer">
-                {zh.library.sort.added}
+              <ListBox.Item id="added" textValue={zh.library.sort.added}>
+                <Label>{zh.library.sort.added}</Label>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
-              <ListBox.Item id="year" textValue={zh.library.sort.year} className="px-3 py-2 rounded-lg cursor-pointer">
-                {zh.library.sort.year}
+              <ListBox.Item id="year" textValue={zh.library.sort.year}>
+                <Label>{zh.library.sort.year}</Label>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
-              <ListBox.Item id="name" textValue={zh.library.sort.name} className="px-3 py-2 rounded-lg cursor-pointer">
-                {zh.library.sort.name}
+              <ListBox.Item id="name" textValue={zh.library.sort.name}>
+                <Label>{zh.library.sort.name}</Label>
+                <ListBox.ItemIndicator />
               </ListBox.Item>
             </ListBox>
           </Select.Popover>
@@ -213,8 +217,8 @@ export const LibraryPage: React.FC = () => {
         >
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="space-y-2">
-              <Skeleton className="aspect-[2/3] rounded-xl bg-[var(--surface)] border border-[var(--border)]" />
-              <Skeleton className="h-4 w-3/4 rounded bg-[var(--surface-secondary)]" />
+              <Skeleton className="aspect-[2/3] rounded-xl" />
+              <Skeleton className="h-4 w-3/4 rounded" />
             </div>
           ))}
         </div>

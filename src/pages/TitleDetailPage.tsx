@@ -108,7 +108,7 @@ export const TitleDetailPage: React.FC = () => {
               variant="ghost"
               size="sm"
               onPress={() => setOverviewExpanded((v) => !v)}
-              className="mt-1.5 px-2 h-7 text-xs font-medium text-[var(--accent-text)]"
+              className="mt-1.5"
             >
               {overviewExpanded
                 ? zh.detail.overview.collapse

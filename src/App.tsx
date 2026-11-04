@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { KeyRound, Lock, RefreshCw, ShieldCheck, WifiOff } from 'lucide-react';
+import { RefreshCw, WifiOff } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -75,7 +75,7 @@ const AuthScreen: React.FC = () => {
 
   return (
     <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
-      <Card className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8">
+      <Card className="w-full max-w-md">
         <Card.Content className="flex flex-col items-center space-y-6">
           <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-2xl shadow-lg">
             {zh.app.logoChar}
@@ -99,19 +99,13 @@ const AuthScreen: React.FC = () => {
                   if (errorMsg) setErrorMsg(null);
                 }}
                 fullWidth
+                variant="secondary"
               >
-                <Label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
-                  {zh.app.setupCodeLabel}
-                </Label>
-                <div className="relative">
-                  <Input
-                    placeholder={zh.app.setupCodePlaceholder}
-                    autoFocus
-                    autoComplete="off"
-                    className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
-                  />
-                  <ShieldCheck className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+                <Label>{zh.app.setupCodeLabel}</Label>
+                <Input
+                  placeholder={zh.app.setupCodePlaceholder}
+                  autoComplete="off"
+                />
               </TextField>
             )}
 
@@ -124,34 +118,22 @@ const AuthScreen: React.FC = () => {
               }}
               aria-label={!needsSetup ? zh.app.passwordLabel : undefined}
               fullWidth
+              variant="secondary"
             >
-              {needsSetup && (
-                <Label className="block text-xs font-medium text-[var(--muted)] mb-1.5">
-                  {zh.app.setupPasswordTitle}
-                </Label>
-              )}
-              <div className="relative">
-                <Input
-                  placeholder={
-                    needsSetup ? zh.app.passwordPlaceholder : zh.app.loginPasswordPlaceholder
-                  }
-                  autoFocus={!needsSetup}
-                  autoComplete={needsSetup ? 'new-password' : 'current-password'}
-                  className="w-full min-h-[48px] pl-11 pr-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
-                />
-                {needsSetup ? (
-                  <KeyRound className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                ) : (
-                  <Lock className="w-4 h-4 text-[var(--muted)] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                )}
-              </div>
+              {needsSetup && <Label>{zh.app.setupPasswordTitle}</Label>}
+              <Input
+                placeholder={
+                  needsSetup ? zh.app.passwordPlaceholder : zh.app.loginPasswordPlaceholder
+                }
+                autoComplete={needsSetup ? 'new-password' : 'current-password'}
+              />
             </TextField>
 
             {errorMsg && (
-              <Alert status="danger" className="rounded-xl">
+              <Alert status="danger">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Description className="text-xs">{errorMsg}</Alert.Description>
+                  <Alert.Description>{errorMsg}</Alert.Description>
                 </Alert.Content>
               </Alert>
             )}
@@ -162,7 +144,6 @@ const AuthScreen: React.FC = () => {
               size="lg"
               fullWidth
               isPending={submitting}
-              className="min-h-[48px] rounded-xl font-semibold gap-2"
             >
               {submitting && <Spinner size="sm" color="current" />}
               <span>{needsSetup ? zh.app.setupPasswordSubmit : zh.app.loginSubmit}</span>
@@ -192,8 +173,8 @@ const OfflineScreen: React.FC = () => {
       role="alert"
       className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6"
     >
-      <Card className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8 text-center">
-        <Card.Content className="flex flex-col items-center space-y-5">
+      <Card className="w-full max-w-md">
+        <Card.Content className="flex flex-col items-center text-center space-y-5">
           <div className="w-14 h-14 rounded-2xl bg-red-500/15 text-[var(--danger)] flex items-center justify-center">
             <WifiOff className="w-7 h-7" />
           </div>
@@ -212,7 +193,6 @@ const OfflineScreen: React.FC = () => {
               fullWidth
               isPending={retrying}
               onPress={handleRetry}
-              className="min-h-[48px] rounded-xl font-semibold gap-2"
             >
               {retrying ? (
                 <Spinner size="sm" color="current" />
@@ -238,12 +218,14 @@ const AppRoutes: React.FC = () => {
   if (!authReady) {
     return (
       <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-3xl bg-[var(--surface)] border border-[var(--border)] p-8 space-y-5">
-          <Skeleton className="w-14 h-14 rounded-2xl mx-auto" />
-          <Skeleton className="h-6 w-32 rounded-lg mx-auto" />
-          <Skeleton className="h-4 w-56 rounded-lg mx-auto" />
-          <Skeleton className="h-12 w-full rounded-xl" />
-        </div>
+        <Card className="w-full max-w-md">
+          <Card.Content className="space-y-5">
+            <Skeleton className="w-14 h-14 rounded-2xl mx-auto" />
+            <Skeleton className="h-6 w-32 rounded-lg mx-auto" />
+            <Skeleton className="h-4 w-56 rounded-lg mx-auto" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </Card.Content>
+        </Card>
       </div>
     );
   }
@@ -272,10 +254,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <TrackerProvider>
-        <Toast.Provider
-          placement="bottom"
-          className="max-sm:bottom-[calc(64px+env(safe-area-inset-bottom,0px)+12px)]"
-        />
+        <Toast.Provider placement="bottom" />
         <AppRoutes />
       </TrackerProvider>
     </BrowserRouter>

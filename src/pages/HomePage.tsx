@@ -175,40 +175,44 @@ export const HomePage: React.FC = () => {
                           size="sm"
                           className="w-full"
                         >
-                          <ProgressBar.Track className="h-1 bg-white/25 rounded-full overflow-hidden">
-                            <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+                          <ProgressBar.Track>
+                            <ProgressBar.Fill />
                           </ProgressBar.Track>
                         </ProgressBar>
                       </div>
                     </Link>
 
                     {quickMarkEpisodeKey ? (
-                      <Button
-                        variant="ghost"
-                        isIconOnly
-                        onPress={() => {
-                          void toggleEpisode(title.id, quickMarkEpisodeKey);
-                        }}
-                        aria-label={zh.home.markNextWatchedAria(
-                          primary,
-                          quickMarkEpisodeKey.toUpperCase()
-                        )}
-                        className="absolute right-3 bottom-5 z-10 min-w-[44px] min-h-[44px] rounded-xl bg-white/15 hover:bg-[var(--accent)] backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
+                      <div className="absolute right-3 bottom-5 z-10">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          isIconOnly
+                          onPress={() => {
+                            void toggleEpisode(title.id, quickMarkEpisodeKey);
+                          }}
+                          aria-label={zh.home.markNextWatchedAria(
+                            primary,
+                            quickMarkEpisodeKey.toUpperCase()
+                          )}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      </div>
                     ) : title.mediaType === 'movie' ? (
-                      <Button
-                        variant="ghost"
-                        isIconOnly
-                        onPress={() => {
-                          void markWholeTitle(title.id, true);
-                        }}
-                        aria-label={zh.home.markMovieWatchedAria(primary)}
-                        className="absolute right-3 bottom-5 z-10 min-w-[44px] min-h-[44px] rounded-xl bg-white/15 hover:bg-[var(--accent)] backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
+                      <div className="absolute right-3 bottom-5 z-10">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          isIconOnly
+                          onPress={() => {
+                            void markWholeTitle(title.id, true);
+                          }}
+                          aria-label={zh.home.markMovieWatchedAria(primary)}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
                 );
@@ -298,8 +302,8 @@ export const HomePage: React.FC = () => {
                       size="sm"
                       className="w-full"
                     >
-                      <ProgressBar.Track className="h-1 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
-                        <ProgressBar.Fill className="h-full bg-[var(--accent)] rounded-full" />
+                      <ProgressBar.Track>
+                        <ProgressBar.Fill />
                       </ProgressBar.Track>
                     </ProgressBar>
                   </Link>
@@ -335,31 +339,30 @@ export const HomePage: React.FC = () => {
             variant="secondary"
             size="sm"
             onPress={() => navigate('/search')}
-            className="gap-1.5 font-medium"
           >
             <Plus className="w-4 h-4" />
             <span>{zh.library.addMediaButton}</span>
           </Button>
           <Button
             variant="secondary"
+            size="sm"
             isIconOnly
             onPress={() => navigate('/settings')}
             aria-label={zh.settings.title}
-            className="w-11 h-11 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-secondary)] transition-colors"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4" />
           </Button>
         </div>
       </header>
 
       {loadingData ? (
         <div className="space-y-6" aria-label={zh.home.loadingAria}>
-          <Skeleton className="h-6 w-32 rounded-lg bg-[var(--surface-secondary)]" />
+          <Skeleton className="h-6 w-32 rounded-lg" />
           <div className="flex gap-4 overflow-hidden">
             {[0, 1, 2].map((i) => (
               <Skeleton
                 key={i}
-                className="w-[280px] sm:w-[320px] aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] shrink-0"
+                className="w-[280px] sm:w-[320px] aspect-video rounded-2xl shrink-0"
               />
             ))}
           </div>
@@ -376,7 +379,7 @@ export const HomePage: React.FC = () => {
             {zh.home.emptyLibraryDescription}
           </p>
           <div className="pt-2">
-            <Button variant="primary" onPress={() => navigate('/search')} className="gap-2">
+            <Button variant="primary" onPress={() => navigate('/search')}>
               <Plus className="w-4 h-4" />
               <span>{zh.home.emptyLibraryCta}</span>
             </Button>

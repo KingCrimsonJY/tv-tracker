@@ -77,84 +77,76 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
       <Modal.Container size="sm" placement="center">
-        <Modal.Dialog className="bg-[var(--overlay)] border border-[var(--border)] rounded-2xl p-6 text-[var(--foreground)] outline-none">
+        <Modal.Dialog>
           <Modal.Header>
-            <Modal.Heading className="text-base font-semibold">
-              {zh.detail.resumeModal.title}
-            </Modal.Heading>
+            <Modal.Heading>{zh.detail.resumeModal.title}</Modal.Heading>
           </Modal.Header>
-          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-            {(title.mediaType === 'tv' || regularSeasons.length > 0) && (
-              <Select
-                selectedKey={episodeKey}
-                onSelectionChange={(key) => {
-                  if (key != null) setEpisodeKey(String(key));
+          <form onSubmit={handleSubmit}>
+            <Modal.Body className="space-y-4">
+              {(title.mediaType === 'tv' || regularSeasons.length > 0) && (
+                <Select
+                  selectedKey={episodeKey}
+                  onSelectionChange={(key) => {
+                    if (key != null) setEpisodeKey(String(key));
+                  }}
+                  variant="secondary"
+                  fullWidth
+                >
+                  <Label>{zh.detail.resumeModal.episodeLabel}</Label>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox aria-label={zh.detail.resumeModal.episodeLabel}>
+                      {regularSeasons.flatMap((s) =>
+                        s.episodes.map((ep) => {
+                          const label =
+                            zh.detail.resumeModal.episodeSelectOption(
+                              s.seasonNumber,
+                              ep.number,
+                              ep.name ||
+                                zh.detail.seasons.episodeDefaultName(ep.number)
+                            );
+                          return (
+                            <ListBox.Item
+                              key={ep.key}
+                              id={ep.key}
+                              textValue={label}
+                            >
+                              <Label>{label}</Label>
+                              <ListBox.ItemIndicator />
+                            </ListBox.Item>
+                          );
+                        })
+                      )}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              )}
+
+              <TextField
+                value={timeInput}
+                onChange={(val) => {
+                  setTimeInput(val);
+                  setError(null);
                 }}
+                isInvalid={Boolean(error)}
+                variant="secondary"
                 fullWidth
               >
-                <Label className="block text-xs text-[var(--muted)] mb-1.5">
-                  {zh.detail.resumeModal.episodeLabel}
-                </Label>
-                <Select.Trigger className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] flex items-center justify-between">
-                  <Select.Value className="truncate" />
-                  <Select.Indicator />
-                </Select.Trigger>
-                <Select.Popover className="bg-[var(--overlay)] border border-[var(--border)] rounded-xl p-1 max-h-64 overflow-y-auto">
-                  <ListBox aria-label={zh.detail.resumeModal.episodeLabel}>
-                    {regularSeasons.flatMap((s) =>
-                      s.episodes.map((ep) => {
-                        const label = zh.detail.resumeModal.episodeSelectOption(
-                          s.seasonNumber,
-                          ep.number,
-                          ep.name ||
-                            zh.detail.seasons.episodeDefaultName(ep.number)
-                        );
-                        return (
-                          <ListBox.Item
-                            key={ep.key}
-                            id={ep.key}
-                            textValue={label}
-                            className="px-3 py-2 rounded-lg text-xs text-[var(--foreground)] hover:bg-[var(--surface-secondary)] cursor-pointer outline-none"
-                          >
-                            {label}
-                          </ListBox.Item>
-                        );
-                      })
-                    )}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            )}
+                <Label>{zh.detail.resumeModal.timeLabel}</Label>
+                <Input placeholder={zh.detail.resumeModal.timePlaceholder} />
+                {title.runtimeMin && (
+                  <Description>
+                    {zh.detail.resumeModal.runtimeHint(title.runtimeMin)}
+                  </Description>
+                )}
+                {error && <FieldError>{error}</FieldError>}
+              </TextField>
+            </Modal.Body>
 
-            <TextField
-              value={timeInput}
-              onChange={(val) => {
-                setTimeInput(val);
-                setError(null);
-              }}
-              isInvalid={Boolean(error)}
-              fullWidth
-            >
-              <Label className="block text-xs text-[var(--muted)] mb-1.5">
-                {zh.detail.resumeModal.timeLabel}
-              </Label>
-              <Input
-                placeholder={zh.detail.resumeModal.timePlaceholder}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)] tabular-nums"
-              />
-              {title.runtimeMin && (
-                <Description className="mt-1 text-xs text-[var(--muted)]">
-                  {zh.detail.resumeModal.runtimeHint(title.runtimeMin)}
-                </Description>
-              )}
-              {error && (
-                <FieldError className="mt-1 text-xs text-[var(--danger)]">
-                  {error}
-                </FieldError>
-              )}
-            </TextField>
-
-            <div className="flex items-center justify-between gap-2 pt-2">
+            <Modal.Footer className="justify-between">
               {title.resume && (
                 <Button
                   type="button"
@@ -181,7 +173,7 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
                   {zh.detail.resumeModal.saveButton}
                 </Button>
               </div>
-            </div>
+            </Modal.Footer>
           </form>
         </Modal.Dialog>
       </Modal.Container>

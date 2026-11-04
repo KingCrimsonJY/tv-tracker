@@ -88,28 +88,15 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             }}
             isInvalid={Boolean(linkError)}
             isRequired
+            variant="secondary"
             fullWidth
           >
-            <Label className="block text-xs text-[var(--muted)] mb-1.5">
-              {zh.search.linkImport.urlLabel}
-            </Label>
-            <Input
-              placeholder={zh.search.linkImport.urlPlaceholder}
-              className="w-full h-11 px-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-            />
-            {linkError && (
-              <FieldError className="mt-1 text-xs text-[var(--danger)]">
-                {linkError}
-              </FieldError>
-            )}
+            <Label>{zh.search.linkImport.urlLabel}</Label>
+            <Input placeholder={zh.search.linkImport.urlPlaceholder} />
+            {linkError && <FieldError>{linkError}</FieldError>}
           </TextField>
 
-          <Button
-            type="submit"
-            variant="primary"
-            isPending={parsingLink}
-            className="gap-2"
-          >
+          <Button type="submit" variant="primary" isPending={parsingLink}>
             {parsingLink && <Spinner size="sm" color="current" />}
             <span>
               {parsingLink
@@ -121,12 +108,10 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
       </section>
 
       {parsedResult?.warning && (
-        <Alert status="warning" className="rounded-2xl">
+        <Alert status="warning">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Description className="text-xs sm:text-sm">
-              {parsedResult.warning}
-            </Alert.Description>
+            <Alert.Description>{parsedResult.warning}</Alert.Description>
           </Alert.Content>
         </Alert>
       )}
@@ -160,7 +145,6 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
               <Button
                 variant="primary"
                 onPress={() => onSearchTmdb(parsedResult.title)}
-                className="gap-2"
               >
                 <Search className="w-4 h-4" />
                 <span>

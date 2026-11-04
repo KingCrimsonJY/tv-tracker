@@ -2,7 +2,7 @@ import React from 'react';
 import { GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Switch } from '@heroui/react';
+import { Description, Label, Switch } from '@heroui/react';
 import type { HomeSectionConfig } from '../../domain/types.ts';
 import { zh } from '../../i18n/zh.ts';
 
@@ -31,26 +31,30 @@ export const SortableSectionRow: React.FC<{
           : 'bg-[var(--surface-secondary)] border-[var(--border)]'
       }`}
     >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-[var(--foreground)]">{label}</p>
-        <p className="text-xs text-[var(--muted)] mt-0.5 truncate">{desc}</p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <Switch aria-label={label} isSelected={section.enabled} onChange={onToggle}>
+      <Switch
+        isSelected={section.enabled}
+        onChange={onToggle}
+        className="min-w-0 flex-1"
+      >
+        <Switch.Content className="w-full justify-between">
+          <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+            <Label>{label}</Label>
+            <Description className="truncate">{desc}</Description>
+          </div>
           <Switch.Control>
             <Switch.Thumb />
           </Switch.Control>
-        </Switch>
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          aria-label={zh.settings.homeSections.dragHandleAria(label)}
-          className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] cursor-grab active:cursor-grabbing touch-none"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-      </div>
+        </Switch.Content>
+      </Switch>
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={zh.settings.homeSections.dragHandleAria(label)}
+        className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] cursor-grab active:cursor-grabbing touch-none shrink-0"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
     </div>
   );
 };
