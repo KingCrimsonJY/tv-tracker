@@ -28,8 +28,8 @@ docker compose version
 ## 2. 克隆代码与配置环境变量
 
 ```bash
-git clone https://github.com/KingCrimsonJY/zhenji.git
-cd zhenji
+git clone https://github.com/KingCrimsonJY/tv-tracker.git
+cd tv-tracker
 cp .env.example .env
 ```
 
@@ -181,9 +181,9 @@ data/
    ```
 2. 将压缩包传输到新机器，解压到代码目录下：
    ```bash
-   scp zhenji-migration.tar.gz user@new-server:~/zhenji/
+   scp zhenji-migration.tar.gz user@new-server:~/tv-tracker/
    # 在新机器上：
-   cd ~/zhenji
+   cd ~/tv-tracker
    tar -xzf zhenji-migration.tar.gz
    docker compose up -d --build
    ```

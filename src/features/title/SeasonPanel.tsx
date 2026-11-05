@@ -44,64 +44,70 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
   if (regularSeasons.length === 0) return null;
 
   const activeSeasonKey = String(currentSeason?.seasonNumber ?? selectedSeasonNum);
+  const isSingleSeasonCustomOrUrl =
+    (title.source === 'custom' || title.source === 'url') &&
+    regularSeasons.length === 1;
 
   const renderSeasonCard = (
     season: SeasonDoc,
-    seasonState: ComputedSeasonState
+    seasonState: ComputedSeasonState,
+    hideHeader = false
   ) => (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-      <div className="p-4 sm:p-5 border-b border-[var(--separator)] flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1.5 flex-1 min-w-[200px]">
-          <div className="flex items-center justify-between text-xs sm:text-sm font-medium">
-            <span className="text-[var(--foreground)]">
-              {season.name || zh.detail.seasons.tabLabel(season.seasonNumber)}
-            </span>
-            <span className="text-[var(--muted)] tabular-nums">
-              {zh.detail.seasons.progressText(
-                seasonState.watchedCount,
-                seasonState.airedCount
-              )}
-            </span>
+      {!hideHeader && (
+        <div className="p-4 sm:p-5 border-b border-[var(--separator)] flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1.5 flex-1 min-w-[200px]">
+            <div className="flex items-center justify-between text-xs sm:text-sm font-medium">
+              <span className="text-[var(--foreground)]">
+                {season.name || zh.detail.seasons.tabLabel(season.seasonNumber)}
+              </span>
+              <span className="text-[var(--muted)] tabular-nums">
+                {zh.detail.seasons.progressText(
+                  seasonState.watchedCount,
+                  seasonState.airedCount
+                )}
+              </span>
+            </div>
+            <ProgressBar
+              aria-label={zh.detail.seasons.progressAria(season.seasonNumber)}
+              value={
+                seasonState.airedCount > 0
+                  ? Math.round(
+                      (seasonState.watchedCount / seasonState.airedCount) * 100
+                    )
+                  : 0
+              }
+              size="sm"
+              className="w-full"
+            >
+              <ProgressBar.Track>
+                <ProgressBar.Fill />
+              </ProgressBar.Track>
+            </ProgressBar>
           </div>
-          <ProgressBar
-            aria-label={zh.detail.seasons.progressAria(season.seasonNumber)}
-            value={
-              seasonState.airedCount > 0
-                ? Math.round(
-                    (seasonState.watchedCount / seasonState.airedCount) * 100
-                  )
-                : 0
-            }
-            size="sm"
-            className="w-full"
-          >
-            <ProgressBar.Track>
-              <ProgressBar.Fill />
-            </ProgressBar.Track>
-          </ProgressBar>
-        </div>
 
-        {seasonState.airedCount > 0 && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() =>
-              onToggleSeasonWatched(
-                season.seasonNumber,
-                seasonState.state !== 'complete'
-              )
-            }
-            className="shrink-0"
-          >
-            <CheckCheck className="w-4 h-4" />
-            <span>
-              {seasonState.state === 'complete'
-                ? zh.detail.seasons.unmarkWholeSeason
-                : zh.detail.seasons.markWholeSeason}
-            </span>
-          </Button>
-        )}
-      </div>
+          {seasonState.airedCount > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() =>
+                onToggleSeasonWatched(
+                  season.seasonNumber,
+                  seasonState.state !== 'complete'
+                )
+              }
+              className="shrink-0"
+            >
+              <CheckCheck className="w-4 h-4" />
+              <span>
+                {seasonState.state === 'complete'
+                  ? zh.detail.seasons.unmarkWholeSeason
+                  : zh.detail.seasons.markWholeSeason}
+              </span>
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Episode List */}
       <div className="divide-y divide-[var(--separator)]">
@@ -125,8 +131,11 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
 
   return (
     <section className="space-y-4">
-      {/* Season Selector: Tabs if <= 6 seasons, otherwise Select */}
-      {regularSeasons.length <= 6 ? (
+      {isSingleSeasonCustomOrUrl ? (
+        currentSeason &&
+        currentSeasonState &&
+        renderSeasonCard(currentSeason, currentSeasonState, true)
+      ) : regularSeasons.length <= 6 ? (
         <Tabs
           selectedKey={activeSeasonKey}
           onSelectionChange={(key) => onSelectSeason(Number(key))}

@@ -288,6 +288,7 @@ export const zh = {
       unairedNoDate: '尚未开播',
       runtimeMinutes: (mins: number) => `${mins} 分钟`,
       seasonCountMeta: (count: number) => `共 ${count} 季`,
+      episodeCountMeta: (count: number) => `共 ${count} 集`,
       checkEpisodeAria: (s: number, e: number, watched: boolean) =>
         `${watched ? '取消已看' : '标记已看'} 第${s}季第${e}集`,
       episodeMoreAria: (s: number, e: number) => `第${s}季第${e}集更多操作`,
@@ -382,7 +383,7 @@ export const zh = {
       ytdlpLabel: 'yt-dlp',
       ytdlpNotInstalled: '未安装',
       githubLabel: 'GitHub 仓库',
-      githubUrl: 'https://github.com/KingCrimsonJY/zhenji',
+      githubUrl: 'https://github.com/KingCrimsonJY/tv-tracker',
       tmdbNotice: 'This product uses the TMDB API but is not endorsed or certified by TMDB.',
     },
   },

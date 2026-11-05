@@ -162,8 +162,13 @@ export function useTitleDetail(titleId: string | undefined) {
     const parts: string[] = [];
     if (title.year) parts.push(String(title.year));
     parts.push(zh.mediaType[title.mediaType]);
+    const isSingleSeasonCustomOrUrl =
+      (title.source === 'custom' || title.source === 'url') &&
+      regularSeasons.length === 1;
     if (title.mediaType === 'movie' && title.runtimeMin) {
       parts.push(zh.detail.seasons.runtimeMinutes(title.runtimeMin));
+    } else if (isSingleSeasonCustomOrUrl) {
+      parts.push(zh.detail.seasons.episodeCountMeta(regularSeasons[0].episodes.length));
     } else if (regularSeasons.length > 0) {
       parts.push(zh.detail.seasons.seasonCountMeta(regularSeasons.length));
     }
@@ -171,7 +176,7 @@ export function useTitleDetail(titleId: string | undefined) {
       parts.push(title.genres.slice(0, 2).join(' / '));
     }
     return parts;
-  }, [title, regularSeasons.length]);
+  }, [title, regularSeasons]);
 
   const openResumeModal = (epKey?: string) => {
     if (!title || !state) return;
