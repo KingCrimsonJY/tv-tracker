@@ -1,0 +1,128 @@
+{
+  "_type": "playlist",
+  "id": "1528924",
+  "title": "【官方双语】线性代数的本质 - 合集",
+  "description": "线性代数的本质系列合集，赋予矩阵、行列式、特征向量等核心概念直观的几何意义。",
+  "uploader": "3Blue1Brown",
+  "uploader_id": "88461692",
+  "webpage_url": "https://space.bilibili.com/88461692/lists/1528924?type=season",
+  "thumbnail": "https://i.ytimg.com/vi/k7RM-ot2NWY/maxresdefault.jpg",
+  "extractor": "BilibiliSpaceList",
+  "extractor_key": "BilibiliSpaceList",
+  "playlist_count": 16,
+  "upload_date": "20160825",
+  "entries": [
+    {
+      "id": "BV1ys411472E_p1",
+      "title": "00 - 序言：线性代数的本质",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=1",
+      "duration": 267,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p2",
+      "title": "01 - 向量究竟是什么？",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=2",
+      "duration": 592,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p3",
+      "title": "02 - 线性组合、张成的空间与基",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=3",
+      "duration": 599,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p4",
+      "title": "03 - 矩阵与线性变换",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=4",
+      "duration": 659,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p5",
+      "title": "04 - 矩阵乘法与线性变换复合",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=5",
+      "duration": 603,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p6",
+      "title": "05 - 三维空间中的线性变换",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=6",
+      "duration": 285,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p7",
+      "title": "06 - 行列式",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=7",
+      "duration": 603,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p8",
+      "title": "07 - 逆矩阵、列空间与零空间",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=8",
+      "duration": 729,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p9",
+      "title": "08 - 非方阵",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=9",
+      "duration": 267,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p10",
+      "title": "09 - 点积与对偶性",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=10",
+      "duration": 891,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p11",
+      "title": "10 - 叉积的标准介绍",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=11",
+      "duration": 533,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p12",
+      "title": "11 - 以线性变换的眼光看叉积",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=12",
+      "duration": 790,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p13",
+      "title": "12 - 基变换",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=13",
+      "duration": 771,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p14",
+      "title": "13 - 特征向量与特征值",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=14",
+      "duration": 1035,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p15",
+      "title": "14 - 特征值速算技巧",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=15",
+      "duration": 962,
+      "ie_key": "BiliBili"
+    },
+    {
+      "id": "BV1ys411472E_p16",
+      "title": "15 - 抽象向量空间",
+      "url": "https://www.bilibili.com/video/BV1ys411472E?p=16",
+      "duration": 986,
+      "ie_key": "BiliBili"
+    }
+  ]
+}

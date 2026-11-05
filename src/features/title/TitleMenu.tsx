@@ -9,10 +9,12 @@ import {
   PauseCircle,
   Play,
   RefreshCw,
+  RotateCcw,
   Trash2,
 } from 'lucide-react';
-import { Button, Drawer } from '@heroui/react';
+import { AlertDialog, Button, Drawer } from '@heroui/react';
 import type { UpdateTitleDetailsInput } from '../../context/TrackerContext';
+import type { ComputedTitleState } from '../../domain/progress';
 import type {
   DisplayLang,
   ListEntryDoc,
@@ -25,6 +27,7 @@ import { TitleModals } from './TitleModals';
 
 interface TitleMenuProps {
   title: TitleDoc;
+  state: ComputedTitleState;
   menuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
   langModalOpen: boolean;
@@ -37,6 +40,7 @@ interface TitleMenuProps {
   entriesByList: Record<string, ListEntryDoc[]>;
   onOpenResumeModal: () => void;
   onMarkWholeTitleWatched: () => Promise<void>;
+  onCancelRewatch: () => Promise<void>;
   onSetManualState: (state: ManualState) => Promise<void>;
   onRefreshMetadata: () => Promise<void>;
   onRefreshPlaylist?: () => Promise<void>;
@@ -49,6 +53,7 @@ interface TitleMenuProps {
 
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
+  state,
   menuOpen,
   onMenuOpenChange,
   langModalOpen,
@@ -61,6 +66,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
   entriesByList,
   onOpenResumeModal,
   onMarkWholeTitleWatched,
+  onCancelRewatch,
   onSetManualState,
   onRefreshMetadata,
   onRefreshPlaylist,
@@ -71,6 +77,14 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
   onDeleteTitle,
 }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
+
+  const canUndoPlaythrough =
+    title.playthroughs.length > 1 ||
+    state.watchedCount > 0 ||
+    Boolean(title.resume) ||
+    Boolean(title.playthroughs[0]?.completedAt);
+  const isSinglePlaythrough = title.playthroughs.length <= 1;
 
   return (
     <>
@@ -121,6 +135,21 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                 <CheckCheck className="w-4 h-4 text-[var(--muted)]" />
                 <span>{zh.detail.menu.markAllWatched}</span>
               </Button>
+
+              {canUndoPlaythrough && (
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onPress={() => {
+                    onMenuOpenChange(false);
+                    setUndoConfirmOpen(true);
+                  }}
+                  className="justify-start gap-3"
+                >
+                  <RotateCcw className="w-4 h-4 text-[var(--muted)]" />
+                  <span>{zh.detail.menu.undoPlaythrough}</span>
+                </Button>
+              )}
 
               {title.manualState !== 'paused' && (
                 <Button
@@ -239,6 +268,49 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
           </Drawer.Dialog>
         </Drawer.Content>
       </Drawer.Backdrop>
+
+      <AlertDialog.Backdrop
+        isOpen={undoConfirmOpen}
+        onOpenChange={setUndoConfirmOpen}
+        isDismissable
+      >
+        <AlertDialog.Container size="sm" placement="center">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Icon status="danger" />
+              <AlertDialog.Heading>
+                {zh.detail.playthroughs.cancelRewatch}
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>
+                {isSinglePlaythrough
+                  ? zh.detail.playthroughs.undoResetFirstConfirm
+                  : zh.detail.playthroughs.cancelRewatchConfirm}
+              </p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => setUndoConfirmOpen(false)}
+              >
+                {zh.app.cancel}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onPress={async () => {
+                  setUndoConfirmOpen(false);
+                  await onCancelRewatch();
+                }}
+              >
+                {zh.app.confirm}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
 
       <TitleModals
         title={title}

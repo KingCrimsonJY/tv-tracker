@@ -372,6 +372,15 @@ export function setResumePoint(
   };
 }
 
+export function renumberPlaythroughsByStartDate(playthroughs: Playthrough[]): Playthrough[] {
+  return [...playthroughs]
+    .sort((a, b) => a.startedAt - b.startedAt || a.number - b.number)
+    .map((p, idx) => ({
+      ...p,
+      number: idx + 1,
+    }));
+}
+
 export function startRewatch(
   title: ActionTitleInput,
   seasons: SeasonDoc[],
@@ -393,31 +402,64 @@ export function startRewatch(
     throw new Error('Can only start a rewatch when status is 已看完 or 已追平');
   }
 
-  const maxNumber = title.playthroughs.reduce((max, p) => Math.max(max, p.number), 0);
+  const ordered = renumberPlaythroughsByStartDate(title.playthroughs);
   const newPlaythrough: Playthrough = {
     id: newPlaythroughId,
-    number: maxNumber + 1,
+    number: ordered.length + 1,
     startedAt: now,
   };
+  const nextPlaythroughs = renumberPlaythroughsByStartDate([...ordered, newPlaythrough]);
 
   return {
     manualState: null,
     resume: null,
-    playthroughs: [...title.playthroughs, newPlaythrough],
+    playthroughs: nextPlaythroughs,
     activePlaythroughId: newPlaythrough.id,
     progress: { playthroughId: newPlaythrough.id, watched: {} },
   };
 }
 
-export function cancelRewatch(
+export interface UndoPlaythroughResult extends MutationResult {
+  removedPlaythroughId?: string;
+  clearedPlaythroughId?: string;
+}
+
+export function undoLatestPlaythrough(
   title: Pick<TitleDoc, 'playthroughs' | 'activePlaythroughId' | 'manualState' | 'resume'>,
   progressByPlaythrough: Record<string, ProgressDoc> = {}
-): MutationResult & { removedPlaythroughId: string } {
-  if (title.playthroughs.length <= 1) {
-    throw new Error('Cannot cancel the initial playthrough');
+): UndoPlaythroughResult {
+  const ordered = renumberPlaythroughsByStartDate(title.playthroughs);
+
+  if (ordered.length <= 1) {
+    const only = ordered[0] ?? {
+      id: title.activePlaythroughId || 'p1',
+      number: 1,
+      startedAt: 0,
+    };
+    const { completedAt: _removed, ...restOnly } = only;
+    const resetPlaythrough: Playthrough = {
+      ...restOnly,
+      number: 1,
+    };
+    const emptyProgress: ProgressDoc = {
+      playthroughId: resetPlaythrough.id,
+      watched: {},
+    };
+    return {
+      manualState: null,
+      resume: null,
+      playthroughs: [resetPlaythrough],
+      activePlaythroughId: resetPlaythrough.id,
+      progress: emptyProgress,
+      removedPlaythroughId: undefined,
+      clearedPlaythroughId: resetPlaythrough.id,
+    };
   }
-  const removedPlaythroughId = title.activePlaythroughId;
-  const remaining = title.playthroughs.filter((p) => p.id !== removedPlaythroughId);
+
+  const latest = ordered[ordered.length - 1];
+  const remaining = renumberPlaythroughsByStartDate(
+    ordered.filter((p) => p.id !== latest.id)
+  );
   const restored = remaining[remaining.length - 1];
   const restoredProgress = progressByPlaythrough?.[restored.id] ?? {
     playthroughId: restored.id,
@@ -430,6 +472,63 @@ export function cancelRewatch(
     playthroughs: remaining,
     activePlaythroughId: restored.id,
     progress: restoredProgress,
-    removedPlaythroughId,
+    removedPlaythroughId: latest.id,
+    clearedPlaythroughId: undefined,
+  };
+}
+
+export const cancelRewatch = undoLatestPlaythrough;
+
+export function deletePlaythrough(
+  title: Pick<TitleDoc, 'playthroughs' | 'activePlaythroughId' | 'manualState' | 'resume'>,
+  playthroughId: string,
+  progressByPlaythrough: Record<string, ProgressDoc> = {}
+): UndoPlaythroughResult {
+  const ordered = renumberPlaythroughsByStartDate(title.playthroughs);
+  const exists = ordered.some((p) => p.id === playthroughId);
+  if (!exists) {
+    const activeProg = progressByPlaythrough?.[title.activePlaythroughId] ?? {
+      playthroughId: title.activePlaythroughId,
+      watched: {},
+    };
+    return {
+      manualState: title.manualState,
+      resume: title.resume,
+      playthroughs: ordered,
+      activePlaythroughId: title.activePlaythroughId,
+      progress: activeProg,
+    };
+  }
+
+  if (ordered.length <= 1) {
+    return undoLatestPlaythrough(title, progressByPlaythrough);
+  }
+
+  const remaining = renumberPlaythroughsByStartDate(
+    ordered.filter((p) => p.id !== playthroughId)
+  );
+  const isDeletingActiveOrLatest =
+    playthroughId === title.activePlaythroughId ||
+    playthroughId === ordered[ordered.length - 1].id;
+
+  const nextActiveId = isDeletingActiveOrLatest
+    ? remaining[remaining.length - 1].id
+    : remaining.some((p) => p.id === title.activePlaythroughId)
+      ? title.activePlaythroughId
+      : remaining[remaining.length - 1].id;
+
+  const nextProgress = progressByPlaythrough?.[nextActiveId] ?? {
+    playthroughId: nextActiveId,
+    watched: {},
+  };
+
+  return {
+    manualState: title.manualState,
+    resume: isDeletingActiveOrLatest ? null : title.resume,
+    playthroughs: remaining,
+    activePlaythroughId: nextActiveId,
+    progress: nextProgress,
+    removedPlaythroughId: playthroughId,
+    clearedPlaythroughId: undefined,
   };
 }

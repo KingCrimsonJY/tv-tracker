@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRandomId } from '../domain/id.ts';
-import type { AppStateSnapshot, SeasonDoc, TitleDoc } from '../domain/types.ts';
+import type {
+  AppStateSnapshot,
+  SeasonDoc,
+  StateMutationResult,
+  TitleDoc,
+} from '../domain/types.ts';
 import * as api from './api.ts';
 import { createTrackerActions } from './actions.ts';
 import {
@@ -326,6 +331,108 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     expect(typeof finalWatched.s1e2).toBe('number');
     expect(toasts).toHaveLength(1);
     expect(refetchCalls).toBe(1);
+  });
+  it('undoing 3rd -> 2nd -> 1st -> 未看 and deleting a middle playthrough each send one atomic POST /api/titles/:id/actions', async () => {
+    const store = createTrackerStore();
+    const { snapshot, title } = makeFixtureState();
+    store.applySnapshot({
+      ...snapshot,
+      titles: {
+        tmdb_tv_1: {
+          ...title,
+          showStatus: 'Ended',
+          manualState: null,
+          playthroughs: [
+            { id: 'p1', number: 1, startedAt: 1000, completedAt: 1500 },
+            { id: 'p2', number: 2, startedAt: 2000, completedAt: 2500 },
+            { id: 'p3', number: 3, startedAt: 3000, completedAt: 3500 },
+          ],
+          activePlaythroughId: 'p3',
+        },
+      },
+      progressByTitle: {
+        tmdb_tv_1: {
+          p1: { playthroughId: 'p1', watched: { s1e1: 1100, s1e2: 1200, s1e3: 1300 } },
+          p2: { playthroughId: 'p2', watched: { s1e1: 2100, s1e2: 2200, s1e3: 2300 } },
+          p3: { playthroughId: 'p3', watched: { s1e1: 3100, s1e2: 3200, s1e3: 3300 } },
+        },
+      },
+    });
+
+    let serverVersion = 1;
+    const postSpy = vi
+      .spyOn(api, 'postTitleActionApi')
+      .mockImplementation(async (titleId, payload) => {
+        serverVersion += 1;
+        const curr = store.getState();
+        const currTitle = curr.titles[titleId];
+        const upserts: StateMutationResult['upserts'] = {};
+        const deletes: StateMutationResult['deletes'] = {};
+
+        if (payload.progress?.deletePlaythroughId) {
+          deletes.progress = [
+            { titleId, playthroughId: payload.progress.deletePlaythroughId },
+          ];
+        }
+        if (payload.progress?.playthroughId) {
+          const ptId = payload.progress.playthroughId;
+          upserts.progressByTitle = {
+            [titleId]: {
+              [ptId]: {
+                playthroughId: ptId,
+                watched: payload.progress.replaceWatched ?? {},
+              },
+            },
+          };
+        }
+        if (payload.title && currTitle) {
+          upserts.titles = {
+            [titleId]: {
+              ...currTitle,
+              ...payload.title,
+              id: titleId,
+            },
+          };
+        }
+        return {
+          epoch: 'epoch-1',
+          version: serverVersion,
+          upserts,
+          deletes,
+        };
+      });
+
+    const actions = createTrackerActions({
+      getState: store.getState,
+      setState: store.setState,
+      applyServerMutation: (mut) => {
+        store.applyMutation(mut);
+      },
+      showToast: () => {},
+    });
+
+    // Undo 3rd -> 2nd
+    await actions.cancelTitleRewatch('tmdb_tv_1');
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(store.getState().titles['tmdb_tv_1'].activePlaythroughId).toBe('p2');
+    expect(store.getState().titles['tmdb_tv_1'].playthroughs).toHaveLength(2);
+    expect(store.getState().titles['tmdb_tv_1'].playthroughs[1].completedAt).toBe(2500);
+    expect(store.getState().progressByTitle['tmdb_tv_1'].p3).toBeUndefined();
+
+    // Undo 2nd -> 1st
+    await actions.cancelTitleRewatch('tmdb_tv_1');
+    expect(postSpy).toHaveBeenCalledTimes(2);
+    expect(store.getState().titles['tmdb_tv_1'].activePlaythroughId).toBe('p1');
+    expect(store.getState().titles['tmdb_tv_1'].playthroughs).toHaveLength(1);
+    expect(store.getState().titles['tmdb_tv_1'].playthroughs[0].completedAt).toBe(1500);
+
+    // Undo 1st -> 未看 (clears progress and completedAt)
+    await actions.cancelTitleRewatch('tmdb_tv_1');
+    expect(postSpy).toHaveBeenCalledTimes(3);
+    expect(store.getState().titles['tmdb_tv_1'].activePlaythroughId).toBe('p1');
+    expect(store.getState().titles['tmdb_tv_1'].playthroughs).toHaveLength(1);
+    expect(store.getState().titles['tmdb_tv_1'].playthroughs[0].completedAt).toBeUndefined();
+    expect(store.getState().progressByTitle['tmdb_tv_1'].p1.watched).toEqual({});
   });
 });
 

@@ -89,6 +89,7 @@ export interface TrackerContextValue {
   ) => Promise<void>;
   startTitleRewatch: (titleId: string) => Promise<void>;
   cancelTitleRewatch: (titleId: string) => Promise<void>;
+  deleteTitlePlaythrough: (titleId: string, playthroughId: string) => Promise<void>;
   createList: (input: {
     name: string;
     kind: ListKind;

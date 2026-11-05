@@ -2,9 +2,10 @@
 
 # 帧迹 Zhenji
 
-**A personal, self-hosted movie & TV watch progress tracker — cinematic UI, portable single-file SQLite storage, and real-time multi-device sync.**
+**A personal, self-hosted movie & TV watch progress tracker — HeroUI v3 cinematic interface, portable single-file SQLite storage, and real-time multi-device sync.**
 
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![HeroUI v3](https://img.shields.io/badge/HeroUI-v3-006FEE)](https://heroui.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x_Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-node%3Asqlite-003B57?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](./Dockerfile)
@@ -18,17 +19,17 @@
 
 ## Screenshots
 
-### Mobile (`390×844` · `@2x`)
+### Mobile (`390×844`)
 
-| Home (Dark) | Title Detail (Hero) | Episode Progress |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/phone-home.webp" alt="Mobile Home (Dark)" width="240" /> | <img src="docs/screenshots/phone-detail-hero.webp" alt="Mobile Title Detail Hero" width="240" /> | <img src="docs/screenshots/phone-detail-episodes.webp" alt="Mobile Episode List" width="240" /> |
-
-| Ordered List (MCU Watch Order) | Library Grid | Search & Add | Home (Light) |
+| Home (Dark) | Library Grid | Title Detail & Episodes | Ordered List (MCU Watch Order) |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/phone-list.webp" alt="Mobile Ordered List" width="180" /> | <img src="docs/screenshots/phone-library.webp" alt="Mobile Library" width="180" /> | <img src="docs/screenshots/phone-search.webp" alt="Mobile Search" width="180" /> | <img src="docs/screenshots/phone-home-light.webp" alt="Mobile Home (Light)" width="180" /> |
+| <img src="docs/screenshots/phone-home.webp" alt="Mobile Home (Dark)" width="190" /> | <img src="docs/screenshots/phone-library.webp" alt="Mobile Library" width="190" /> | <img src="docs/screenshots/phone-detail.webp" alt="Mobile Title Detail with Season Tabs and Episodes" width="190" /> | <img src="docs/screenshots/phone-list.webp" alt="Mobile Ordered List (Marvel Infinity Saga Watch Order)" width="190" /> |
 
-### Desktop (`1440×900`)
+| Link Import Preview (Playlist) | Playlist Detail & Episodes | Home (Light) |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/phone-link-import.webp" alt="Mobile Link Import Playlist Preview" width="220" /> | <img src="docs/screenshots/phone-playlist-detail.webp" alt="Mobile Playlist Detail with Episodes" width="220" /> | <img src="docs/screenshots/phone-home-light.webp" alt="Mobile Home (Light)" width="220" /> |
+
+### Desktop (`1280×800`)
 
 <p align="center">
   <img src="docs/screenshots/desktop-home.webp" alt="Desktop Home" width="880" />
@@ -46,25 +47,25 @@
 - **Ongoing Show & New Episode Detection**: Catching up on an ongoing series marks it as `已追平` (Caught Up); when new episodes air later, it automatically transitions back to `观看中` with a **有新集 (New Episodes)** badge.
 - **Fast Batch Actions**: Toggle individual aired episodes, mark/unmark an entire season, **Mark up to here** across seasons (never unchecking later episodes), or mark the whole title watched. Unaired episodes are automatically disabled with their scheduled air date.
 - **Resume Timestamps**: Record `mm:ss` or `h:mm:ss` timestamps per movie or episode (e.g., `S2·E5 · 42:15`), validated against known runtime and automatically cleared when that episode is marked watched.
-- **Rewatches (Playthrough History)**: Start a new playthrough (`二刷中`) once a title is Completed or Caught Up while preserving full history (`看过 2 次` with start/completion dates), or cancel a rewatch in progress to restore the previous playthrough.
+- **Rewatch History with Step-by-Step Undo**: Start a new playthrough (`二刷中`) once a title is Completed or Caught Up while preserving full history (`看过 2 次` with start/completion dates). Undo the latest playthrough all the way back (`3rd → 2nd → 1st → 未看` Unwatched), or delete any individual playthrough with automatic renumbering by start date.
 
 ### Lists
-- **Ordered Watch Lists**: Ideal for franchise watch orders (e.g., Marvel Cinematic Universe). Automatically highlights the next unwatched entry and surfaces it in pinned Home cards with completion progress (`6/10`).
+- **Ordered Watch Lists**: Ideal for franchise watch orders (e.g., `漫威无限传奇观影顺序`). Automatically highlights the next unwatched entry (`下一部待看`) and surfaces it in pinned Home cards with completion progress (`3/10`).
 - **Collections**: Poster wall collections with sorting by date added, name, release year, rating, or manual drag-and-drop.
 - **Single-Row Fractional Ordering**: Powered by `fractional-indexing` and `@dnd-kit` with pointer, touch (200ms press handle activation on mobile), and keyboard sensors.
 
 ### Data Sources
 - **TMDB Primary Metadata**: Fetches Simplified Chinese (`zh-CN`), English (`en-US`), and original titles, TMDB ratings, seasons, episodes, air dates, backdrops, posters, and episode stills, refreshing metadata automatically when opening details.
-- **Multi-Source Ratings**: Displays TMDB ratings and queries OMDb by IMDb ID for IMDb, Rotten Tomatoes, and Metacritic ratings (cached for 7 days, fetched lazily on detail open).
-- **Link Import & Custom Items**: Powered by **yt-dlp** (`--dump-single-json --skip-download --flat-playlist`) to import single videos, multi-part videos (分P), collections (合集), and playlists from YouTube, Bilibili, and more (supports pasted share text, incremental playlist refresh to append new episodes, one-tap TMDB search suggestions for bangumi/TV episodes, and automatic Open Graph fallback if `yt-dlp` is not installed).
+- **Multi-Source Ratings**: Displays **TMDB** ratings and queries OMDb by IMDb ID for **IMDb**, **Rotten Tomatoes**, and **Metacritic** ratings (cached for 7 days, fetched lazily on detail open).
+- **yt-dlp Link Import & Custom Items**: Powered by **yt-dlp** (`--dump-single-json --skip-download --flat-playlist`) to import single videos, playlists, collections (合集), and multi-part videos (分P) from YouTube, Bilibili, and more. Supports pasted share text, incremental playlist refresh (`刷新列表`) to append newly published entries without altering existing progress, one-tap TMDB search suggestions when anime/TV series are detected, and automatic Open Graph fallback if `yt-dlp` is unavailable.
 
 ### Real-Time Sync & Security
-- **Server-Sent Events (SSE) & Atomic Actions**: Every mutation executes in a single SQLite transaction, increments `version`, and broadcasts `{ version, epoch, upserts, deletes }` to all connected devices. Optimistic client updates run against an external store (`useSyncExternalStore`) so rapid taps on different episodes never overwrite each other.
-- **Strict Online Policy**: Offline editing is intentionally disabled to prevent multi-device merge conflicts. If the server or SSE stream is unreachable for more than 5 seconds, a full-screen connection guard blocks edits until reconnected.
-- **Single-User Password Auth**: `node:crypto` `scrypt` hashing with random salt and `timingSafeEqual`, one-time first-run setup code, `HttpOnly; SameSite=Lax` 365-day sliding sessions, CSRF `Origin` checks, and per-IP + global login rate limiting.
+- **Server-Sent Events (SSE) & Atomic Actions**: Every mutation executes in a single SQLite transaction, increments `version`, and broadcasts `{ version, epoch, upserts, deletes }` to all connected devices. Optimistic client updates pair with atomic action endpoints (`POST /api/titles/:id/actions`) so multi-step edits commit atomically.
+- **Offline Intentionally Blocked**: Offline editing is disabled by design to prevent multi-device merge conflicts. If the server or SSE stream is unreachable for more than 5 seconds, a full-screen connection guard (`无法连接到服务器`) blocks edits until reconnected.
+- **Single-User Password Auth with Setup Code**: `node:crypto` `scrypt` hashing with random salt and `timingSafeEqual`, one-time first-run setup code (`SETUP_CODE`), `HttpOnly; SameSite=Lax` 365-day sliding sessions, CSRF `Origin` checks, login rate limiting (5 failed attempts per 15 minutes per IP), and SSRF protection.
 
 ### Interface
-- **Cinematic, Image-Led UI**: Inspired by Infuse and the Apple TV app, built with **HeroUI v3** and **Tailwind CSS v4**. Responsive bottom tab bar on phones, navigation rail on tablets, and full sidebar with pinned lists on desktop.
+- **HeroUI v3 Cinematic UI**: Inspired by Infuse and the Apple TV app, built with **HeroUI v3** (`@heroui/react` + `@heroui/styles`) and **Tailwind CSS v4**. Responsive bottom tab bar on phones, navigation rail on tablets, and full sidebar with pinned lists on desktop.
 - **Customization & Themes**: Dark cinema theme by default, plus Light and System modes, configurable default title language, Season 0 specials inclusion toggle, and customizable Home sections.
 - **Installable PWA**: Full Web App Manifest and icons for home-screen installation (`display: standalone`). The service worker caches the app shell only, never `/api/*` responses.
 
@@ -75,7 +76,7 @@
 ### Prerequisites
 - **Node.js `>= 22.13.0`** (**Node.js 24 LTS** recommended; Node's built-in `node:sqlite` module is available without experimental CLI flags starting in Node.js `22.13.0`)
 - **npm `>= 10`**
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Optional for local dev, recommended for Link Import of videos and playlists; bundled automatically in the Docker image, and falls back to Open Graph scraping if absent)
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Optional for local dev, recommended for Link Import of videos and playlists; install locally into `./.bin/yt-dlp` via `npm run setup:ytdlp`, or bundled automatically at `/opt/yt-dlp/yt-dlp` in Docker)
 
 ### Steps
 
@@ -103,7 +104,7 @@ On first start (when no password exists yet), the server generates a random **on
 
 Open `http://localhost:3000`, enter the setup code from the terminal (or the `SETUP_CODE` configured in `.env`), and set a password of at least 10 characters. Once set, the setup endpoint is permanently disabled.
 
-> To generate a pre-populated demo database in `./data-demo` (without touching `./data`), run `npm run seed:demo`.
+> To generate a pre-populated demo database with curated titles, the Marvel watch order, and offline 3Blue1Brown playlist fixtures in `./data-demo` (without touching `./data`), run `npm run seed:demo`.
 
 ---
 
@@ -162,45 +163,6 @@ data/
 
 ---
 
-## Security Notes
-
-- **Single Password with `scrypt`**: Hashed using `node:crypto` `scrypt` with a 16-byte random salt and verified via `crypto.timingSafeEqual`.
-- **Setup Code Protection**: First-run password creation requires the server's `SETUP_CODE`, preventing unauthorized setup if the instance is exposed before initialization.
-- **Hashed Session Tokens & CSRF Protection**: 32-byte random session tokens are stored SHA-256 hashed in SQLite and sent via `HttpOnly; SameSite=Lax` cookies (`Secure` in production). All cookie-authenticated mutating requests verify that the `Origin` header matches the host.
-- **Login Rate Limiting**: Limits failed login attempts to 5 per 15 minutes per client IP, plus a global failure circuit breaker.
-- **Always Serve Over HTTPS**: When accessing across devices or over the internet, always expose the app through an HTTPS tunnel (Cloudflare Tunnel / Tailscale Funnel) or TLS reverse proxy.
-- **No Offline Queueing**: Offline mode is intentionally disabled so multiple devices never diverge or overwrite progress silently.
-
----
-
-## Project Structure
-
-```text
-.
-├── server.ts                  # Unified Express + Vite entrypoint and scheduled maintenance
-├── server/
-│   ├── app.ts                 # Auth, session middleware, CSRF check, SSE broadcast
-│   ├── auth.ts                # scrypt hashing, cookies, and login rate limiter
-│   ├── entityRoutes.ts        # Titles, seasons, progress, atomic actions, lists, settings, export/import
-│   ├── providerRoutes.ts      # TMDB search/details, OMDb ratings, link import routes
-│   ├── db/                    # SQLite repository, transactions, backups, and SQL migrations
-│   ├── providers/             # TMDB, OMDb, yt-dlp link import with SSRF guard
-│   └── scripts/               # set-password CLI and seed-demo script
-├── src/
-│   ├── domain/                # Pure domain logic (progress status, time parser, Zod schemas, types)
-│   ├── data/                  # External store (useSyncExternalStore), optimistic actions, API client
-│   ├── context/               # TrackerContext and SSE real-time synchronization
-│   ├── pages/                 # Home, Library, Lists, ListDetail, TitleDetail, Search, Settings
-│   ├── features/              # Modular screen components
-│   └── i18n/                  # Simplified Chinese UI strings (zh.ts)
-└── docs/
-    ├── deployment.md          # Linux + Docker Compose deployment guide
-    ├── data-format.md         # Portable JSON export format specification
-    └── screenshots/           # Real application screenshots (WebP)
-```
-
----
-
 ## Development
 
 ```bash
@@ -210,7 +172,7 @@ npm run dev
 # Run strict TypeScript typecheck
 npm run lint
 
-# Run Vitest test suite (domain logic, SQLite storage, API routes, SSRF guard, optimistic concurrency)
+# Run Vitest test suite (domain logic, rewatch undo, SQLite storage, API routes, SSRF guard)
 npm test
 
 # Build frontend assets to dist/
@@ -219,10 +181,13 @@ npm run build
 # Start production server
 npm start
 
+# Download and verify standalone yt-dlp binary into ./.bin/yt-dlp
+npm run setup:ytdlp
+
 # Generate an scrypt hash to reset a forgotten password (prompts twice with hidden input)
 npm run set-password
 
-# Build the demo database in ./data-demo (never touches ./data)
+# Build the curated demo database in ./data-demo (never touches ./data)
 npm run seed:demo
 ```
 
@@ -240,7 +205,7 @@ npm run seed:demo
 
 - **[The Movie Database (TMDB)](https://www.themoviedb.org/)**: Primary source for movie & TV metadata, localized titles, TMDB ratings, season/episode listings, posters, and backdrops.
 - **[OMDb API](https://www.omdbapi.com/)**: Provides IMDb, Rotten Tomatoes, and Metacritic ratings.
-- **Open-Source Libraries**: Built with [React 19](https://react.dev/), [HeroUI v3](https://heroui.com/), [Tailwind CSS v4](https://tailwindcss.com/), [@dnd-kit](https://dndkit.com/), [Lucide Icons](https://lucide.dev/), and [Zod](https://zod.dev/).
+- **Open-Source Libraries**: Built with [React 19](https://react.dev/), [HeroUI v3](https://heroui.com/), [Tailwind CSS v4](https://tailwindcss.com/), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [@dnd-kit](https://dndkit.com/), [Lucide Icons](https://lucide.dev/), and [Zod](https://zod.dev/).
 
 ---
 

@@ -4,11 +4,13 @@ import { assertSafePublicUrl, isPrivateOrReservedIp } from '../../server/securit
 import {
   cancelRewatch,
   computeTitleState,
+  deletePlaythrough,
   markUpToEpisode,
   markWholeTitleWatched,
   setSeasonWatched,
   startRewatch,
   toggleEpisodeWatched,
+  undoLatestPlaythrough,
 } from './progress.ts';
 import { makeBaseTvTitle, makeSampleSeasons } from './progress.test.ts';
 import type { ProgressDoc, SeasonDoc, TitleDoc } from './types.ts';
@@ -302,4 +304,227 @@ registerTest('7. SSRF protection rejects private, loopback, link-local IPs and n
     { address: '93.184.216.34' },
   ]);
   assert.equal(valid.hostname, 'www.bilibili.com');
+});
+
+registerTest('8. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
+  const seasons = [makeSampleSeasons()[1]]; // Season 1 with s1e1, s1e2, s1e3
+  const p1Progress: ProgressDoc = {
+    playthroughId: 'p1',
+    watched: { s1e1: 1100, s1e2: 1200, s1e3: 1300 },
+  };
+  const p2Progress: ProgressDoc = {
+    playthroughId: 'p2',
+    watched: { s1e1: 2100, s1e2: 2200, s1e3: 2300 },
+  };
+  const p3Progress: ProgressDoc = {
+    playthroughId: 'p3',
+    watched: { s1e1: 3100 },
+  };
+
+  const title3rd = makeBaseTvTitle({
+    showStatus: 'Ended',
+    playthroughs: [
+      { id: 'p1', number: 1, startedAt: 1000, completedAt: 1500 },
+      { id: 'p2', number: 2, startedAt: 2000, completedAt: 2500 },
+      { id: 'p3', number: 3, startedAt: 3000 },
+    ],
+    activePlaythroughId: 'p3',
+    resume: { episodeKey: 's1e2', seconds: 600, updatedAt: 3200 },
+  });
+
+  // Step 1: Undo 3rd watch -> back to completed 2nd watch
+  const undo3to2 = undoLatestPlaythrough(title3rd, {
+    p1: p1Progress,
+    p2: p2Progress,
+    p3: p3Progress,
+  });
+  assert.equal(undo3to2.removedPlaythroughId, 'p3');
+  assert.equal(undo3to2.clearedPlaythroughId, undefined);
+  assert.equal(undo3to2.activePlaythroughId, 'p2');
+  assert.equal(undo3to2.playthroughs.length, 2);
+  assert.equal(undo3to2.playthroughs[1].id, 'p2');
+  assert.equal(undo3to2.playthroughs[1].number, 2);
+  assert.equal(undo3to2.playthroughs[1].completedAt, 2500);
+  assert.equal(undo3to2.resume, null);
+  assert.deepEqual(undo3to2.progress.watched, p2Progress.watched);
+
+  const stateAfter2nd = computeTitleState(
+    {
+      ...title3rd,
+      playthroughs: undo3to2.playthroughs,
+      activePlaythroughId: undo3to2.activePlaythroughId,
+      resume: undo3to2.resume,
+    },
+    seasons,
+    undo3to2.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(stateAfter2nd.status, 'completed');
+  assert.equal(stateAfter2nd.label, '已看完');
+  assert.equal(stateAfter2nd.playthroughNumber, 2);
+
+  // Step 2: Undo completed 2nd watch -> back to completed 1st watch
+  const undo2to1 = undoLatestPlaythrough(
+    {
+      ...title3rd,
+      playthroughs: undo3to2.playthroughs,
+      activePlaythroughId: undo3to2.activePlaythroughId,
+      resume: undo3to2.resume,
+    },
+    { p1: p1Progress, p2: p2Progress }
+  );
+  assert.equal(undo2to1.removedPlaythroughId, 'p2');
+  assert.equal(undo2to1.clearedPlaythroughId, undefined);
+  assert.equal(undo2to1.activePlaythroughId, 'p1');
+  assert.equal(undo2to1.playthroughs.length, 1);
+  assert.equal(undo2to1.playthroughs[0].id, 'p1');
+  assert.equal(undo2to1.playthroughs[0].number, 1);
+  assert.equal(undo2to1.playthroughs[0].completedAt, 1500);
+  assert.deepEqual(undo2to1.progress.watched, p1Progress.watched);
+
+  const stateAfter1st = computeTitleState(
+    {
+      ...title3rd,
+      playthroughs: undo2to1.playthroughs,
+      activePlaythroughId: undo2to1.activePlaythroughId,
+      resume: undo2to1.resume,
+    },
+    seasons,
+    undo2to1.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(stateAfter1st.status, 'completed');
+  assert.equal(stateAfter1st.label, '已看完');
+  assert.equal(stateAfter1st.playthroughNumber, 1);
+
+  // Step 3: Undo 1st watch -> clears progress, completedAt and resume so title becomes 未看
+  const undo1toUnwatched = undoLatestPlaythrough(
+    {
+      ...title3rd,
+      playthroughs: undo2to1.playthroughs,
+      activePlaythroughId: undo2to1.activePlaythroughId,
+      resume: { episodeKey: 's1e1', seconds: 120, updatedAt: 4000 },
+    },
+    { p1: p1Progress }
+  );
+  assert.equal(undo1toUnwatched.removedPlaythroughId, undefined);
+  assert.equal(undo1toUnwatched.clearedPlaythroughId, 'p1');
+  assert.equal(undo1toUnwatched.activePlaythroughId, 'p1');
+  assert.equal(undo1toUnwatched.playthroughs.length, 1);
+  assert.equal(undo1toUnwatched.playthroughs[0].id, 'p1');
+  assert.equal(undo1toUnwatched.playthroughs[0].number, 1);
+  assert.equal(undo1toUnwatched.playthroughs[0].completedAt, undefined);
+  assert.equal(undo1toUnwatched.resume, null);
+  assert.equal(undo1toUnwatched.manualState, null);
+  assert.deepEqual(undo1toUnwatched.progress.watched, {});
+
+  const stateUnwatched = computeTitleState(
+    {
+      ...title3rd,
+      manualState: undo1toUnwatched.manualState,
+      playthroughs: undo1toUnwatched.playthroughs,
+      activePlaythroughId: undo1toUnwatched.activePlaythroughId,
+      resume: undo1toUnwatched.resume,
+    },
+    seasons,
+    undo1toUnwatched.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(stateUnwatched.status, 'unwatched');
+  assert.equal(stateUnwatched.label, '未看');
+  assert.equal(stateUnwatched.watchedCount, 0);
+  assert.equal(stateUnwatched.completedPlaythroughCount, 0);
+});
+
+registerTest('9. Deleting a middle playthrough renumbers remaining ones (第1次, 第2次...) by start date', () => {
+  const p1Progress: ProgressDoc = {
+    playthroughId: 'p1',
+    watched: { s1e1: 1100, s1e2: 1200, s1e3: 1300 },
+  };
+  const p2Progress: ProgressDoc = {
+    playthroughId: 'p2',
+    watched: { s1e1: 2100, s1e2: 2200, s1e3: 2300 },
+  };
+  const p3Progress: ProgressDoc = {
+    playthroughId: 'p3',
+    watched: { s1e1: 3100 },
+  };
+
+  const title3rd = makeBaseTvTitle({
+    showStatus: 'Ended',
+    playthroughs: [
+      { id: 'p1', number: 1, startedAt: 1000, completedAt: 1500 },
+      { id: 'p2', number: 2, startedAt: 2000, completedAt: 2500 },
+      { id: 'p3', number: 3, startedAt: 3000 },
+    ],
+    activePlaythroughId: 'p3',
+    resume: { episodeKey: 's1e2', seconds: 420, updatedAt: 3200 },
+  });
+
+  const deletedMiddle = deletePlaythrough(title3rd, 'p2', {
+    p1: p1Progress,
+    p2: p2Progress,
+    p3: p3Progress,
+  });
+
+  assert.equal(deletedMiddle.removedPlaythroughId, 'p2');
+  assert.equal(deletedMiddle.activePlaythroughId, 'p3');
+  assert.equal(deletedMiddle.playthroughs.length, 2);
+  assert.deepEqual(
+    deletedMiddle.playthroughs.map((p) => ({ id: p.id, number: p.number })),
+    [
+      { id: 'p1', number: 1 },
+      { id: 'p3', number: 2 },
+    ]
+  );
+  assert.deepEqual(deletedMiddle.progress.watched, p3Progress.watched);
+  assert.deepEqual(deletedMiddle.resume, title3rd.resume);
+});
+
+registerTest('10. Undo when the latest playthrough is completed removes it and restores the previous playthrough', () => {
+  const seasons = [makeSampleSeasons()[1]];
+  const p1Progress: ProgressDoc = {
+    playthroughId: 'p1',
+    watched: { s1e1: 1100, s1e2: 1200, s1e3: 1300 },
+  };
+  const p2Progress: ProgressDoc = {
+    playthroughId: 'p2',
+    watched: { s1e1: 2100, s1e2: 2200, s1e3: 2300 },
+  };
+
+  const completed2ndTitle = makeBaseTvTitle({
+    showStatus: 'Ended',
+    playthroughs: [
+      { id: 'p1', number: 1, startedAt: 1000, completedAt: 1500 },
+      { id: 'p2', number: 2, startedAt: 2000, completedAt: 2500 },
+    ],
+    activePlaythroughId: 'p2',
+  });
+
+  const undone = undoLatestPlaythrough(completed2ndTitle, {
+    p1: p1Progress,
+    p2: p2Progress,
+  });
+
+  assert.equal(undone.removedPlaythroughId, 'p2');
+  assert.equal(undone.activePlaythroughId, 'p1');
+  assert.equal(undone.playthroughs.length, 1);
+  assert.equal(undone.playthroughs[0].id, 'p1');
+  assert.equal(undone.playthroughs[0].number, 1);
+  assert.equal(undone.playthroughs[0].completedAt, 1500);
+  assert.deepEqual(undone.progress.watched, p1Progress.watched);
+
+  const state = computeTitleState(
+    {
+      ...completed2ndTitle,
+      playthroughs: undone.playthroughs,
+      activePlaythroughId: undone.activePlaythroughId,
+    },
+    seasons,
+    undone.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(state.status, 'completed');
+  assert.equal(state.playthroughNumber, 1);
+  assert.equal(state.completedPlaythroughCount, 1);
 });

@@ -1,13 +1,14 @@
 import { createRandomId } from '../../domain/id.ts';
 import {
-  cancelRewatch,
   computeTitleState,
+  deletePlaythrough,
   markUpToEpisode,
   markWholeTitleWatched,
   setResumePoint,
   setSeasonWatched,
   startRewatch,
   toggleEpisodeWatched,
+  undoLatestPlaythrough,
 } from '../../domain/progress.ts';
 import type { Playthrough, ProgressDoc, TitleDoc } from '../../domain/types.ts';
 import { zh } from '../../i18n/zh.ts';
@@ -170,7 +171,9 @@ export function createProgressActions(
         };
         revertedTitle = {
           ...revertedTitle,
-          playthroughs: recomputePlaythroughsForTitle(revertedTitle, curr, activeProg, now),
+          playthroughs:
+            prevTitleFields.playthroughs ??
+            recomputePlaythroughsForTitle(revertedTitle, curr, activeProg, now),
         };
 
         return {
@@ -381,40 +384,98 @@ export function createProgressActions(
     });
   }
 
+  async function applyUndoOrDeleteResult(
+    titleId: string,
+    prevTitle: TitleDoc,
+    prevProgressMap: Record<string, ProgressDoc>,
+    res: ReturnType<typeof undoLatestPlaythrough>,
+    now: number
+  ): Promise<void> {
+    if (res.removedPlaythroughId) {
+      await executeAtomicProgressAndTitleOp({
+        titleId,
+        deletePlaythroughId: res.removedPlaythroughId,
+        titlePatch: {
+          manualState: res.manualState,
+          resume: res.resume,
+          playthroughs: res.playthroughs,
+          activePlaythroughId: res.activePlaythroughId,
+          updatedAt: now,
+          lastActivityAt: now,
+        },
+        prevWatchedValues: {},
+        prevMovieWatchedAt: undefined,
+        hadMovieWatchedAtChange: false,
+        prevTitleFields: {
+          manualState: prevTitle.manualState,
+          resume: prevTitle.resume,
+          playthroughs: prevTitle.playthroughs,
+          activePlaythroughId: prevTitle.activePlaythroughId,
+          updatedAt: prevTitle.updatedAt,
+          lastActivityAt: prevTitle.lastActivityAt,
+        },
+        deletedPlaythroughDoc: prevProgressMap[res.removedPlaythroughId],
+        now,
+      });
+      return;
+    }
+
+    if (res.clearedPlaythroughId) {
+      const prevProg = prevProgressMap[res.clearedPlaythroughId] || {
+        playthroughId: res.clearedPlaythroughId,
+        watched: {},
+      };
+      const prevWatchedValues: Record<string, number | undefined> = {};
+      for (const [k, v] of Object.entries(prevProg.watched)) {
+        prevWatchedValues[k] = v;
+      }
+      await executeAtomicProgressAndTitleOp({
+        titleId,
+        playthroughId: res.clearedPlaythroughId,
+        replaceWatched: {},
+        movieWatchedAt: null,
+        titlePatch: {
+          manualState: res.manualState,
+          resume: res.resume,
+          playthroughs: res.playthroughs,
+          activePlaythroughId: res.activePlaythroughId,
+          updatedAt: now,
+          lastActivityAt: now,
+        },
+        prevWatchedValues,
+        prevMovieWatchedAt: prevProg.movieWatchedAt,
+        hadMovieWatchedAtChange: prevProg.movieWatchedAt !== undefined,
+        prevTitleFields: {
+          manualState: prevTitle.manualState,
+          resume: prevTitle.resume,
+          playthroughs: prevTitle.playthroughs,
+          activePlaythroughId: prevTitle.activePlaythroughId,
+          updatedAt: prevTitle.updatedAt,
+          lastActivityAt: prevTitle.lastActivityAt,
+        },
+        now,
+      });
+    }
+  }
+
   async function cancelTitleRewatch(titleId: string): Promise<void> {
     const state = getState();
     const prevTitle = state.titles[titleId];
-    if (!prevTitle || prevTitle.playthroughs.length <= 1) return;
+    if (!prevTitle) return;
     const prevProgressMap = state.progressByTitle[titleId] || {};
     const now = Date.now();
-    const res = cancelRewatch(prevTitle, prevProgressMap);
-    if (!res.removedPlaythroughId) return;
+    const res = undoLatestPlaythrough(prevTitle, prevProgressMap);
+    await applyUndoOrDeleteResult(titleId, prevTitle, prevProgressMap, res, now);
+  }
 
-    await executeAtomicProgressAndTitleOp({
-      titleId,
-      deletePlaythroughId: res.removedPlaythroughId,
-      titlePatch: {
-        manualState: res.manualState,
-        resume: res.resume,
-        playthroughs: res.playthroughs,
-        activePlaythroughId: res.activePlaythroughId,
-        updatedAt: now,
-        lastActivityAt: now,
-      },
-      prevWatchedValues: {},
-      prevMovieWatchedAt: undefined,
-      hadMovieWatchedAtChange: false,
-      prevTitleFields: {
-        manualState: prevTitle.manualState,
-        resume: prevTitle.resume,
-        playthroughs: prevTitle.playthroughs,
-        activePlaythroughId: prevTitle.activePlaythroughId,
-        updatedAt: prevTitle.updatedAt,
-        lastActivityAt: prevTitle.lastActivityAt,
-      },
-      deletedPlaythroughDoc: prevProgressMap[res.removedPlaythroughId],
-      now,
-    });
+  async function deleteTitlePlaythrough(titleId: string, playthroughId: string): Promise<void> {
+    const state = getState();
+    const prevTitle = state.titles[titleId];
+    if (!prevTitle) return;
+    const prevProgressMap = state.progressByTitle[titleId] || {};
+    const now = Date.now();
+    const res = deletePlaythrough(prevTitle, playthroughId, prevProgressMap);
+    await applyUndoOrDeleteResult(titleId, prevTitle, prevProgressMap, res, now);
   }
 
   return {
@@ -425,5 +486,6 @@ export function createProgressActions(
     saveResume,
     startTitleRewatch,
     cancelTitleRewatch,
+    deleteTitlePlaythrough,
   };
 }

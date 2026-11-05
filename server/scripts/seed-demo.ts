@@ -2,10 +2,15 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateKeyBetween } from 'fractional-indexing';
-import { makeEpisodeKey } from '../../src/domain/progress.ts';
+import {
+  computeTitleState,
+  toLocalDateString,
+  makeEpisodeKey,
+} from '../../src/domain/progress.ts';
 import type { ProgressDoc, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
 import { TrackerRepository } from '../db/repository.ts';
 import { fetchTmdbTitleDetails, isTmdbConfigured } from '../providers/tmdb.ts';
+import { mapYtdlpJsonToLinkResult } from '../providers/ytdlp.ts';
 import {
   buildFallbackTitleAndSeasons,
   DEMO_TMDB_SPECS,
@@ -45,7 +50,7 @@ async function resolveDemoTitle(
 
 function buildEpisodeMap(
   seasons: SeasonDoc[],
-  predicate: (seasonNumber: number, episodeNumber: number) => boolean,
+  predicate: (seasonNumber: number, episodeNumber: number, airDate: string | null) => boolean,
   timestampBase: number
 ): Record<string, number> {
   const watched: Record<string, number> = {};
@@ -53,13 +58,19 @@ function buildEpisodeMap(
   for (const s of seasons) {
     if (s.seasonNumber <= 0) continue;
     for (const ep of s.episodes) {
-      if (predicate(s.seasonNumber, ep.number)) {
+      if (predicate(s.seasonNumber, ep.number, ep.airDate)) {
         watched[ep.key] = timestampBase + step * 3_600_000;
         step++;
       }
     }
   }
   return watched;
+}
+
+function loadYtdlpFixture(filename: string, inputUrl: string) {
+  const fixturePath = path.resolve(import.meta.dirname, 'fixtures', filename);
+  const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+  return mapYtdlpJsonToLinkResult(raw, inputUrl);
 }
 
 async function main() {
@@ -77,33 +88,90 @@ async function main() {
   const repo = new TrackerRepository({ dataDir: targetDir });
   const now = Date.now();
   const dayMs = 86_400_000;
+  const todayStr = toLocalDateString(new Date(now));
 
-  console.log(`[seed-demo] Seeding demo database in ${targetDir} ...`);
+  console.log(`[seed-demo] Seeding curated demo database in ${targetDir} ...`);
+
+  const completedMcuIds = new Set([
+    'tmdb_movie_1771',
+    'tmdb_movie_1726',
+    'tmdb_movie_24428',
+  ]);
 
   for (const spec of DEMO_TMDB_SPECS) {
     const { title, seasons } = await resolveDemoTitle(spec, now);
     const id = title.id;
 
-    if (id === 'tmdb_tv_95396') {
-      // Severance: 观看中 with resume time 42:15 on S2E5 (S1 all + S2 E1-E4 watched)
+    if (id === 'tmdb_tv_1396') {
+      // Breaking Bad: ended, fully watched (已看完)
       const watched = buildEpisodeMap(
         seasons,
-        (s, e) => s === 1 || (s === 2 && e <= 4),
-        now - 10 * dayMs
+        (_s, _e, airDate) => Boolean(airDate && airDate <= todayStr),
+        now - 120 * dayMs
       );
       repo.putTitle(id, {
         title: {
           ...title,
-          resume: { episodeKey: 's2e5', seconds: 42 * 60 + 15, updatedAt: now - 3600_000 },
-          addedAt: now - 25 * dayMs,
-          updatedAt: now - 3600_000,
-          lastActivityAt: now - 3600_000,
+          showStatus: 'Ended',
+          playthroughs: [
+            {
+              id: 'p1',
+              number: 1,
+              startedAt: now - 150 * dayMs,
+              completedAt: now - 90 * dayMs,
+            },
+          ],
+          activePlaythroughId: 'p1',
+          addedAt: now - 150 * dayMs,
+          updatedAt: now - 90 * dayMs,
+          lastActivityAt: now - 90 * dayMs,
         },
         seasons,
         progress: { p1: { playthroughId: 'p1', watched } },
       });
+    } else if (id === 'tmdb_tv_95396') {
+      // Severance: returning series, caught up to the latest aired episode (已追平);
+      // if not possible, watching with a resume time (继续 S2E5 42:15)
+      const allAiredWatched = buildEpisodeMap(
+        seasons,
+        (_s, _e, airDate) => Boolean(airDate && airDate <= todayStr),
+        now - 14 * dayMs
+      );
+      const candidateTitle: TitleDoc = {
+        ...title,
+        addedAt: now - 25 * dayMs,
+        updatedAt: now - 2 * dayMs,
+        lastActivityAt: now - 2 * dayMs,
+      };
+      const candidateState = computeTitleState(
+        candidateTitle,
+        seasons,
+        { playthroughId: 'p1', watched: allAiredWatched },
+        { includeSpecials: false, todayStr }
+      );
+      if (candidateState.status === 'caught_up') {
+        repo.putTitle(id, {
+          title: candidateTitle,
+          seasons,
+          progress: { p1: { playthroughId: 'p1', watched: allAiredWatched } },
+        });
+      } else {
+        const partialWatched = buildEpisodeMap(
+          seasons,
+          (s, e) => s === 1 || (s === 2 && e <= 4),
+          now - 10 * dayMs
+        );
+        repo.putTitle(id, {
+          title: {
+            ...candidateTitle,
+            resume: { episodeKey: 's2e5', seconds: 42 * 60 + 15, updatedAt: now - 3600_000 },
+          },
+          seasons,
+          progress: { p1: { playthroughId: 'p1', watched: partialWatched } },
+        });
+      }
     } else if (id === 'tmdb_tv_136315') {
-      // The Bear: 观看中 + 有新集 (S1 & S2 watched before S3 aired in 2024-06)
+      // The Bear: watching with 有新集 (S1 & S2 watched before S3 aired in 2024-06)
       const beforeS3 = new Date('2024-05-10T12:00:00Z').getTime();
       const watched = buildEpisodeMap(seasons, (s) => s <= 2, beforeS3 - 10 * dayMs);
       repo.putTitle(id, {
@@ -116,27 +184,9 @@ async function main() {
         seasons,
         progress: { p1: { playthroughId: 'p1', watched } },
       });
-    } else if (id === 'tmdb_tv_125988') {
-      // Silo: 已追平 (All aired countable episodes watched, Returning Series)
-      const watched = buildEpisodeMap(seasons, () => true, now - 14 * dayMs);
-      repo.putTitle(id, {
-        title: {
-          ...title,
-          addedAt: now - 30 * dayMs,
-          updatedAt: now - 3 * dayMs,
-          lastActivityAt: now - 3 * dayMs,
-        },
-        seasons,
-        progress: { p1: { playthroughId: 'p1', watched } },
-      });
-    } else if (id === 'tmdb_tv_1396') {
-      // Breaking Bad: 二刷中 (Playthrough 1 completed, Playthrough 2 watching S2E4 at 28:40)
-      const p1Watched = buildEpisodeMap(seasons, () => true, now - 180 * dayMs);
-      const p2Watched = buildEpisodeMap(
-        seasons,
-        (s, e) => s === 1 || (s === 2 && e <= 3),
-        now - 7 * dayMs
-      );
+    } else if (id === 'tmdb_movie_129') {
+      // Spirited Away: watched once, second watch in progress (二刷中)
+      const firstWatchAt = now - 180 * dayMs;
       repo.putTitle(id, {
         title: {
           ...title,
@@ -144,81 +194,52 @@ async function main() {
             {
               id: 'p1',
               number: 1,
-              startedAt: now - 200 * dayMs,
-              completedAt: now - 150 * dayMs,
+              startedAt: firstWatchAt,
+              completedAt: firstWatchAt,
             },
             {
               id: 'p2',
               number: 2,
-              startedAt: now - 7 * dayMs,
+              startedAt: now - 2 * dayMs,
             },
           ],
           activePlaythroughId: 'p2',
-          resume: { episodeKey: 's2e4', seconds: 28 * 60 + 40, updatedAt: now - 12 * 3600_000 },
-          addedAt: now - 200 * dayMs,
-          updatedAt: now - 12 * 3600_000,
-          lastActivityAt: now - 12 * 3600_000,
+          resume: { episodeKey: null, seconds: 54 * 60 + 20, updatedAt: now - 4 * 3600_000 },
+          addedAt: firstWatchAt - 5 * dayMs,
+          updatedAt: now - 4 * 3600_000,
+          lastActivityAt: now - 4 * 3600_000,
         },
-        seasons,
+        seasons: [],
         progress: {
-          p1: { playthroughId: 'p1', watched: p1Watched },
-          p2: { playthroughId: 'p2', watched: p2Watched },
+          p1: { playthroughId: 'p1', watched: {}, movieWatchedAt: firstWatchAt },
+          p2: { playthroughId: 'p2', watched: {} },
         },
       });
-    } else if (id === 'tmdb_tv_87108' || id === 'tmdb_tv_94605') {
-      // Chernobyl & Arcane: 已看完
-      const watched = buildEpisodeMap(seasons, () => true, now - 45 * dayMs);
+    } else if (id === 'tmdb_tv_209867') {
+      // Frieren: Beyond Journey's End: anime added through TMDB, watching (S1 E1-E16 watched, resume on S1E17 14:20)
+      const watched = buildEpisodeMap(
+        seasons,
+        (s, e) => s === 1 && e <= 16,
+        now - 12 * dayMs
+      );
       repo.putTitle(id, {
         title: {
           ...title,
-          playthroughs: [
-            {
-              id: 'p1',
-              number: 1,
-              startedAt: now - 50 * dayMs,
-              completedAt: now - 40 * dayMs,
-            },
-          ],
-          addedAt: now - 50 * dayMs,
-          updatedAt: now - 40 * dayMs,
-          lastActivityAt: now - 40 * dayMs,
+          resume: { episodeKey: 's1e17', seconds: 14 * 60 + 20, updatedAt: now - 2 * 3600_000 },
+          addedAt: now - 20 * dayMs,
+          updatedAt: now - 2 * 3600_000,
+          lastActivityAt: now - 2 * 3600_000,
         },
         seasons,
         progress: { p1: { playthroughId: 'p1', watched } },
       });
-    } else if (id === 'tmdb_movie_693134') {
-      // Dune: Part Two: 观看中 with resume time 1:18:20
+    } else if (completedMcuIds.has(id)) {
+      // First 5 MCU movies in story order: 已看完
+      const watchedAt = now - 30 * dayMs;
       repo.putTitle(id, {
         title: {
           ...title,
-          resume: { episodeKey: null, seconds: 78 * 60 + 20, updatedAt: now - 6 * 3600_000 },
-          addedAt: now - 5 * dayMs,
-          updatedAt: now - 6 * 3600_000,
-          lastActivityAt: now - 6 * 3600_000,
-        },
-        seasons: [],
-        progress: { p1: { playthroughId: 'p1', watched: {} } },
-      });
-    } else if (
-      id === 'tmdb_movie_872585' ||
-      id === 'tmdb_movie_157336' ||
-      [
-        'tmdb_movie_1726',
-        'tmdb_movie_1771',
-        'tmdb_movie_24428',
-        'tmdb_movie_100402',
-        'tmdb_movie_118340',
-        'tmdb_movie_99861',
-      ].includes(id)
-    ) {
-      // Completed movies (Oppenheimer, Interstellar, and first 6 MCU movies)
-      const watchedAt = now - 20 * dayMs;
-      repo.putTitle(id, {
-        title: {
-          ...title,
-          playthroughs: [
-            { id: 'p1', number: 1, startedAt: watchedAt, completedAt: watchedAt },
-          ],
+          playthroughs: [{ id: 'p1', number: 1, startedAt: watchedAt, completedAt: watchedAt }],
           addedAt: watchedAt - 5 * dayMs,
           updatedAt: watchedAt,
           lastActivityAt: watchedAt,
@@ -227,7 +248,7 @@ async function main() {
         progress: { p1: { playthroughId: 'p1', watched: {}, movieWatchedAt: watchedAt } },
       });
     } else {
-      // Unwatched titles (Spider-Verse, Anatomy of a Fall, Fallout, and remaining 4 MCU movies)
+      // Unwatched titles (remaining 5 MCU movies + Collection "想看" movies)
       repo.putTitle(id, {
         title: {
           ...title,
@@ -241,72 +262,138 @@ async function main() {
     }
   }
 
-  // Add 1 custom item (Bilibili series: 我的三体：章北海传)
-  const customId = 'custom_bilibili_threebody';
-  const customSeasons: SeasonDoc[] = [
+  // Seed link-import item #1: 3Blue1Brown "Essence of linear algebra" YouTube playlist (from fixture JSON)
+  const ytLinkResult = loadYtdlpFixture(
+    'ytdlp-3b1b-youtube.json',
+    'https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab'
+  );
+  const ytId = 'url_yt_3b1b_linear_algebra';
+  const ytSeasons: SeasonDoc[] = [
     {
       seasonNumber: 1,
       name: '第 1 季',
-      episodes: Array.from({ length: 9 }, (_, idx) => ({
+      episodes: ytLinkResult.episodes.map((ep, idx) => ({
         number: idx + 1,
         key: makeEpisodeKey(1, idx + 1),
-        name: `第 ${idx + 1} 章`,
-        airDate: '2020-01-21',
-        runtime: 28,
-        stillPath: 'https://image.tmdb.org/t/p/w300/8sNiAPPYU14PUepFNeSNGUTiHW.jpg',
-        overview: { zh: '' },
+        name: ep.name,
+        airDate: '2016-08-04',
+        runtime: ep.runtime ?? null,
+        stillPath: ytLinkResult.posterUrl,
+        overview: {},
+        sourceVideoId: ep.sourceVideoId,
       })),
     },
   ];
-  const customWatched: Record<string, number> = {};
+  const ytWatched: Record<string, number> = {};
   for (let i = 1; i <= 6; i++) {
-    customWatched[makeEpisodeKey(1, i)] = now - (10 - i) * dayMs;
+    ytWatched[makeEpisodeKey(1, i)] = now - (10 - i) * dayMs;
   }
-  const customProgress: Record<string, ProgressDoc> = {
-    p1: { playthroughId: 'p1', watched: customWatched },
+  const ytProgress: Record<string, ProgressDoc> = {
+    p1: { playthroughId: 'p1', watched: ytWatched },
   };
-  repo.putTitle(customId, {
+  repo.putTitle(ytId, {
     title: {
-      id: customId,
+      id: ytId,
       source: 'url',
-      sourceId: 'https://www.bilibili.com/bangumi/media/md28223051',
-      mediaType: 'tv',
+      sourceId: ytLinkResult.sourceUrl,
+      mediaType: 'other',
       names: {
-        original: '我的三体之章北海传',
-        zh: '我的三体之章北海传',
-        en: 'My Three Body: Legend of Zhang Beihai',
+        original: ytLinkResult.title,
+        zh: ytLinkResult.title,
+        en: ytLinkResult.title,
       },
       displayLang: null,
-      year: 2020,
-      runtimeMin: 28,
-      genres: ['科幻', '动画'],
-      posterPath: 'https://image.tmdb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg',
-      backdropPath: 'https://image.tmdb.org/t/p/w1280/8sNiAPPYU14PUepFNeSNGUTiHW.jpg',
-      overview: {
-        zh: '故事发生在从近未来到两百年后的历史跨度上，地球文明被三体用智子锁死后，人类组建太空舰队，章北海在危机纪元中坚定执行深空战略。',
-      },
+      year: ytLinkResult.year ?? 2016,
+      runtimeMin: 11,
+      genres: ['数学', '教程'],
+      posterPath: ytLinkResult.posterUrl,
+      backdropPath: ytLinkResult.posterUrl,
+      overview: { zh: ytLinkResult.overview },
       showStatus: 'Ended',
       externalIds: {},
       ratings: {},
       manualState: null,
-      playthroughs: [{ id: 'p1', number: 1, startedAt: now - 12 * dayMs }],
+      playthroughs: [{ id: 'p1', number: 1, startedAt: now - 10 * dayMs }],
       activePlaythroughId: 'p1',
-      resume: { episodeKey: 's1e7', seconds: 16 * 60 + 45, updatedAt: now - 18 * 3600_000 },
+      resume: { episodeKey: 's1e7', seconds: 5 * 60 + 40, updatedAt: now - 8 * 3600_000 },
       metaFetchedAt: now,
-      addedAt: now - 12 * dayMs,
-      updatedAt: now - 18 * 3600_000,
-      lastActivityAt: now - 18 * 3600_000,
+      addedAt: now - 10 * dayMs,
+      updatedAt: now - 8 * 3600_000,
+      lastActivityAt: now - 8 * 3600_000,
     },
-    seasons: customSeasons,
-    progress: customProgress,
+    seasons: ytSeasons,
+    progress: ytProgress,
   });
 
-  // Create Ordered List: "漫威观影顺序" (10 entries)
+  // Seed link-import item #2: 3Blue1Brown official Bilibili 合集 "【官方双语】线性代数的本质" (from fixture JSON)
+  const biliLinkResult = loadYtdlpFixture(
+    'ytdlp-3b1b-bilibili.json',
+    'https://space.bilibili.com/88461692/lists/1528924?type=season'
+  );
+  const biliId = 'url_bili_3b1b_linear_algebra';
+  const biliSeasons: SeasonDoc[] = [
+    {
+      seasonNumber: 1,
+      name: '第 1 季',
+      episodes: biliLinkResult.episodes.map((ep, idx) => ({
+        number: idx + 1,
+        key: makeEpisodeKey(1, idx + 1),
+        name: ep.name,
+        airDate: '2016-08-25',
+        runtime: ep.runtime ?? null,
+        stillPath: biliLinkResult.posterUrl,
+        overview: {},
+        sourceVideoId: ep.sourceVideoId,
+      })),
+    },
+  ];
+  const biliWatched: Record<string, number> = {};
+  for (let i = 1; i <= 9; i++) {
+    biliWatched[makeEpisodeKey(1, i)] = now - (14 - i) * dayMs;
+  }
+  const biliProgress: Record<string, ProgressDoc> = {
+    p1: { playthroughId: 'p1', watched: biliWatched },
+  };
+  repo.putTitle(biliId, {
+    title: {
+      id: biliId,
+      source: 'url',
+      sourceId: biliLinkResult.sourceUrl,
+      mediaType: 'other',
+      names: {
+        original: biliLinkResult.title,
+        zh: biliLinkResult.title,
+        en: 'Essence of linear algebra (Bilibili Collection)',
+      },
+      displayLang: null,
+      year: biliLinkResult.year ?? 2016,
+      runtimeMin: 11,
+      genres: ['数学', '双语'],
+      posterPath: biliLinkResult.posterUrl,
+      backdropPath: biliLinkResult.posterUrl,
+      overview: { zh: biliLinkResult.overview },
+      showStatus: 'Ended',
+      externalIds: {},
+      ratings: {},
+      manualState: null,
+      playthroughs: [{ id: 'p1', number: 1, startedAt: now - 14 * dayMs }],
+      activePlaythroughId: 'p1',
+      resume: null,
+      metaFetchedAt: now,
+      addedAt: now - 14 * dayMs,
+      updatedAt: now - 5 * dayMs,
+      lastActivityAt: now - 5 * dayMs,
+    },
+    seasons: biliSeasons,
+    progress: biliProgress,
+  });
+
+  // Create Ordered List: "漫威无限传奇观影顺序" (10 MCU films in story order, first 5 watched)
   const mcuListId = 'list_marvel_order';
   const mcuListRank = generateKeyBetween(null, null);
   repo.putList(mcuListId, {
-    name: '漫威观影顺序',
-    description: '漫威无限传奇阶段核心作品观看顺序，自动高亮下一部待看',
+    name: '漫威无限传奇观影顺序',
+    description: '漫威无限传奇阶段核心作品故事时间线观影顺序，自动高亮下一部待看',
     kind: 'ordered',
     pinned: true,
     rank: mcuListRank,
@@ -315,16 +402,16 @@ async function main() {
   });
 
   const mcuTitleIds = [
-    'tmdb_movie_1726',
-    'tmdb_movie_1771',
-    'tmdb_movie_24428',
-    'tmdb_movie_100402',
-    'tmdb_movie_118340',
-    'tmdb_movie_99861',
-    'tmdb_movie_271110',
-    'tmdb_movie_284054',
-    'tmdb_movie_299536',
-    'tmdb_movie_299534',
+    'tmdb_movie_1771', // Captain America: The First Avenger (已看完)
+    'tmdb_movie_1726', // Iron Man (已看完)
+    'tmdb_movie_24428', // The Avengers (已看完)
+    'tmdb_movie_100402', // Captain America: The Winter Soldier (已看完)
+    'tmdb_movie_118340', // Guardians of the Galaxy (已看完)
+    'tmdb_movie_99861', // Avengers: Age of Ultron (下一部待看)
+    'tmdb_movie_271110', // Captain America: Civil War (未看)
+    'tmdb_movie_284054', // Black Panther (未看)
+    'tmdb_movie_299536', // Avengers: Infinity War (未看)
+    'tmdb_movie_299534', // Avengers: Endgame (未看)
   ];
   let prevRank: string | null = null;
   for (let i = 0; i < mcuTitleIds.length; i++) {
@@ -337,12 +424,12 @@ async function main() {
     });
   }
 
-  // Create Collection List: "想看"
+  // Create Collection List: "想看" (The Godfather, In the Mood for Love, Parasite, Interstellar)
   const watchlistId = 'list_watchlist_collection';
   const watchlistRank = generateKeyBetween(mcuListRank, null);
   repo.putList(watchlistId, {
     name: '想看',
-    description: '近期口碑佳作与周末待看片单',
+    description: '影史经典与周末待看佳作片单',
     kind: 'collection',
     pinned: false,
     rank: watchlistRank,
@@ -351,10 +438,10 @@ async function main() {
   });
 
   const watchlistTitleIds = [
-    'tmdb_movie_569094',
-    'tmdb_movie_915935',
-    'tmdb_tv_106379',
-    'tmdb_movie_271110',
+    'tmdb_movie_238', // The Godfather
+    'tmdb_movie_843', // In the Mood for Love
+    'tmdb_movie_496243', // Parasite
+    'tmdb_movie_157336', // Interstellar
   ];
   let wPrevRank: string | null = null;
   for (let i = 0; i < watchlistTitleIds.length; i++) {
@@ -367,9 +454,129 @@ async function main() {
     });
   }
 
+  // Verify each seeded title's TMDB ID / source and computed status at seed time
+  const state = repo.getState();
+  const expectations: Array<{
+    id: string;
+    expectedSourceId: string;
+    expectedStatuses: Array<ReturnType<typeof computeTitleState>['status']>;
+    expectNewEpisodes?: boolean;
+    expectRewatching?: boolean;
+    label: string;
+  }> = [
+    {
+      id: 'tmdb_tv_1396',
+      expectedSourceId: '1396',
+      expectedStatuses: ['completed'],
+      label: 'Breaking Bad (已看完)',
+    },
+    {
+      id: 'tmdb_tv_95396',
+      expectedSourceId: '95396',
+      expectedStatuses: ['caught_up', 'watching'],
+      label: 'Severance (已追平 / 观看中)',
+    },
+    {
+      id: 'tmdb_tv_136315',
+      expectedSourceId: '136315',
+      expectedStatuses: ['watching'],
+      expectNewEpisodes: true,
+      label: 'The Bear (观看中 + 有新集)',
+    },
+    {
+      id: 'tmdb_movie_129',
+      expectedSourceId: '129',
+      expectedStatuses: ['watching'],
+      expectRewatching: true,
+      label: 'Spirited Away (二刷中)',
+    },
+    {
+      id: 'tmdb_tv_209867',
+      expectedSourceId: '209867',
+      expectedStatuses: ['watching'],
+      label: "Frieren: Beyond Journey's End (观看中)",
+    },
+    {
+      id: 'tmdb_movie_238',
+      expectedSourceId: '238',
+      expectedStatuses: ['unwatched'],
+      label: 'The Godfather (未看)',
+    },
+    {
+      id: 'tmdb_movie_843',
+      expectedSourceId: '843',
+      expectedStatuses: ['unwatched'],
+      label: 'In the Mood for Love (未看)',
+    },
+    {
+      id: 'tmdb_movie_496243',
+      expectedSourceId: '496243',
+      expectedStatuses: ['unwatched'],
+      label: 'Parasite (未看)',
+    },
+    {
+      id: 'tmdb_movie_157336',
+      expectedSourceId: '157336',
+      expectedStatuses: ['unwatched'],
+      label: 'Interstellar (未看)',
+    },
+    {
+      id: 'url_yt_3b1b_linear_algebra',
+      expectedSourceId: 'https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab',
+      expectedStatuses: ['watching'],
+      label: '3Blue1Brown YouTube Playlist (观看中, 16 episodes)',
+    },
+    {
+      id: 'url_bili_3b1b_linear_algebra',
+      expectedSourceId: 'https://space.bilibili.com/88461692/lists/1528924?type=season',
+      expectedStatuses: ['watching'],
+      label: '3Blue1Brown Bilibili 合集 (观看中, 16 episodes)',
+    },
+  ];
+
+  for (const exp of expectations) {
+    const t = state.titles[exp.id];
+    if (!t) {
+      throw new Error(`[seed-demo] Verification failed: missing title ${exp.id}`);
+    }
+    if (t.sourceId !== exp.expectedSourceId) {
+      throw new Error(
+        `[seed-demo] Verification failed for ${exp.id}: expected sourceId=${exp.expectedSourceId}, got ${t.sourceId}`
+      );
+    }
+    const seasons = state.seasonsByTitle[exp.id] || [];
+    const progress = state.progressByTitle[exp.id]?.[t.activePlaythroughId];
+    const computed = computeTitleState(t, seasons, progress, {
+      includeSpecials: state.settings.includeSpecials,
+      todayStr,
+    });
+    if (!exp.expectedStatuses.includes(computed.status)) {
+      throw new Error(
+        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected status in [${exp.expectedStatuses.join(', ')}], got ${computed.status}`
+      );
+    }
+    if (exp.expectNewEpisodes && !computed.hasNewEpisodes) {
+      throw new Error(
+        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected hasNewEpisodes=true`
+      );
+    }
+    if (exp.expectRewatching && !computed.isRewatching) {
+      throw new Error(
+        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected isRewatching=true`
+      );
+    }
+    console.log(
+      `[seed-demo] Verified ${exp.id} (sourceId=${t.sourceId}): status=${computed.status}${
+        computed.hasNewEpisodes ? ' [有新集]' : ''
+      }${computed.isRewatching ? ' [二刷中]' : ''}`
+    );
+  }
+
   repo.close();
   console.log(
-    `[seed-demo] Done! Seeded ${DEMO_TMDB_SPECS.length + 1} titles and 2 lists in ${targetDir}.`
+    `[seed-demo] Done! Seeded ${Object.keys(state.titles).length} titles and ${
+      Object.keys(state.lists).length
+    } lists in ${targetDir}.`
   );
 }
 

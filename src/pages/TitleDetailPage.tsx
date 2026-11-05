@@ -145,12 +145,16 @@ export const TitleDetailPage: React.FC = () => {
           title={title}
           state={state}
           onCancelRewatch={() => tracker.cancelTitleRewatch(title.id)}
+          onDeletePlaythrough={(playthroughId) =>
+            tracker.deleteTitlePlaythrough(title.id, playthroughId)
+          }
         />
       </div>
 
       {/* Secondary Actions Drawer + Modals */}
       <TitleMenu
         title={title}
+        state={state}
         menuOpen={menuOpen}
         onMenuOpenChange={setMenuOpen}
         langModalOpen={langModalOpen}
@@ -163,6 +167,7 @@ export const TitleDetailPage: React.FC = () => {
         entriesByList={tracker.entriesByList}
         onOpenResumeModal={() => openResumeModal()}
         onMarkWholeTitleWatched={() => tracker.markWholeTitle(title.id, true)}
+        onCancelRewatch={() => tracker.cancelTitleRewatch(title.id)}
         onSetManualState={(manualState) =>
           tracker.setTitleManualState(title.id, manualState)
         }
