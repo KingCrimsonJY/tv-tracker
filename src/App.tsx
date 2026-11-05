@@ -175,7 +175,7 @@ const OfflineScreen: React.FC = () => {
     >
       <Card className="w-full max-w-md">
         <Card.Content className="flex flex-col items-center text-center space-y-5">
-          <div className="w-14 h-14 rounded-2xl bg-red-500/15 text-[var(--danger)] flex items-center justify-center">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--danger-subtle)] text-[var(--danger)] flex items-center justify-center">
             <WifiOff className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">

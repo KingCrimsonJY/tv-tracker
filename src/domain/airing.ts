@@ -218,7 +218,7 @@ export function resolveDisplayTitle(
   defaultLang: 'zh' | 'original' | 'en' = 'zh'
 ): { primary: string; secondary: string | null } {
   const effective = titleLang ?? defaultLang;
-  let primary = names.original;
+  let primary: string;
 
   if (effective === 'custom' && names.custom) {
     primary = names.custom;

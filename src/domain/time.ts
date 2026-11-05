@@ -33,8 +33,8 @@ export function parseTimeInput(
   }
 
   let hours = 0;
-  let minutes = 0;
-  let seconds = 0;
+  let minutes: number;
+  let seconds: number;
 
   if (parts.length === 2) {
     minutes = Number(parts[0]);

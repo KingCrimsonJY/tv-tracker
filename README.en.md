@@ -23,13 +23,13 @@
 
 | Home (Dark) | Library Grid | Title Detail & Episodes | Ordered List (MCU Watch Order) |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/phone-home.webp" alt="Mobile Home (Dark)" width="190" /> | <img src="docs/screenshots/phone-library.webp" alt="Mobile Library" width="190" /> | <img src="docs/screenshots/phone-detail.webp" alt="Mobile Title Detail with Season Tabs and Episodes" width="190" /> | <img src="docs/screenshots/phone-list.webp" alt="Mobile Ordered List (Marvel Infinity Saga Watch Order)" width="190" /> |
+| <img src="docs/screenshots/phone-home.webp" alt="Mobile Home (Dark)" width="260" /> | <img src="docs/screenshots/phone-library.webp" alt="Mobile Library" width="260" /> | <img src="docs/screenshots/phone-detail.webp" alt="Mobile Title Detail with Season Tabs and Episodes" width="260" /> | <img src="docs/screenshots/phone-list.webp" alt="Mobile Ordered List (Marvel Infinity Saga Watch Order)" width="260" /> |
 
 | Link Import Preview (Playlist) | Playlist Detail & Episodes | Home (Light) |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/phone-link-import.webp" alt="Mobile Link Import Playlist Preview" width="220" /> | <img src="docs/screenshots/phone-playlist-detail.webp" alt="Mobile Playlist Detail with Episodes" width="220" /> | <img src="docs/screenshots/phone-home-light.webp" alt="Mobile Home (Light)" width="220" /> |
+| <img src="docs/screenshots/phone-link-import.webp" alt="Mobile Link Import Playlist Preview" width="260" /> | <img src="docs/screenshots/phone-playlist-detail.webp" alt="Mobile Playlist Detail with Episodes" width="260" /> | <img src="docs/screenshots/phone-home-light.webp" alt="Mobile Home (Light)" width="260" /> |
 
-### Desktop (`1280×800`)
+### Desktop (`1440×900`)
 
 <p align="center">
   <img src="docs/screenshots/desktop-home.webp" alt="Desktop Home" width="880" />

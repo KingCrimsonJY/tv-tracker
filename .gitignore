@@ -12,3 +12,5 @@ coverage/
 *.log
 .env*
 !.env.example
+docs/vendor/
+docs/screenshots/qa/

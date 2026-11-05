@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Button } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
 import { MediaImage } from '../../components/MediaImage';
 import type { ComputedTitleState } from '../../domain/progress';
 import type { TitleDoc } from '../../domain/types';
@@ -23,6 +23,17 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
   metaParts,
   onBack,
 }) => {
+  const statusChipColor =
+    state.status === 'completed' || state.status === 'caught_up'
+      ? 'success'
+      : state.status === 'watching'
+        ? 'accent'
+        : state.status === 'paused'
+          ? 'warning'
+          : state.status === 'dropped'
+            ? 'danger'
+            : 'default';
+
   return (
     <>
       {/* Full-bleed Backdrop Hero (~55vh on phone) */}
@@ -66,20 +77,20 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
           <div className="flex-1 min-w-0 space-y-3">
             {/* Status & Rewatch / New Episode Badges */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-secondary)] border border-[var(--border)] text-[var(--foreground)]">
+              <Chip variant="secondary" color={statusChipColor} size="sm">
                 {state.label}
-              </span>
+              </Chip>
               {state.hasNewEpisodes && (
-                <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[var(--accent)] text-[var(--accent-foreground)]">
+                <Chip variant="primary" color="accent" size="sm">
                   {zh.detail.newEpisodeBadge}
-                </span>
+                </Chip>
               )}
               {state.isRewatching && (
-                <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <Chip variant="soft" color="warning" size="sm">
                   {state.playthroughNumber === 2
                     ? zh.status.rewatchingBadge
                     : zh.status.nthPlaythroughBadge(state.playthroughNumber)}
-                </span>
+                </Chip>
               )}
             </div>
 

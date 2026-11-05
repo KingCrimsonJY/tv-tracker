@@ -23,13 +23,13 @@
 
 | 首页（深色） | 个人片库 | 剧集详情与分集 | 顺序片单（漫威无限传奇观影顺序） |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/phone-home.webp" alt="手机端首页（深色）" width="190" /> | <img src="docs/screenshots/phone-library.webp" alt="手机端个人片库" width="190" /> | <img src="docs/screenshots/phone-detail.webp" alt="手机端剧集详情与分集列表" width="190" /> | <img src="docs/screenshots/phone-list.webp" alt="手机端顺序片单（漫威无限传奇观影顺序）" width="190" /> |
+| <img src="docs/screenshots/phone-home.webp" alt="手机端首页（深色）" width="260" /> | <img src="docs/screenshots/phone-library.webp" alt="手机端个人片库" width="260" /> | <img src="docs/screenshots/phone-detail.webp" alt="手机端剧集详情与分集列表" width="260" /> | <img src="docs/screenshots/phone-list.webp" alt="手机端顺序片单（漫威无限传奇观影顺序）" width="260" /> |
 
 | 外链导入预览（播放列表） | 合集详情与剧集列表 | 首页（浅色） |
 | :---: | :---: | :---: |
-| <img src="docs/screenshots/phone-link-import.webp" alt="手机端播放列表外链解析预览" width="220" /> | <img src="docs/screenshots/phone-playlist-detail.webp" alt="手机端合集详情与分集列表" width="220" /> | <img src="docs/screenshots/phone-home-light.webp" alt="手机端首页（浅色）" width="220" /> |
+| <img src="docs/screenshots/phone-link-import.webp" alt="手机端播放列表外链解析预览" width="260" /> | <img src="docs/screenshots/phone-playlist-detail.webp" alt="手机端合集详情与分集列表" width="260" /> | <img src="docs/screenshots/phone-home-light.webp" alt="手机端首页（浅色）" width="260" /> |
 
-### 桌面端（`1280×800`）
+### 桌面端（`1440×900`）
 
 <p align="center">
   <img src="docs/screenshots/desktop-home.webp" alt="桌面端首页" width="880" />

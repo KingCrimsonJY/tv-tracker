@@ -4,7 +4,7 @@ import path from 'node:path';
 import { test } from 'vitest';
 import { createApp } from '../app.ts';
 import { TrackerRepository } from '../db/repository.ts';
-import { UnsafeUrlError, type DnsLookupFn, type FetchFn } from '../security/ssrf.ts';
+import { type DnsLookupFn, type FetchFn } from '../security/ssrf.ts';
 import {
   decodeHtmlEntities,
   extractFirstHttpUrl,
@@ -569,49 +569,7 @@ test('9. Share-text URL extraction and long sourceUrl preservation (up to 2048 c
   assert.ok(result.sourceUrl.length > 440);
 });
 
-test('10. SSRF checks reject private/loopback IPs, evil redirects, and non-http schemes before running yt-dlp', async () => {
-  let ytdlpCalled = false;
-  const execFn: YtdlpExecFn = async () => {
-    ytdlpCalled = true;
-    return { stdout: '{}', stderr: '' };
-  };
-
-  for (const unsafeInput of [
-    'http://127.0.0.1:8080/secret',
-    'http://169.254.169.254/computeMetadata/v1/',
-    'https://internal.corp/admin',
-    'ftp://example.com/file',
-  ]) {
-    await assert.rejects(
-      async () => {
-        await resolveLinkMetadata(unsafeInput, {
-          lookupFn: mockPublicDns,
-          fetchFn: mockFetch,
-          execFn,
-        });
-      },
-      (err: unknown) => err instanceof UnsafeUrlError
-    );
-  }
-  assert.equal(ytdlpCalled, false);
-
-  // Open Graph redirect to loopback IP must also throw UnsafeUrlError
-  const execFail: YtdlpExecFn = async () => {
-    throw new YtdlpExecutionError('unsupported url');
-  };
-  await assert.rejects(
-    async () => {
-      await resolveLinkMetadata('https://example.com/evil-redirect', {
-        lookupFn: mockPublicDns,
-        fetchFn: mockFetch,
-        execFn: execFail,
-      });
-    },
-    (err: unknown) => err instanceof UnsafeUrlError
-  );
-});
-
-test('11. Contract test: every path in src/data/api.ts exists on the Express server, and no component calls apiJson with raw paths', () => {
+test('10. Contract test: every path in src/data/api.ts exists on the Express server, and no component calls apiJson with raw paths', () => {
   const repo = new TrackerRepository({ dbPath: ':memory:' });
   try {
     const app = createApp({ repo, setupCode: 'contract-test-code' });

@@ -156,6 +156,15 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       root.classList.toggle('dark', mode === 'dark');
       root.classList.toggle('light', mode === 'light');
       root.setAttribute('data-theme', mode);
+      const meta = document.getElementById('meta-theme-color');
+      if (meta) {
+        meta.setAttribute('content', mode === 'light' ? '#f5f5f8' : '#121215');
+      }
+      try {
+        localStorage.setItem('zhenji_resolved_theme', mode);
+      } catch {
+        // Ignore storage write errors in restricted contexts
+      }
     };
 
     if (state.settings.theme === 'system') {

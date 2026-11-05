@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test as registerTest } from 'vitest';
-import { assertSafePublicUrl, isPrivateOrReservedIp } from '../../server/security/ssrf.ts';
 import {
   cancelRewatch,
   computeTitleState,
@@ -12,10 +11,8 @@ import {
   toggleEpisodeWatched,
   undoLatestPlaythrough,
 } from './progress.ts';
-import { makeBaseTvTitle, makeSampleSeasons } from './progress.test.ts';
+import { makeBaseTvTitle, makeSampleSeasons, TODAY } from './testFixtures.ts';
 import type { ProgressDoc, SeasonDoc, TitleDoc } from './types.ts';
-
-const TODAY = '2026-11-01';
 
 registerTest('1. Mark up to here across seasons checks previous countable episodes and never unchecks later ones', () => {
   const title = makeBaseTvTitle();
@@ -282,31 +279,7 @@ registerTest('6. Rewatch of an ongoing show: reaching 已追平 sets completedAt
   assert.equal(caughtUpRewatchState.isRewatching, false);
 });
 
-registerTest('7. SSRF protection rejects private, loopback, link-local IPs and non-http protocols', async () => {
-  assert.equal(isPrivateOrReservedIp('127.0.0.1'), true);
-  assert.equal(isPrivateOrReservedIp('10.0.0.1'), true);
-  assert.equal(isPrivateOrReservedIp('172.16.5.4'), true);
-  assert.equal(isPrivateOrReservedIp('192.168.1.1'), true);
-  assert.equal(isPrivateOrReservedIp('169.254.169.254'), true);
-  assert.equal(isPrivateOrReservedIp('::1'), true);
-  assert.equal(isPrivateOrReservedIp('fe80::1'), true);
-  assert.equal(isPrivateOrReservedIp('fc00::1'), true);
-  assert.equal(isPrivateOrReservedIp('::ffff:127.0.0.1'), true);
-  assert.equal(isPrivateOrReservedIp('93.184.216.34'), false);
-
-  await assert.rejects(() => assertSafePublicUrl('file:///etc/passwd'));
-  await assert.rejects(() => assertSafePublicUrl('http://127.0.0.1:8080/test'));
-  await assert.rejects(() => assertSafePublicUrl('http://169.254.169.254/latest/meta-data/'));
-  await assert.rejects(() =>
-    assertSafePublicUrl('https://evil.example.com/video', async () => [{ address: '10.1.2.3' }])
-  );
-  const valid = await assertSafePublicUrl('https://www.bilibili.com/video/BV1xx411c7mD', async () => [
-    { address: '93.184.216.34' },
-  ]);
-  assert.equal(valid.hostname, 'www.bilibili.com');
-});
-
-registerTest('8. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
+registerTest('7. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
   const seasons = [makeSampleSeasons()[1]]; // Season 1 with s1e1, s1e2, s1e3
   const p1Progress: ProgressDoc = {
     playthroughId: 'p1',

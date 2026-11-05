@@ -138,7 +138,7 @@ const SortableOrderedRow: React.FC<SortableOrderedRowProps> = ({
               <span
                 className={
                   state.status === 'completed'
-                    ? 'text-emerald-400 font-medium'
+                    ? 'text-[var(--success)] font-medium'
                     : state.status === 'watching'
                       ? 'text-[var(--accent-text)] font-medium'
                       : ''

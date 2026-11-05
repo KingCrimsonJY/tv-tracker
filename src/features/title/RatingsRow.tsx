@@ -1,5 +1,6 @@
 import React from 'react';
 import { Star } from 'lucide-react';
+import { Chip } from '@heroui/react';
 import type { TitleDoc } from '../../domain/types';
 import { zh } from '../../i18n/zh';
 
@@ -26,30 +27,30 @@ export const RatingsRow: React.FC<RatingsRowProps> = ({ title }) => {
     ? `https://www.themoviedb.org/${title.mediaType === 'tv' ? 'tv' : 'movie'}/${title.sourceId}`
     : undefined;
 
+  const tmdbChip = (
+    <Chip variant="soft" color="success" size="md">
+      <Star className="w-3.5 h-3.5 fill-current" />
+      <Chip.Label>
+        {zh.detail.ratings.tmdb} {tmdbRating}
+      </Chip.Label>
+    </Chip>
+  );
+
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
-      {tmdbRating && (
-        tmdbUrl ? (
+      {tmdbRating &&
+        (tmdbUrl ? (
           <a
             href={tmdbUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium hover:bg-emerald-500/25 transition-colors"
+            className="inline-flex"
           >
-            <Star className="w-3.5 h-3.5 fill-current" />
-            <span>
-              {zh.detail.ratings.tmdb} {tmdbRating}
-            </span>
+            {tmdbChip}
           </a>
         ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium">
-            <Star className="w-3.5 h-3.5 fill-current" />
-            <span>
-              {zh.detail.ratings.tmdb} {tmdbRating}
-            </span>
-          </span>
-        )
-      )}
+          tmdbChip
+        ))}
 
       {imdbRating && (
         <a
@@ -62,11 +63,11 @@ export const RatingsRow: React.FC<RatingsRowProps> = ({ title }) => {
           }
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-medium hover:bg-amber-500/25 transition-colors"
+          className="inline-flex"
         >
-          <span>
+          <Chip variant="soft" color="warning" size="md">
             {zh.detail.ratings.imdb} {imdbRating}
-          </span>
+          </Chip>
         </a>
       )}
 
@@ -77,22 +78,19 @@ export const RatingsRow: React.FC<RatingsRowProps> = ({ title }) => {
           )}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-medium hover:bg-red-500/25 transition-colors"
+          className="inline-flex"
         >
-          <span>
+          <Chip variant="soft" color="danger" size="md">
             {zh.detail.ratings.rottenTomatoes} {rtRating}
-          </span>
+          </Chip>
         </a>
       )}
 
       {mcRating && (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-medium">
-          <span>
-            {zh.detail.ratings.metacritic} {mcRating}
-          </span>
-        </span>
+        <Chip variant="soft" color="accent" size="md">
+          {zh.detail.ratings.metacritic} {mcRating}
+        </Chip>
       )}
     </div>
   );
 };
-
