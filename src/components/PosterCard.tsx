@@ -4,6 +4,7 @@ import { ProgressBar } from '@heroui/react';
 import {
   computeTitleState,
   getTitleContinueProgressRatio,
+  pickPoster,
   resolveDisplayTitle,
 } from '../domain/progress';
 import type { DefaultTitleLang, ProgressDoc, SeasonDoc, TitleDoc } from '../domain/types';
@@ -33,6 +34,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
   const { locale, t } = useI18n();
   const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
   const state = computeTitleState(title, seasons, progress, { includeSpecials });
+  const posterSrc = pickPoster(title, locale);
 
   const isWatching = state.status === 'watching';
   const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
@@ -45,7 +47,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
     >
       <div className="relative rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 group-hover:scale-[1.02]">
         <MediaImage
-          src={title.posterPath}
+          src={posterSrc}
           alt={primary}
           aspect="poster"
           mediaType={title.mediaType}
@@ -81,7 +83,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
           ) : (
             <span className="truncate">{t.status[state.status]}</span>
           )}
-          {isWatching && state.countableCount > 1 && (
+          {isWatching && state.isEpisodic && state.countableCount > 0 && (
             <>
               <span aria-hidden="true">·</span>
               <span className="shrink-0">

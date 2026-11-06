@@ -42,6 +42,7 @@ export const TitleDetailPage: React.FC = () => {
         <div className="flex items-center gap-3 flex-wrap pt-1">
           <PrimaryAction
             title={title}
+            seasons={seasons}
             titleState={titleState}
             onMarkMovieWatched={() => void detail.markWholeTitle(title.id, true)}
             onStartRewatch={() => void detail.startTitleRewatch(title.id)}
@@ -52,34 +53,32 @@ export const TitleDetailPage: React.FC = () => {
       </TitleHero>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 mt-5">
-        {(title.uploader || detail.overviewText) && (
-          <div className="max-w-3xl space-y-1.5">
-            {title.uploader && (
-              <p className="text-xs font-medium text-[var(--muted)]">
-                {t.detail.uploaderPrefix(title.uploader)}
-              </p>
-            )}
-            <p
-              className={`text-sm text-[var(--foreground)]/90 leading-relaxed ${
-                !detail.overviewExpanded ? 'line-clamp-3' : ''
-              }`}
-            >
-              {detail.overviewText}
+        <div className="max-w-3xl space-y-1.5">
+          {title.uploader && (
+            <p className="text-xs font-medium text-[var(--muted)]">
+              {t.detail.uploaderPrefix(title.uploader)}
             </p>
-            {detail.overviewText.length > 140 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() => detail.setOverviewExpanded(!detail.overviewExpanded)}
-                className="mt-1 -ml-2"
-              >
-                {detail.overviewExpanded ? t.detail.overview.collapse : t.detail.overview.expand}
-              </Button>
-            )}
-          </div>
-        )}
+          )}
+          <p
+            className={`text-sm ${
+              detail.hasOverviewText ? 'text-[var(--foreground)]/90' : 'text-[var(--muted)]'
+            } leading-relaxed ${!detail.overviewExpanded ? 'line-clamp-3' : ''}`}
+          >
+            {detail.overviewText}
+          </p>
+          {detail.hasOverviewText && detail.overviewText.length > 140 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => detail.setOverviewExpanded(!detail.overviewExpanded)}
+              className="mt-1 -ml-2"
+            >
+              {detail.overviewExpanded ? t.detail.overview.collapse : t.detail.overview.expand}
+            </Button>
+          )}
+        </div>
 
-        {(title.mediaType === 'tv' || seasons.length > 0) && (
+        {titleState.isEpisodic && (
           <SeasonPanel
             title={title}
             seasons={regularSeasons}

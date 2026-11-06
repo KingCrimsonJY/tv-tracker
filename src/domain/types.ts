@@ -20,6 +20,7 @@ export type TitleStatusCode =
   | 'caught_up'
   | 'completed'
   | 'unaired'
+  | 'unreleased'
   | 'paused'
   | 'dropped';
 
@@ -61,6 +62,12 @@ export interface LocalizedText {
   en?: string;
 }
 
+export interface LocalizedPosters {
+  zh?: string | null;
+  en?: string | null;
+  textless?: string | null;
+}
+
 export interface Playthrough {
   id: string; // 'p1', 'p2', ...
   number: number; // 1, 2, ...
@@ -94,14 +101,17 @@ export interface TmdbSearchItem {
   mediaType: 'movie' | 'tv';
   names: TitleNames;
   year: number | null;
+  releaseDate?: string | null;
   posterPath: string | null;
+  posters?: LocalizedPosters;
   backdropPath: string | null;
   overview: LocalizedText;
   voteAverage?: number;
 }
 
 export interface SystemInfoResponse {
-  ytdlpInstalled: boolean;
+  appVersion: string;
+  ytdlpInstalled?: boolean;
   ytdlpVersion: string | null;
 }
 
@@ -120,11 +130,13 @@ export interface TitleDoc {
   names: TitleNames;
   displayLang: DisplayLang | null;
   year: number | null;
+  releaseDate?: string | null;
   runtimeMin: number | null;
   genres: string[];
   genreIds?: number[];
   uploader?: string | null;
   posterPath: string | null;
+  posters?: LocalizedPosters;
   backdropPath: string | null;
   overview: LocalizedText;
   showStatus: ShowStatus;

@@ -10,6 +10,8 @@ import {
   computeTitleState,
   formatSeconds,
   getTitleContinueProgressRatio,
+  pickBackdrop,
+  pickPoster,
   resolveDisplayTitle,
 } from '../domain/progress';
 import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
@@ -155,7 +157,7 @@ export const HomePage: React.FC = () => {
                       className="block relative"
                     >
                       <MediaImage
-                        src={title.backdropPath || title.posterPath}
+                        src={pickBackdrop(title, locale) || pickPoster(title, locale)}
                         alt={primary}
                         aspect="backdrop"
                         mediaType={title.mediaType}
@@ -201,7 +203,7 @@ export const HomePage: React.FC = () => {
                           <Check className="w-4 h-4" />
                         </Button>
                       </div>
-                    ) : title.mediaType === 'movie' ? (
+                    ) : !state.isEpisodic ? (
                       <div className="absolute right-3 bottom-5 z-10">
                         <Button
                           variant="secondary"

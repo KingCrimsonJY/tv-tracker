@@ -1,102 +1,110 @@
 import React from 'react';
-import { Star, ExternalLink } from 'lucide-react';
+import { Chip } from '@heroui/react';
 import { TitleDoc } from '../../domain/types';
 import { useI18n } from '../../i18n';
 
-export const RatingsRow: React.FC<{
+interface RatingsRowProps {
   title: TitleDoc;
-}> = ({ title }) => {
+}
+
+interface RatingChipItem {
+  key: string;
+  label: string;
+  score?: string;
+  href?: string;
+  valueColorClass?: string;
+}
+
+function getMetacriticValueColor(rawScore: string): string {
+  const num = Number.parseInt(rawScore, 10);
+  if (Number.isNaN(num)) return 'text-foreground';
+  if (num >= 61) return 'text-success';
+  if (num >= 40) return 'text-warning';
+  return 'text-danger';
+}
+
+export const RatingsRow: React.FC<RatingsRowProps> = ({ title }) => {
+  const { ratings, externalIds } = title;
   const { t } = useI18n();
-  const { ratings } = title;
 
-  const chips: Array<{
-    key: string;
-    label: string;
-    value: string;
-    href?: string | null;
-  }> = [];
+  const items: RatingChipItem[] = [];
 
-  if (ratings.doubanManualScore) {
-    const searchQuery = encodeURIComponent(
-      title.names.zh || title.names.original || title.names.en || ''
-    );
-    chips.push({
-      key: 'douban',
-      label: t.detail.ratings.douban,
-      value: ratings.doubanManualScore,
-      href:
-        ratings.doubanUrl ||
-        `https://search.douban.com/movie/subject_search?search_text=${searchQuery}`,
-    });
-  }
-
-  if (ratings.tmdb) {
-    chips.push({
+  if (ratings.tmdb && title.source === 'tmdb' && title.sourceId) {
+    items.push({
       key: 'tmdb',
       label: t.detail.ratings.tmdb,
-      value: ratings.tmdb,
-      href:
-        title.source === 'tmdb' && title.sourceId
-          ? `https://www.themoviedb.org/${title.mediaType === 'movie' ? 'movie' : 'tv'}/${title.sourceId}`
-          : null,
+      score: ratings.tmdb,
+      href: `https://www.themoviedb.org/${title.mediaType === 'tv' ? 'tv' : 'movie'}/${title.sourceId}`,
     });
   }
 
   if (ratings.imdb) {
-    chips.push({
+    items.push({
       key: 'imdb',
       label: t.detail.ratings.imdb,
-      value: ratings.imdb,
-      href: title.externalIds?.imdb
-        ? `https://www.imdb.com/title/${title.externalIds.imdb}/`
-        : null,
+      score: ratings.imdb,
+      href: externalIds.imdb ? `https://www.imdb.com/title/${externalIds.imdb}/` : undefined,
     });
   }
 
   if (ratings.rottenTomatoes) {
-    chips.push({
+    const rtQuery = title.names.en || title.names.original || title.names.zh || '';
+    items.push({
       key: 'rt',
       label: t.detail.ratings.rottenTomatoes,
-      value: ratings.rottenTomatoes,
-      href: null,
+      score: ratings.rottenTomatoes,
+      href: rtQuery
+        ? `https://www.rottentomatoes.com/search?search=${encodeURIComponent(rtQuery)}`
+        : undefined,
     });
   }
 
   if (ratings.metacritic) {
-    chips.push({
+    const mcQuery = title.names.en || title.names.original || title.names.zh || '';
+    items.push({
       key: 'mc',
       label: t.detail.ratings.metacritic,
-      value: ratings.metacritic,
-      href: null,
+      score: ratings.metacritic,
+      href: mcQuery
+        ? `https://www.metacritic.com/search/${encodeURIComponent(mcQuery)}/`
+        : undefined,
+      valueColorClass: getMetacriticValueColor(ratings.metacritic),
     });
   }
 
-  if (chips.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {chips.map((chip) => {
-        const inner = (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-default-100/70 border border-[var(--border)] text-xs font-medium text-[var(--foreground)] hover:bg-default-200/70 transition-colors">
-            <Star className="w-3 h-3 text-warning fill-warning" />
-            <span className="text-[var(--muted)]">{chip.label}</span>
-            <span className="font-semibold">{chip.value}</span>
-            {chip.href && <ExternalLink className="w-3 h-3 text-[var(--muted)] ml-0.5" />}
-          </span>
+      {items.map((item) => {
+        const chipNode = (
+          <Chip size="sm" variant="soft" color="default">
+            <Chip.Label className="inline-flex items-center gap-1.5">
+              <span className="text-muted">{item.label}</span>
+              {item.score && (
+                <span className={`font-semibold tabular-nums ${item.valueColorClass || 'text-foreground'}`}>
+                  {item.score}
+                </span>
+              )}
+            </Chip.Label>
+          </Chip>
         );
 
-        return chip.href ? (
-          <a
-            key={chip.key}
-            href={chip.href}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {inner}
-          </a>
-        ) : (
-          <span key={chip.key}>{inner}</span>
-        );
+        if (item.href) {
+          return (
+            <a
+              key={item.key}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              {chipNode}
+            </a>
+          );
+        }
+
+        return <React.Fragment key={item.key}>{chipNode}</React.Fragment>;
       })}
     </div>
   );

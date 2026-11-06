@@ -16,6 +16,7 @@ import type {
 
 export interface ComputedTitleState {
   status: TitleStatusCode;
+  isEpisodic: boolean;
   hasNewEpisodes: boolean;
   nextUp: CountableEpisode | null;
   watchedCount: number;
@@ -34,6 +35,16 @@ export interface ComputedSeasonState {
   airedCount: number;
   totalCount: number;
   isCompleteSoFar: boolean;
+}
+
+export function isEpisodic(
+  title: Pick<TitleDoc, 'mediaType'>,
+  seasons: SeasonDoc[]
+): boolean {
+  return (
+    title.mediaType === 'tv' ||
+    seasons.some((s) => s.seasonNumber >= 1 && s.episodes.length > 0)
+  );
 }
 
 export function computeSeasonState(
@@ -101,7 +112,7 @@ export function getTitleContinueProgressRatio(
     return overallProgressRatio;
   }
 
-  if (title.mediaType === 'movie' || !resume.episodeKey) {
+  if (!isEpisodic(title, seasons) || !resume.episodeKey) {
     if (title.runtimeMin && title.runtimeMin > 0) {
       return computeResumeRatio(resume.seconds, title.runtimeMin);
     }
@@ -141,7 +152,7 @@ export function computeTitleState(
     | 'resume'
     | 'playthroughs'
     | 'activePlaythroughId'
-  > & { runtimeMin?: number | null },
+  > & { runtimeMin?: number | null; releaseDate?: string | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc | undefined,
   options: { includeSpecials?: boolean; todayStr?: string } = {}
@@ -160,16 +171,21 @@ export function computeTitleState(
     (p) => p.completedAt !== undefined && p.completedAt !== null
   ).length;
 
-  const isEpisodic =
-    title.mediaType === 'tv' ||
-    seasons.some((s) => s.seasonNumber >= 1 && s.episodes.length > 0);
+  const episodic = isEpisodic(title, seasons);
 
-  if (!isEpisodic) {
+  if (!episodic) {
     const isWatched = Boolean(
       progress?.movieWatchedAt ||
         (progress?.watched && Object.keys(progress.watched).length > 0)
     );
     const hasResume = Boolean(title.resume && title.resume.seconds > 0);
+    const isUnreleasedMovie =
+      title.mediaType === 'movie' &&
+      Boolean(
+        title.releaseDate &&
+          title.releaseDate.trim() !== '' &&
+          title.releaseDate.trim() > todayStr
+      );
 
     let status: TitleStatusCode;
     if (title.manualState === 'dropped') {
@@ -180,6 +196,8 @@ export function computeTitleState(
       status = 'completed';
     } else if (hasResume) {
       status = 'watching';
+    } else if (isUnreleasedMovie) {
+      status = 'unreleased';
     } else {
       status = 'unwatched';
     }
@@ -193,6 +211,7 @@ export function computeTitleState(
 
     return {
       status,
+      isEpisodic: false,
       hasNewEpisodes: false,
       nextUp: null,
       watchedCount: isWatched ? 1 : 0,
@@ -247,6 +266,7 @@ export function computeTitleState(
   if (title.manualState === 'dropped') {
     return {
       status: 'dropped',
+      isEpisodic: true,
       hasNewEpisodes: false,
       nextUp,
       watchedCount,
@@ -261,6 +281,7 @@ export function computeTitleState(
   if (title.manualState === 'paused') {
     return {
       status: 'paused',
+      isEpisodic: true,
       hasNewEpisodes: false,
       nextUp,
       watchedCount,
@@ -276,6 +297,7 @@ export function computeTitleState(
   if (!hasAnyAiredEpisode && countableCount === 0) {
     return {
       status: 'unaired',
+      isEpisodic: true,
       hasNewEpisodes: false,
       nextUp: null,
       watchedCount: 0,
@@ -291,6 +313,7 @@ export function computeTitleState(
   if (watchedCount === 0 && !hasResume) {
     return {
       status: 'unwatched',
+      isEpisodic: true,
       hasNewEpisodes: false,
       nextUp,
       watchedCount: 0,
@@ -308,6 +331,7 @@ export function computeTitleState(
     const status: TitleStatusCode = ended ? 'completed' : 'caught_up';
     return {
       status,
+      isEpisodic: true,
       hasNewEpisodes: false,
       nextUp: null,
       watchedCount,
@@ -333,6 +357,7 @@ export function computeTitleState(
 
   return {
     status: 'watching',
+    isEpisodic: true,
     hasNewEpisodes,
     nextUp,
     watchedCount,

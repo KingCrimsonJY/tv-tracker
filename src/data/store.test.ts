@@ -434,6 +434,96 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     expect(store.getState().titles['tmdb_tv_1'].playthroughs[0].completedAt).toBeUndefined();
     expect(store.getState().progressByTitle['tmdb_tv_1'].p1.watched).toEqual({});
   });
+
+  it('refreshTitleMetadata backfills releaseDate, localized posters, and backdropPath', async () => {
+    const store = createTrackerStore();
+    const { snapshot, title } = makeFixtureState();
+    store.applySnapshot({
+      ...snapshot,
+      titles: {
+        tmdb_tv_1: {
+          ...title,
+          releaseDate: null,
+          posters: undefined,
+          posterPath: null,
+          backdropPath: null,
+        },
+      },
+    });
+
+    vi.spyOn(api, 'fetchTmdbDetailsApi').mockResolvedValue({
+      title: {
+        ...title,
+        source: 'tmdb',
+        sourceId: '1',
+        mediaType: 'tv',
+        names: { original: 'Severance', zh: '人生切割术', en: 'Severance' },
+        year: 2022,
+        releaseDate: '2022-02-18',
+        runtimeMin: 50,
+        genres: ['剧情'],
+        genreIds: [18],
+        posterPath: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+        posters: {
+          zh: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+          en: 'https://image.tmdb.org/t/p/w500/en.jpg',
+          textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
+        },
+        backdropPath: 'https://image.tmdb.org/t/p/w1280/textless_bd.jpg',
+        overview: { zh: '中文简介', en: 'English overview' },
+        showStatus: 'Returning Series',
+        externalIds: { imdb: 'tt11280740' },
+        ratings: { tmdb: '8.4' },
+      },
+      seasons: snapshot.seasonsByTitle['tmdb_tv_1'],
+    });
+
+    const patchSpy = vi
+      .spyOn(api, 'patchTitleApi')
+      .mockImplementation(async (titleId, patch) => ({
+        epoch: 'epoch-1',
+        version: 2,
+        upserts: {
+          titles: {
+            [titleId]: {
+              ...store.getState().titles[titleId],
+              ...patch,
+            },
+          },
+        },
+        deletes: {},
+      }));
+    vi.spyOn(api, 'putSeasonsApi').mockResolvedValue({
+      epoch: 'epoch-1',
+      version: 3,
+      upserts: {
+        seasonsByTitle: {
+          tmdb_tv_1: snapshot.seasonsByTitle['tmdb_tv_1'],
+        },
+      },
+      deletes: {},
+    });
+
+    const actions = createTrackerActions({
+      getState: store.getState,
+      setState: store.setState,
+      applyServerMutation: (mut) => {
+        store.applyMutation(mut);
+      },
+      showToast: () => {},
+    });
+
+    await actions.refreshTitleMetadata('tmdb_tv_1');
+    expect(patchSpy).toHaveBeenCalledTimes(1);
+    const refreshed = store.getState().titles['tmdb_tv_1'];
+    expect(refreshed.releaseDate).toBe('2022-02-18');
+    expect(refreshed.posters).toEqual({
+      zh: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+      en: 'https://image.tmdb.org/t/p/w500/en.jpg',
+      textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
+    });
+    expect(refreshed.backdropPath).toBe('https://image.tmdb.org/t/p/w1280/textless_bd.jpg');
+  });
 });
 
 describe('createRandomId uniqueness', () => {

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Express } from 'express';
 import { linkImportRequestSchema } from '../src/domain/schemas.ts';
 import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
@@ -18,6 +20,18 @@ import {
   YtdlpNotInstalledError,
 } from './providers/ytdlp.ts';
 import { UnsafeUrlError } from './security/ssrf.ts';
+
+function getPackageVersion(): string {
+  try {
+    const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as { version?: string };
+    return pkg.version || '1.0.0';
+  } catch {
+    return '1.0.0';
+  }
+}
+
+const APP_VERSION = getPackageVersion();
 
 export interface ProviderRoutesOptions {
   repo: TrackerRepository;
@@ -54,7 +68,8 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       execFn: linkDeps.execFn,
     });
     res.json({
-      appVersion: '1.0.0',
+      appVersion: APP_VERSION,
+      ytdlpInstalled: Boolean(ytdlpVersion),
       ytdlpVersion,
     });
   });

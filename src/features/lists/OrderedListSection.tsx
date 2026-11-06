@@ -18,9 +18,10 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button, Chip } from '@heroui/react';
-import { GripVertical, X, Film } from 'lucide-react';
+import { GripVertical, X } from 'lucide-react';
+import { MediaImage } from '../../components/MediaImage';
 import { DefaultTitleLang, ListEntryDoc, TitleDoc } from '../../domain/types';
-import { ComputedTitleState, resolveDisplayTitle } from '../../domain/progress';
+import { ComputedTitleState, pickPoster, resolveDisplayTitle } from '../../domain/progress';
 import { useI18n } from '../../i18n';
 
 interface ItemRow {
@@ -95,18 +96,14 @@ const SortableOrderedRow: React.FC<{
 
       <Link to={`/title/${item.title.id}`} className="flex items-center gap-3 flex-1 min-w-0">
         <div className="w-11 h-16 rounded-lg overflow-hidden bg-[var(--surface-secondary)] shrink-0">
-          {item.title.posterPath ? (
-            <img
-              src={item.title.posterPath}
-              alt={displayTitle}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-[var(--muted)]">
-              <Film className="w-4 h-4" />
-            </div>
-          )}
+          <MediaImage
+            src={pickPoster(item.title, locale)}
+            alt={displayTitle}
+            aspect="poster"
+            mediaType={item.title.mediaType}
+            className="w-full h-full"
+            compact
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

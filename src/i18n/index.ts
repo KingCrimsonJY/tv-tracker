@@ -149,7 +149,12 @@ export function useI18n() {
         day: 'numeric',
       }
     ): string => {
-      const date = value instanceof Date ? value : new Date(value);
+      const date =
+        value instanceof Date
+          ? value
+          : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
+            ? new Date(`${value.trim()}T00:00:00`)
+            : new Date(value);
       if (Number.isNaN(date.getTime())) return String(value);
       return new Intl.DateTimeFormat(locale, options).format(date);
     },

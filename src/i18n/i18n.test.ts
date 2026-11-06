@@ -361,12 +361,18 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       );
       db.close();
 
-      // Opening TrackerRepository runs migration 002 automatically
+      // Opening TrackerRepository runs migration 002 and 003 automatically
       const repo = new TrackerRepository({ dataDir: tmpDir });
       const state = repo.getState();
       const migratedTitle = state.titles['url_1'];
       expect(migratedTitle?.uploader).toBe('3Blue1Brown');
       expect(migratedTitle?.overview.zh).toBe('线性代数的本质合集');
+      expect(migratedTitle?.releaseDate).toBe('2024-01-01');
+      expect(migratedTitle?.posters).toEqual({
+        zh: null,
+        en: null,
+        textless: null,
+      });
 
       const migratedSeasons = state.seasonsByTitle['url_1'];
       expect(migratedSeasons?.[0]?.name).toBeNull();
@@ -379,4 +385,79 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('7. TMDB images selection prefers CN/SG for zh posters, vote_average for en/textless, and textless for backdrops', async () => {
+    const prevToken = process.env.TMDB_READ_TOKEN;
+    process.env.TMDB_READ_TOKEN = 'mock-tmdb-token';
+    try {
+      const mockFetch: typeof fetch = async (input) => {
+        const url = String(input);
+        if (url.includes('/movie/438631?') && url.includes('language=zh-CN')) {
+          return new Response(
+            JSON.stringify({
+              id: 438631,
+              title: '沙丘',
+              original_title: 'Dune',
+              overview: '中文简介',
+              release_date: '2021-10-22',
+              runtime: 155,
+              status: 'Released',
+              poster_path: '/zh_default.jpg',
+              backdrop_path: '/default_bd.jpg',
+              genres: [{ id: 878, name: '科幻' }],
+              external_ids: { imdb_id: 'tt1160419' },
+              images: {
+                posters: [
+                  { file_path: '/zh_tw.jpg', iso_639_1: 'zh', iso_3166_1: 'TW', vote_average: 9.0, vote_count: 10 },
+                  { file_path: '/zh_cn.jpg', iso_639_1: 'zh', iso_3166_1: 'CN', vote_average: 7.5, vote_count: 5 },
+                  { file_path: '/en_low.jpg', iso_639_1: 'en', iso_3166_1: 'US', vote_average: 6.0, vote_count: 4 },
+                  { file_path: '/en_high.jpg', iso_639_1: 'en', iso_3166_1: 'US', vote_average: 8.5, vote_count: 12 },
+                  { file_path: '/clean.jpg', iso_639_1: null, iso_3166_1: null, vote_average: 8.0, vote_count: 8 },
+                ],
+                backdrops: [
+                  { file_path: '/en_bd.jpg', iso_639_1: 'en', iso_3166_1: 'US', vote_average: 9.5, vote_count: 20 },
+                  { file_path: '/textless_bd.jpg', iso_639_1: null, iso_3166_1: null, vote_average: 7.0, vote_count: 5 },
+                ],
+              },
+            }),
+            { status: 200 }
+          );
+        }
+        if (url.includes('/movie/438631?') && url.includes('language=en-US')) {
+          return new Response(
+            JSON.stringify({
+              id: 438631,
+              title: 'Dune',
+              original_title: 'Dune',
+              overview: 'English overview',
+              release_date: '2021-10-22',
+              runtime: 155,
+              status: 'Released',
+              poster_path: '/en_default.jpg',
+              backdrop_path: '/default_bd.jpg',
+              genres: [{ id: 878, name: 'Science Fiction' }],
+            }),
+            { status: 200 }
+          );
+        }
+        return new Response('Not Found', { status: 404 });
+      };
+
+      const { title } = await fetchTmdbTitleDetails('movie', '438631', { fetchFn: mockFetch });
+      expect(title.releaseDate).toBe('2021-10-22');
+      expect(title.posters).toEqual({
+        zh: 'https://image.tmdb.org/t/p/w500/zh_cn.jpg',
+        en: 'https://image.tmdb.org/t/p/w500/en_high.jpg',
+        textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
+      });
+      expect(title.backdropPath).toBe('https://image.tmdb.org/t/p/w1280/textless_bd.jpg');
+    } finally {
+      if (prevToken === undefined) {
+        delete process.env.TMDB_READ_TOKEN;
+      } else {
+        process.env.TMDB_READ_TOKEN = prevToken;
+      }
+    }
+  });
 });
+

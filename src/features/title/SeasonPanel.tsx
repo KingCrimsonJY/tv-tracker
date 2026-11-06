@@ -120,18 +120,21 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             .map((ep) => {
               const epKey = makeEpisodeKey(season.seasonNumber, ep.number);
               const isWatched = Boolean(activeProgress?.watched[epKey]);
+              const resumeSeconds =
+                title.resume && title.resume.episodeKey === epKey ? title.resume.seconds : null;
               return (
                 <EpisodeRow
                   key={epKey}
                   seasonNumber={season.seasonNumber}
-                  ep={ep}
-                  title={title}
+                  episode={ep}
                   isWatched={isWatched}
+                  resumeSeconds={resumeSeconds}
                   today={today}
+                  treatAllAsAired={title.source !== 'tmdb'}
                   isHighlighted={highlightEpKey === epKey}
-                  onToggle={onToggleEpisode}
-                  onMarkUpTo={onMarkUpTo}
-                  onOpenResume={onOpenResumeForEpisode}
+                  onToggle={() => onToggleEpisode(epKey)}
+                  onMarkUpToHere={() => onMarkUpTo(epKey)}
+                  onRecordTime={() => onOpenResumeForEpisode(epKey)}
                 />
               );
             })}
@@ -150,24 +153,24 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {seasons.length > 0 &&
+      {seasons.length === 1 && renderSeasonBlock(currentSeason)}
+
+      {seasons.length > 1 &&
         (seasons.length <= 6 ? (
           <Tabs
             selectedKey={String(currentSeason.seasonNumber)}
             onSelectionChange={(k) => setSelectedSeasonNum(Number(k))}
           >
-            {seasons.length > 1 && (
-              <Tabs.ListContainer className="mb-4 overflow-x-auto">
-                <Tabs.List aria-label={t.detail.seasons.selectAria}>
-                  {seasons.map((s) => (
-                    <Tabs.Tab key={s.seasonNumber} id={String(s.seasonNumber)}>
-                      {t.detail.seasons.tabLabel(s.seasonNumber)}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-              </Tabs.ListContainer>
-            )}
+            <Tabs.ListContainer className="mb-4 overflow-x-auto">
+              <Tabs.List aria-label={t.detail.seasons.selectAria}>
+                {seasons.map((s) => (
+                  <Tabs.Tab key={s.seasonNumber} id={String(s.seasonNumber)}>
+                    {t.detail.seasons.tabLabel(s.seasonNumber)}
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
             {seasons.map((s) => (
               <Tabs.Panel key={s.seasonNumber} id={String(s.seasonNumber)}>
                 {renderSeasonBlock(s)}

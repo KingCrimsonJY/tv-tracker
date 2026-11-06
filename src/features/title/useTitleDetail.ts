@@ -115,8 +115,9 @@ export function useTitleDetail() {
     locale
   );
   const showOriginalSub = Boolean(secondary && secondary !== displayTitle);
-  const overviewText =
-    resolveOverviewText(title, settings.defaultTitleLang, locale) || t.detail.overview.empty;
+  const rawOverview = resolveOverviewText(title, settings.defaultTitleLang, locale);
+  const hasOverviewText = Boolean(rawOverview && rawOverview.trim() !== '');
+  const overviewText = hasOverviewText ? rawOverview : t.detail.overview.empty;
 
   const regularSeasons = seasons
     .filter((s) => s.seasonNumber >= 1)
@@ -126,7 +127,7 @@ export function useTitleDetail() {
   const metaParts: string[] = [];
   if (title.year) metaParts.push(String(title.year));
   metaParts.push(t.mediaType[title.mediaType]);
-  if (title.mediaType === 'tv' || regularSeasons.length > 0) {
+  if (titleState.isEpisodic) {
     metaParts.push(t.detail.seasons.seasonCountMeta(regularSeasons.length || 1));
   } else if (title.runtimeMin) {
     metaParts.push(t.detail.seasons.runtimeMinutes(title.runtimeMin));
@@ -198,6 +199,7 @@ export function useTitleDetail() {
     highlightEpKey,
     displayTitle,
     showOriginalSub,
+    hasOverviewText,
     overviewText,
     overviewExpanded,
     setOverviewExpanded,

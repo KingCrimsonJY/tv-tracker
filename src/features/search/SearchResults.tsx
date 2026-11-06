@@ -1,7 +1,9 @@
 import React from 'react';
 import { Button, Chip, Dropdown, Label } from '@heroui/react';
-import { Plus, Check, Film, ListPlus } from 'lucide-react';
+import { Plus, Check, ListPlus } from 'lucide-react';
+import { MediaImage } from '../../components/MediaImage';
 import { TmdbSearchItem } from '../../data/api';
+import { pickPoster, resolveDisplayTitle } from '../../domain/progress';
 import { WatchListDoc, TitleDoc } from '../../domain/types';
 import { useI18n } from '../../i18n';
 
@@ -41,43 +43,41 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           : undefined;
         const isAdding = addingKey === key;
 
-        const mainTitle =
-          locale === 'en'
-            ? hit.names.en || hit.names.zh || hit.names.original
-            : hit.names.zh || hit.names.original || hit.names.en;
-        const showOriginal = Boolean(hit.names.original && hit.names.original !== mainTitle);
+        const { primary: mainTitle, secondary: originalSub } = resolveDisplayTitle(
+          hit.names,
+          null,
+          'auto',
+          locale
+        );
+        const posterSrc = pickPoster(hit, locale);
 
         return (
           <div
             key={key}
-            className="flex items-center justify-between gap-4 p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-default-300/40 transition-colors"
+            className="flex items-center justify-between gap-4 p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-muted/50 transition-colors"
           >
             <div
               className={`flex items-center gap-3.5 min-w-0 flex-1 ${existingDoc ? 'cursor-pointer' : ''}`}
               onClick={() => existingDoc && onOpenExisting(existingDoc.id)}
             >
-              <div className="w-12 h-18 rounded-lg overflow-hidden bg-default-100 shrink-0">
-                {hit.posterPath ? (
-                  <img
-                    src={hit.posterPath}
-                    alt={mainTitle}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[var(--muted)]">
-                    <Film className="w-5 h-5" />
-                  </div>
-                )}
+              <div className="w-12 h-18 rounded-lg overflow-hidden bg-surface-secondary shrink-0">
+                <MediaImage
+                  src={posterSrc}
+                  alt={mainTitle}
+                  aspect="poster"
+                  mediaType={hit.mediaType}
+                  className="w-full h-full"
+                  compact
+                />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-sm sm:text-base text-[var(--foreground)] truncate">
                   {mainTitle}
                 </div>
-                {showOriginal && (
+                {originalSub && (
                   <div className="text-xs text-[var(--muted)] truncate">
-                    {hit.names.original}
+                    {originalSub}
                   </div>
                 )}
                 <div className="flex items-center gap-2 mt-1">

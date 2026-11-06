@@ -181,6 +181,9 @@ export class TrackerRepository {
         if (migration.version === 2) {
           this.runMigration002InTx();
         }
+        if (migration.version === 3) {
+          this.runMigration003InTx();
+        }
         this.db.exec(`PRAGMA user_version = ${migration.version};`);
       });
     }
@@ -249,6 +252,66 @@ export class TrackerRepository {
             parsed.genreIds = ids;
             changed = true;
           }
+        }
+
+        if (changed) {
+          updateTitle.run(JSON.stringify(parsed), row.id);
+        }
+      } catch {
+        // Ignore malformed legacy row
+      }
+    }
+  }
+
+  private runMigration003InTx(): void {
+    const seasonRows = this.db
+      .prepare('SELECT title_id, season_number, data FROM seasons WHERE season_number = 1')
+      .all() as Array<{ title_id: string; season_number: number; data: string }>;
+    const firstAirByTitle = new Map<string, string>();
+    for (const sRow of seasonRows) {
+      try {
+        const parsedSeason = JSON.parse(sRow.data) as SeasonDoc;
+        const firstEpAirDate = parsedSeason.episodes?.[0]?.airDate;
+        if (firstEpAirDate && firstEpAirDate.trim() !== '') {
+          firstAirByTitle.set(sRow.title_id, firstEpAirDate.trim());
+        } else if (parsedSeason.airDate && parsedSeason.airDate.trim() !== '') {
+          firstAirByTitle.set(sRow.title_id, parsedSeason.airDate.trim());
+        }
+      } catch {
+        // Ignore malformed season row
+      }
+    }
+
+    const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
+      id: string;
+      data: string;
+    }>;
+    const updateTitle = this.db.prepare('UPDATE titles SET data = ? WHERE id = ?');
+
+    for (const row of titleRows) {
+      try {
+        const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
+        let changed = false;
+
+        if (parsed.releaseDate === undefined) {
+          const inferredAir = firstAirByTitle.get(row.id);
+          if (inferredAir) {
+            parsed.releaseDate = inferredAir;
+          } else if (typeof parsed.year === 'number' && parsed.year > 1800) {
+            parsed.releaseDate = `${parsed.year}-01-01`;
+          } else {
+            parsed.releaseDate = null;
+          }
+          changed = true;
+        }
+
+        if (!parsed.posters) {
+          parsed.posters = {
+            zh: parsed.posterPath ?? null,
+            en: parsed.posterPath ?? null,
+            textless: null,
+          };
+          changed = true;
         }
 
         if (changed) {

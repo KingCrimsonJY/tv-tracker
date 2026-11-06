@@ -8,6 +8,7 @@ import type {
   EpisodeMeta,
   HomeSectionConfig,
   ListEntryDoc,
+  LocalizedPosters,
   LocalizedText,
   Playthrough,
   ProgressDoc,
@@ -40,6 +41,12 @@ export const manualStateSchema = z.enum(['paused', 'dropped']).nullable();
 export const localizedTextSchema: z.ZodType<LocalizedText> = z.object({
   zh: z.string().optional(),
   en: z.string().optional(),
+});
+
+export const localizedPostersSchema: z.ZodType<LocalizedPosters> = z.object({
+  zh: z.string().nullable().optional(),
+  en: z.string().nullable().optional(),
+  textless: z.string().nullable().optional(),
 });
 
 export const localizedSeasonNameSchema: z.ZodType<LocalizedText | null> = z
@@ -96,11 +103,13 @@ const baseTitleFields = {
   names: titleNamesSchema,
   displayLang: displayLangSchema,
   year: z.number().int().min(1800).max(2200).nullable(),
+  releaseDate: z.string().nullable().optional(),
   runtimeMin: z.number().min(0).max(100000).nullable(),
   genres: z.array(z.string()),
   genreIds: z.array(z.number().int()).optional(),
   uploader: z.string().nullable().optional(),
   posterPath: z.string().nullable(),
+  posters: localizedPostersSchema.optional(),
   backdropPath: z.string().nullable(),
   overview: overviewSchema,
   showStatus: showStatusSchema,
@@ -147,11 +156,13 @@ export const patchTitleRequestSchema = z
     names: titleNamesSchema.optional(),
     displayLang: displayLangSchema.optional(),
     year: z.number().int().min(1800).max(2200).nullable().optional(),
+    releaseDate: z.string().nullable().optional(),
     runtimeMin: z.number().min(0).max(100000).nullable().optional(),
     genres: z.array(z.string()).optional(),
     genreIds: z.array(z.number().int()).optional(),
     uploader: z.string().nullable().optional(),
     posterPath: z.string().nullable().optional(),
+    posters: localizedPostersSchema.optional(),
     backdropPath: z.string().nullable().optional(),
     overview: overviewSchema.optional(),
     showStatus: showStatusSchema.optional(),

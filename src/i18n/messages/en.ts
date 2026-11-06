@@ -79,6 +79,7 @@ export const en: MessageCatalog = {
     paused: 'Paused',
     dropped: 'Dropped',
     unaired: 'Upcoming',
+    unreleased: 'Not released yet',
     newEpisodesBadge: 'New Episodes',
     rewatchingBadge: 'Rewatching',
     nthPlaythroughBadge: (n: number) => `${ordinal(n)} Watch`,
@@ -311,10 +312,12 @@ export const en: MessageCatalog = {
       continueEpisode: (s: number, e: number, time: string) => `Resume S${s}·E${e} ${time}`,
       continueMovie: (time: string) => `Resume ${time}`,
       markEpisodeWatched: (s: number, e: number) => `Mark S${s}·E${e} Watched`,
-      markMovieWatched: 'Mark Watched',
+      markMovieWatched: 'Mark as watched',
       completedStartRewatch: 'Completed · Start Rewatch',
       caughtUpStartRewatch: 'Caught Up · Start Rewatch',
       unaired: 'Not Yet Aired',
+      unreleased: 'Not released yet',
+      unreleasedWithDate: (date: string) => `Not released yet · ${date}`,
     },
     menu: {
       title: 'More Actions',
@@ -343,7 +346,7 @@ export const en: MessageCatalog = {
       rottenTomatoes: 'Rotten Tomatoes',
       metacritic: 'Metacritic',
     },
-    overview: { expand: 'Read More', collapse: 'Show Less', empty: 'No overview available.' },
+    overview: { expand: 'Read More', collapse: 'Show Less', empty: 'No overview yet' },
     seasons: {
       tabLabel: (n: number) => (n === 0 ? 'Specials' : `Season ${n}`),
       selectOptionWithCount: (seasonLabel: string, count: number | string) => `${seasonLabel} (${count} eps)`,
@@ -358,8 +361,10 @@ export const en: MessageCatalog = {
       unairedWithDate: (date: string) => `Airs ${date}`,
       unairedNoDate: 'TBA',
       runtimeMinutes: (mins: number | string) => `${mins} min`,
-      seasonCountMeta: (count: number | string) => `${count} Seasons`,
-      episodeCountMeta: (count: number | string) => `${count} Episodes`,
+      seasonCountMeta: (count: number | string) =>
+        Number(count) === 1 ? '1 Season' : `${count} Seasons`,
+      episodeCountMeta: (count: number | string) =>
+        Number(count) === 1 ? '1 Episode' : `${count} Episodes`,
       checkEpisodeAria: (s: number, e: number, watched: boolean) =>
         `${watched ? 'Unmark' : 'Mark'} Season ${s} Episode ${e} watched`,
       episodeMoreAria: (s: number, e: number) => `More actions for Season ${s} Episode ${e}`,
@@ -463,7 +468,7 @@ export const en: MessageCatalog = {
     },
     about: {
       label: 'About',
-      versionLabel: 'Version v1.0.0',
+      versionLabel: 'Version',
       ytdlpLabel: 'yt-dlp',
       ytdlpNotInstalled: 'not installed',
       githubLabel: 'GitHub Repository',

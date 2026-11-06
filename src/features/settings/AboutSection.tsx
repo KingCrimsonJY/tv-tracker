@@ -6,13 +6,17 @@ import { useI18n } from '../../i18n';
 
 export const AboutSection: React.FC = () => {
   const { t } = useI18n();
+  const [appVersion, setAppVersion] = useState<string>('1.0.0');
   const [ytdlpVersion, setYtdlpVersion] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     fetchSystemInfoApi()
       .then((info) => {
-        if (mounted) setYtdlpVersion(info.ytdlpVersion);
+        if (mounted) {
+          if (info.appVersion) setAppVersion(info.appVersion);
+          setYtdlpVersion(info.ytdlpVersion);
+        }
       })
       .catch(() => {});
     return () => {
@@ -47,12 +51,12 @@ export const AboutSection: React.FC = () => {
           </a>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-xs text-[var(--muted)] pt-2 border-t border-[var(--border)]">
-          <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 text-xs text-[var(--muted)] pt-3 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between gap-4">
             <span>{t.settings.about.versionLabel}</span>
-            <span className="font-mono text-[var(--foreground)]">v2.0</span>
+            <span className="font-mono text-[var(--foreground)]">{appVersion}</span>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <span>{t.settings.about.ytdlpLabel}</span>
             <span className="font-mono text-[var(--foreground)]">
               {ytdlpVersion || t.settings.about.ytdlpNotInstalled}
@@ -60,13 +64,13 @@ export const AboutSection: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-3 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="pt-3 border-t border-[var(--border)] flex flex-row items-center gap-3">
           <img
             src="/tmdb-logo.svg"
             alt="TMDB"
-            className="h-3.5 w-auto shrink-0 self-start sm:self-center opacity-90"
+            className="h-3.5 w-auto shrink-0 opacity-90"
           />
-          <p className="text-xs text-[var(--muted)] leading-relaxed">
+          <p className="text-xs text-[var(--muted)] leading-relaxed min-w-0 flex-1">
             {t.settings.about.tmdbNotice}
           </p>
         </div>

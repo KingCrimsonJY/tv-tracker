@@ -129,12 +129,21 @@ export function createTitleSyncActions(
       const patch: Partial<Omit<TitleDoc, 'id'>> = {
         names: nextNames,
         year: data.title.year ?? latest.year,
+        releaseDate: data.title.releaseDate ?? latest.releaseDate ?? null,
         runtimeMin: data.title.runtimeMin ?? latest.runtimeMin,
         genres: data.title.genres.length > 0 ? data.title.genres : latest.genres,
         ...(data.title.genreIds && data.title.genreIds.length > 0
           ? { genreIds: data.title.genreIds }
           : {}),
         posterPath: data.title.posterPath || latest.posterPath,
+        ...(data.title.posters || latest.posters
+          ? {
+              posters: {
+                ...(latest.posters || {}),
+                ...(data.title.posters || {}),
+              },
+            }
+          : {}),
         backdropPath: data.title.backdropPath || latest.backdropPath,
         overview: {
           zh: data.title.overview.zh || latest.overview.zh,
@@ -178,10 +187,12 @@ export function createTitleSyncActions(
                     ...curr.titles[titleId],
                     names: latest.names,
                     year: latest.year,
+                    releaseDate: latest.releaseDate,
                     runtimeMin: latest.runtimeMin,
                     genres: latest.genres,
                     genreIds: latest.genreIds,
                     posterPath: latest.posterPath,
+                    posters: latest.posters,
                     backdropPath: latest.backdropPath,
                     overview: latest.overview,
                     showStatus: latest.showStatus,

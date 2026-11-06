@@ -393,9 +393,6 @@ export function resolveOverviewText(
   defaultLang: DefaultTitleLang = 'auto',
   activeLocale: UiLocale = 'zh-CN'
 ): string {
-  if (title.source === 'url' || title.source === 'custom') {
-    return title.overview.zh || title.overview.en || '';
-  }
   let targetLang: 'zh' | 'en';
   if (title.displayLang === 'en') {
     targetLang = 'en';
@@ -408,7 +405,54 @@ export function resolveOverviewText(
   } else {
     targetLang = activeLocale === 'en' ? 'en' : 'zh';
   }
-  return targetLang === 'en'
-    ? title.overview.en || title.overview.zh || ''
-    : title.overview.zh || title.overview.en || '';
+  const zhText = title.overview?.zh?.trim() || '';
+  const enText = title.overview?.en?.trim() || '';
+  return targetLang === 'en' ? enText || zhText : zhText || enText;
 }
+
+/**
+ * Picks the best poster URL for the given locale.
+ * Priority: active language -> textless -> other language -> default posterPath.
+ */
+export function pickPoster(
+  title: Pick<TitleDoc, 'posterPath' | 'posters'> | null | undefined,
+  activeLocale: UiLocale = 'zh-CN'
+): string | null {
+  if (!title) return null;
+  const p = title.posters;
+  const clean = (v?: string | null): string | null =>
+    v && v.trim() !== '' ? v.trim() : null;
+
+  if (p) {
+    if (activeLocale === 'en') {
+      return (
+        clean(p.en) ||
+        clean(p.textless) ||
+        clean(p.zh) ||
+        clean(title.posterPath)
+      );
+    }
+    return (
+      clean(p.zh) ||
+      clean(p.textless) ||
+      clean(p.en) ||
+      clean(title.posterPath)
+    );
+  }
+  return clean(title.posterPath);
+}
+
+/**
+ * Picks the best backdrop URL for the given locale, falling back to the localized poster.
+ */
+export function pickBackdrop(
+  title: Pick<TitleDoc, 'backdropPath' | 'posterPath' | 'posters'> | null | undefined,
+  activeLocale: UiLocale = 'zh-CN'
+): string | null {
+  if (!title) return null;
+  if (title.backdropPath && title.backdropPath.trim() !== '') {
+    return title.backdropPath.trim();
+  }
+  return pickPoster(title, activeLocale);
+}
+

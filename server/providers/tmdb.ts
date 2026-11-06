@@ -43,6 +43,14 @@ const tmdbTranslationItemSchema = z.object({
     .optional(),
 });
 
+const tmdbImageItemSchema = z.object({
+  file_path: z.string(),
+  iso_639_1: z.string().nullable().optional(),
+  iso_3166_1: z.string().nullable().optional(),
+  vote_average: z.number().optional(),
+  vote_count: z.number().optional(),
+});
+
 const tmdbDetailResponseSchema = z.object({
   id: z.number().optional(),
   title: z.string().optional(),
@@ -62,10 +70,103 @@ const tmdbDetailResponseSchema = z.object({
   vote_count: z.number().int().nullable().optional(),
   external_ids: z.object({ imdb_id: z.string().nullable().optional() }).optional(),
   translations: z.object({ translations: z.array(tmdbTranslationItemSchema).optional() }).optional(),
+  images: z
+    .object({
+      posters: z.array(tmdbImageItemSchema).optional(),
+      backdrops: z.array(tmdbImageItemSchema).optional(),
+    })
+    .optional(),
   seasons: z
     .array(z.object({ season_number: z.number(), name: z.string().optional() }))
     .optional(),
 });
+
+type TmdbImageItem = z.infer<typeof tmdbImageItemSchema>;
+
+function compareByVotesDesc(a: TmdbImageItem, b: TmdbImageItem): number {
+  const va = a.vote_average ?? 0;
+  const vb = b.vote_average ?? 0;
+  if (vb !== va) return vb - va;
+  return (b.vote_count ?? 0) - (a.vote_count ?? 0);
+}
+
+export function selectBestTmdbImages(
+  images: { posters?: TmdbImageItem[]; backdrops?: TmdbImageItem[] } | undefined,
+  fallbacks: {
+    zhPosterPath?: string | null;
+    enPosterPath?: string | null;
+    backdropPath?: string | null;
+  }
+): {
+  posters: NonNullable<TitleDoc['posters']>;
+  defaultPosterPath: string | null;
+  backdropPath: string | null;
+} {
+  const postersList = images?.posters ?? [];
+  const backdropsList = images?.backdrops ?? [];
+
+  // Best zh poster: prefer CN/SG when present, then by vote_average desc
+  const zhCandidates = postersList.filter((p) => p.iso_639_1 === 'zh');
+  const zhCnSg = zhCandidates.filter(
+    (p) => p.iso_3166_1 === 'CN' || p.iso_3166_1 === 'SG'
+  );
+  const bestZhItem =
+    (zhCnSg.length > 0
+      ? [...zhCnSg].sort(compareByVotesDesc)[0]
+      : [...zhCandidates].sort(compareByVotesDesc)[0]) ?? null;
+
+  // Best en poster: by vote_average desc
+  const enCandidates = postersList.filter((p) => p.iso_639_1 === 'en');
+  const bestEnItem = [...enCandidates].sort(compareByVotesDesc)[0] ?? null;
+
+  // Best textless (iso_639_1: null) poster: by vote_average desc
+  const textlessCandidates = postersList.filter(
+    (p) => p.iso_639_1 === null || p.iso_639_1 === undefined || p.iso_639_1 === 'xx'
+  );
+  const bestTextlessItem = [...textlessCandidates].sort(compareByVotesDesc)[0] ?? null;
+
+  const zhPoster = tmdbImageUrl(
+    bestZhItem?.file_path ?? fallbacks.zhPosterPath ?? null,
+    'w500'
+  );
+  const enPoster = tmdbImageUrl(
+    bestEnItem?.file_path ?? fallbacks.enPosterPath ?? null,
+    'w500'
+  );
+  const textlessPoster = tmdbImageUrl(bestTextlessItem?.file_path ?? null, 'w500');
+
+  const posters: NonNullable<TitleDoc['posters']> = {
+    ...(zhPoster ? { zh: zhPoster } : {}),
+    ...(enPoster ? { en: enPoster } : {}),
+    ...(textlessPoster ? { textless: textlessPoster } : {}),
+  };
+
+  const defaultPosterPath =
+    zhPoster ||
+    textlessPoster ||
+    enPoster ||
+    tmdbImageUrl(fallbacks.zhPosterPath || fallbacks.enPosterPath, 'w500');
+
+  // Backdrops: prefer textless (iso_639_1: null), then highest voted, then fallback
+  const textlessBackdrops = backdropsList.filter(
+    (b) => b.iso_639_1 === null || b.iso_639_1 === undefined || b.iso_639_1 === 'xx'
+  );
+  const bestBackdropItem =
+    (textlessBackdrops.length > 0
+      ? [...textlessBackdrops].sort(compareByVotesDesc)[0]
+      : [...backdropsList].sort(compareByVotesDesc)[0]) ?? null;
+
+  const backdropPath = tmdbImageUrl(
+    bestBackdropItem?.file_path ?? fallbacks.backdropPath ?? null,
+    'w1280'
+  );
+
+  return {
+    posters,
+    defaultPosterPath,
+    backdropPath,
+  };
+}
 
 const tmdbSeasonResponseSchema = z.object({
   name: z.string().optional(),
@@ -244,6 +345,7 @@ export interface SearchResultDto {
   titleEn?: string;
   titleOriginal: string;
   year: number | null;
+  releaseDate: string | null;
   posterPath: string | null;
   posterUrl: string | null;
   overview: string;
@@ -294,6 +396,7 @@ export async function searchTmdb(
         ...(isEn ? { titleEn: resolvedLocalized } : {}),
         titleOriginal,
         year,
+        releaseDate: dateStr || null,
         posterPath,
         posterUrl: posterPath,
         overview: r.overview || '',
@@ -359,8 +462,12 @@ export async function fetchTmdbTitleDetails(
   const zhOverview = detail.overview || zhTrans?.data?.overview || '';
   const enOverview = detailEn?.overview || enTrans?.data?.overview || '';
 
-  const dateStr = (mediaType === 'movie' ? detail.release_date : detail.first_air_date) || '';
+  const dateStr =
+    (mediaType === 'movie'
+      ? detail.release_date || detailEn?.release_date
+      : detail.first_air_date || detailEn?.first_air_date) || '';
   const year = dateStr ? parseInt(dateStr.slice(0, 4), 10) || null : null;
+  const releaseDate = dateStr || null;
 
   const runtimeMin =
     mediaType === 'movie'
@@ -390,6 +497,12 @@ export async function fetchTmdbTitleDetails(
     }
   }
 
+  const selectedImages = selectBestTmdbImages(detail.images, {
+    zhPosterPath: detail.poster_path,
+    enPosterPath: detailEn?.poster_path,
+    backdropPath: detail.backdrop_path || detailEn?.backdrop_path,
+  });
+
   const titleDoc: TitleDoc = {
     id: titleId,
     source: 'tmdb',
@@ -398,11 +511,13 @@ export async function fetchTmdbTitleDetails(
     names: { original: originalName, zh: zhName, en: enName },
     displayLang: null,
     year,
+    releaseDate,
     runtimeMin,
     genres,
     genreIds,
-    posterPath: tmdbImageUrl(detail.poster_path || detailEn?.poster_path, 'w500'),
-    backdropPath: tmdbImageUrl(detail.backdrop_path || detailEn?.backdrop_path, 'w1280'),
+    posterPath: selectedImages.defaultPosterPath,
+    posters: selectedImages.posters,
+    backdropPath: selectedImages.backdropPath,
     overview: { zh: zhOverview, en: enOverview },
     showStatus: (detail.status || detailEn?.status || null) as TitleDoc['showStatus'],
     externalIds: detail.external_ids?.imdb_id ? { imdb: detail.external_ids.imdb_id } : {},

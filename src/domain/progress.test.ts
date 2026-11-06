@@ -6,13 +6,20 @@ import {
   computeTitleState,
   formatSeconds,
   getTitleContinueProgressRatio,
+  isEpisodic,
   parseTimeInput,
+  pickBackdrop,
+  pickPoster,
+  resolveDisplayTitle,
+  resolveOverviewText,
   setResumePoint,
   setSeasonWatched,
   toggleEpisodeWatched,
 } from './progress.ts';
 import { makeBaseTvTitle, makeSampleSeasons, TODAY } from './testFixtures.ts';
 import type { ProgressDoc, SeasonDoc } from './types.ts';
+import { en } from '../i18n/messages/en.ts';
+import { zhCN } from '../i18n/messages/zh-CN.ts';
 
 registerTest('1. Partial season -> status watching and season state partial', () => {
   const title = makeBaseTvTitle();
@@ -239,3 +246,132 @@ registerTest('8. computeSeasonState with allSeasons accounts for later aired epi
   assert.equal(s1State.airedCount, 1);
   assert.equal(s1State.state, 'none');
 });
+
+registerTest('9. Movies: 2021 movie and movie released earlier this year show Mark as watched (unwatched); future movie shows unreleased', () => {
+  const emptyProgress: ProgressDoc = { playthroughId: 'p1', watched: {} };
+
+  const movie2021 = makeBaseTvTitle({
+    id: 'tmdb_movie_438631',
+    mediaType: 'movie',
+    year: 2021,
+    releaseDate: '2021-10-22',
+    showStatus: 'Released',
+  });
+  assert.equal(isEpisodic(movie2021, []), false);
+  const state2021 = computeTitleState(movie2021, [], emptyProgress, { todayStr: '2026-10-20' });
+  assert.equal(state2021.isEpisodic, false);
+  assert.equal(state2021.status, 'unwatched');
+  assert.equal(en.detail.primaryAction.markMovieWatched, 'Mark as watched');
+  assert.equal(zhCN.detail.primaryAction.markMovieWatched, '标记已看');
+
+  const movieEarlierThisYear = makeBaseTvTitle({
+    id: 'tmdb_movie_2026_early',
+    mediaType: 'movie',
+    year: 2026,
+    releaseDate: '2026-03-15',
+    showStatus: 'Released',
+  });
+  assert.equal(isEpisodic(movieEarlierThisYear, []), false);
+  const stateEarlierThisYear = computeTitleState(movieEarlierThisYear, [], emptyProgress, {
+    todayStr: '2026-10-20',
+  });
+  assert.equal(stateEarlierThisYear.isEpisodic, false);
+  assert.equal(stateEarlierThisYear.status, 'unwatched');
+
+  const futureMovie = makeBaseTvTitle({
+    id: 'tmdb_movie_future',
+    mediaType: 'movie',
+    year: 2027,
+    releaseDate: '2027-05-01',
+    showStatus: 'In Production',
+  });
+  assert.equal(isEpisodic(futureMovie, []), false);
+  const stateFuture = computeTitleState(futureMovie, [], emptyProgress, { todayStr: '2026-10-20' });
+  assert.equal(stateFuture.isEpisodic, false);
+  assert.equal(stateFuture.status, 'unreleased');
+  assert.equal(en.status.unreleased, 'Not released yet');
+  assert.equal(zhCN.status.unreleased, '未上映');
+});
+
+registerTest('10. pickPoster, pickBackdrop, and text/image fallbacks (including Chinese-only poster and no images)', () => {
+  // 1) Full localized posters: active language -> textless -> other language -> default
+  const fullPostersTitle = makeBaseTvTitle({
+    posterPath: 'https://image.tmdb.org/t/p/w500/default.jpg',
+    backdropPath: 'https://image.tmdb.org/t/p/w1280/textless_bd.jpg',
+    posters: {
+      zh: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+      en: 'https://image.tmdb.org/t/p/w500/en.jpg',
+      textless: 'https://image.tmdb.org/t/p/w500/textless.jpg',
+    },
+  });
+  assert.equal(pickPoster(fullPostersTitle, 'zh-CN'), 'https://image.tmdb.org/t/p/w500/zh.jpg');
+  assert.equal(pickPoster(fullPostersTitle, 'en'), 'https://image.tmdb.org/t/p/w500/en.jpg');
+  assert.equal(
+    pickBackdrop(fullPostersTitle, 'zh-CN'),
+    'https://image.tmdb.org/t/p/w1280/textless_bd.jpg'
+  );
+
+  // 2) Textless fallback before other language
+  const textlessAndEn = makeBaseTvTitle({
+    posterPath: 'https://image.tmdb.org/t/p/w500/default.jpg',
+    posters: {
+      zh: null,
+      en: 'https://image.tmdb.org/t/p/w500/en.jpg',
+      textless: 'https://image.tmdb.org/t/p/w500/textless.jpg',
+    },
+  });
+  assert.equal(pickPoster(textlessAndEn, 'zh-CN'), 'https://image.tmdb.org/t/p/w500/textless.jpg');
+
+  // 3) Title with ONLY a Chinese poster falls back to Chinese poster in English locale too
+  const chinesePosterOnly = makeBaseTvTitle({
+    posterPath: null,
+    posters: {
+      zh: 'https://image.tmdb.org/t/p/w500/zh_only.jpg',
+      en: null,
+      textless: null,
+    },
+  });
+  assert.equal(pickPoster(chinesePosterOnly, 'zh-CN'), 'https://image.tmdb.org/t/p/w500/zh_only.jpg');
+  assert.equal(pickPoster(chinesePosterOnly, 'en'), 'https://image.tmdb.org/t/p/w500/zh_only.jpg');
+
+  // 4) Title with NO images returns null for both poster and backdrop
+  const noImagesTitle = makeBaseTvTitle({
+    posterPath: null,
+    backdropPath: null,
+    posters: {
+      zh: null,
+      en: null,
+      textless: null,
+    },
+  });
+  assert.equal(pickPoster(noImagesTitle, 'zh-CN'), null);
+  assert.equal(pickPoster(noImagesTitle, 'en'), null);
+  assert.equal(pickBackdrop(noImagesTitle, 'zh-CN'), null);
+  assert.equal(pickBackdrop(noImagesTitle, 'en'), null);
+
+  // 5) Text fallback: active language -> other language -> original
+  const zhOnlyNames = { original: 'Original Title', zh: '中文名', en: undefined };
+  assert.equal(resolveDisplayTitle(zhOnlyNames, null, 'auto', 'zh-CN').primary, '中文名');
+  assert.equal(resolveDisplayTitle(zhOnlyNames, null, 'auto', 'en').primary, '中文名');
+
+  const originalOnlyNames = { original: 'Le Samouraï' };
+  assert.equal(resolveDisplayTitle(originalOnlyNames, null, 'auto', 'zh-CN').primary, 'Le Samouraï');
+  assert.equal(resolveDisplayTitle(originalOnlyNames, null, 'auto', 'en').primary, 'Le Samouraï');
+
+  // 6) Overview fallback: active language -> other language -> empty
+  const zhOnlyOverview = makeBaseTvTitle({
+    source: 'custom',
+    overview: { zh: '仅有中文简介' },
+  });
+  assert.equal(resolveOverviewText(zhOnlyOverview, 'auto', 'zh-CN'), '仅有中文简介');
+  assert.equal(resolveOverviewText(zhOnlyOverview, 'auto', 'en'), '仅有中文简介');
+
+  const noOverviewTitle = makeBaseTvTitle({
+    overview: {},
+  });
+  assert.equal(resolveOverviewText(noOverviewTitle, 'auto', 'zh-CN'), '');
+  assert.equal(resolveOverviewText(noOverviewTitle, 'auto', 'en'), '');
+  assert.equal(zhCN.detail.overview.empty, '暂无简介');
+  assert.equal(en.detail.overview.empty, 'No overview yet');
+});
+

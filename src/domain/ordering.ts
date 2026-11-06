@@ -1,6 +1,9 @@
 import { generateKeyBetween } from 'fractional-indexing';
 import {
   computeTitleState,
+  isEpisodic,
+  pickBackdrop,
+  pickPoster,
   resolveDisplayTitle,
   resolveLocalizedText,
   resolveOverviewText,
@@ -15,7 +18,14 @@ import type {
   UiLocale,
 } from './types';
 
-export { resolveDisplayTitle, resolveLocalizedText, resolveOverviewText };
+export {
+  isEpisodic,
+  pickBackdrop,
+  pickPoster,
+  resolveDisplayTitle,
+  resolveLocalizedText,
+  resolveOverviewText,
+};
 
 /**
  * Generates a fractional rank key to append at the end of a sorted list of ranks.

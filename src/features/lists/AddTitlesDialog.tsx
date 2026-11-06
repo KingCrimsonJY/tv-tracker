@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Modal, SearchField, Button } from '@heroui/react';
-import { Check, Plus, Film } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
+import { MediaImage } from '../../components/MediaImage';
 import { DefaultTitleLang, TitleDoc } from '../../domain/types';
-import { resolveDisplayTitle } from '../../domain/progress';
+import { pickPoster, resolveDisplayTitle } from '../../domain/progress';
 import { useI18n } from '../../i18n';
 
 interface AddTitlesDialogProps {
@@ -72,13 +73,14 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-14 rounded overflow-hidden bg-[var(--surface)] shrink-0">
-                          {title.posterPath ? (
-                            <img src={title.posterPath} alt={displayTitle} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[var(--muted)]">
-                              <Film className="w-4 h-4" />
-                            </div>
-                          )}
+                          <MediaImage
+                            src={pickPoster(title, locale)}
+                            alt={displayTitle}
+                            aspect="poster"
+                            mediaType={title.mediaType}
+                            className="w-full h-full"
+                            compact
+                          />
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-medium truncate">{displayTitle}</div>

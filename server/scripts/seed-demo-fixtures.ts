@@ -544,6 +544,10 @@ export function buildFallbackTitleAndSeasons(
     冷港: 'Cold Harbor',
   };
 
+  const posterUrl = tmdbImageUrl(spec.posterHash, 'w500');
+  const firstSeasonEpDate = spec.seasons?.[0]?.episodes?.[0]?.airDate;
+  const releaseDate = firstSeasonEpDate || `${spec.year}-01-01`;
+
   const title: TitleDoc = {
     id: titleId,
     source: 'tmdb',
@@ -552,9 +556,11 @@ export function buildFallbackTitleAndSeasons(
     names: { original: spec.originalName, zh: spec.zhName, en: spec.enName },
     displayLang: null,
     year: spec.year,
+    releaseDate,
     runtimeMin: spec.runtimeMin,
     genres: spec.genres,
-    posterPath: tmdbImageUrl(spec.posterHash, 'w500'),
+    posterPath: posterUrl,
+    ...(posterUrl ? { posters: { zh: posterUrl, en: posterUrl } } : {}),
     backdropPath: tmdbImageUrl(spec.backdropHash, 'w1280'),
     overview: {
       zh: spec.overviewZh,

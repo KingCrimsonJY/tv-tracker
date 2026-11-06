@@ -18,7 +18,7 @@ import {
 import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
-import { resolveDisplayTitle } from '../domain/progress';
+import { pickPoster, resolveDisplayTitle } from '../domain/progress';
 import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
 
@@ -167,7 +167,7 @@ export const ListsPage: React.FC = () => {
                       >
                         {item ? (
                           <MediaImage
-                            src={item.posterPath}
+                            src={pickPoster(item, locale)}
                             alt={
                               resolveDisplayTitle(
                                 item.names,
@@ -178,6 +178,7 @@ export const ListsPage: React.FC = () => {
                             }
                             aspect="poster"
                             mediaType={item.mediaType}
+                            compact
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-[var(--muted)]/40">

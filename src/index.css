@@ -122,17 +122,29 @@
 
 @layer components {
   /* 1. Focus rings: show only during keyboard navigation (data-focus-visible="true"),
-        never after a mouse click or touch tap where Chromium's :focus-visible heuristic
-        may stay active after typing in an input. */
+        never after a mouse click, touch tap, or programmatic focus restore when a
+        Dropdown or Select popover closes. */
+  .button:focus:not([data-focus-visible="true"]),
   .button:focus-visible:not([data-focus-visible="true"]),
+  .dropdown__trigger:focus:not([data-focus-visible="true"]),
+  .dropdown__trigger:focus-visible:not([data-focus-visible="true"]),
+  .tabs__tab:focus:not([data-focus-visible="true"]),
   .tabs__tab:focus-visible:not([data-focus-visible="true"]),
+  .toggle-button:focus:not([data-focus-visible="true"]),
   .toggle-button:focus-visible:not([data-focus-visible="true"]),
+  .select__trigger:focus:not([data-focus-visible="true"]),
   .select__trigger:focus-visible:not([data-focus-visible="true"]),
+  .modal__trigger:focus:not([data-focus-visible="true"]),
   .modal__trigger:focus-visible:not([data-focus-visible="true"]),
+  .drawer__trigger:focus:not([data-focus-visible="true"]),
   .drawer__trigger:focus-visible:not([data-focus-visible="true"]) {
     --tw-ring-shadow: 0 0 #0000;
     --tw-ring-offset-width: 0px;
     outline: none;
+  }
+
+  .select__value {
+    @apply whitespace-nowrap;
   }
 
   /* 2. Tabs: keep horizontal tab lists content-sized instead of stretching into a long

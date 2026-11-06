@@ -47,7 +47,11 @@ export const LibraryPage: React.FC = () => {
         return state.status === 'watching' || state.status === 'caught_up';
       }
       if (statusFilter === 'unwatched') {
-        return state.status === 'unwatched' || state.status === 'unaired';
+        return (
+          state.status === 'unwatched' ||
+          state.status === 'unaired' ||
+          state.status === 'unreleased'
+        );
       }
       if (statusFilter === 'completed') {
         return state.status === 'completed';
@@ -186,13 +190,24 @@ export const LibraryPage: React.FC = () => {
           onSelectionChange={(key) => {
             if (key !== null) setSortMode(String(key) as SortMode);
           }}
-          className="flex-row items-center gap-2 self-start lg:self-auto"
+          className="flex-row items-center gap-2 self-start lg:self-auto shrink-0"
         >
           <Label className="whitespace-nowrap">{t.library.sortLabel}</Label>
-          <Select.Trigger className="w-36">
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
+          <div className="inline-grid grid-cols-1 items-center">
+            <div
+              aria-hidden="true"
+              className="invisible pointer-events-none col-start-1 row-start-1 flex flex-col pl-3 pr-9 text-sm font-normal whitespace-nowrap"
+            >
+              <span className="h-0 overflow-hidden">{t.library.sort.recent}</span>
+              <span className="h-0 overflow-hidden">{t.library.sort.added}</span>
+              <span className="h-0 overflow-hidden">{t.library.sort.year}</span>
+              <span className="h-0 overflow-hidden">{t.library.sort.name}</span>
+            </div>
+            <Select.Trigger className="col-start-1 row-start-1 w-full">
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+          </div>
           <Select.Popover>
             <ListBox>
               <ListBox.Item id="recent" textValue={t.library.sort.recent}>
