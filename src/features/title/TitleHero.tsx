@@ -87,33 +87,33 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
 
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <Chip
-                size="sm"
-                variant="soft"
-                color={
-                  titleState.status === 'completed' || titleState.status === 'caught_up'
-                    ? 'success'
-                    : titleState.status === 'watching'
-                      ? 'accent'
-                      : titleState.status === 'paused' || titleState.status === 'dropped'
-                        ? 'warning'
-                        : 'default'
-                }
-              >
-                {t.status[titleState.status]}
-              </Chip>
+              {titleState.isRewatching && title.manualState === null ? (
+                <Chip size="sm" color="accent" variant="soft">
+                  {titleState.activePlaythroughNumber === 2
+                    ? t.status.rewatchingBadge
+                    : t.status.nthPlaythroughBadge(titleState.activePlaythroughNumber)}
+                </Chip>
+              ) : (
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  color={
+                    titleState.status === 'completed' || titleState.status === 'caught_up'
+                      ? 'success'
+                      : titleState.status === 'watching'
+                        ? 'accent'
+                        : titleState.status === 'paused' || titleState.status === 'dropped'
+                          ? 'warning'
+                          : 'default'
+                  }
+                >
+                  {t.status[titleState.status]}
+                </Chip>
+              )}
 
               {titleState.hasNewEpisodes && (
                 <Chip size="sm" color="accent" variant="primary">
                   {t.status.newEpisodesBadge}
-                </Chip>
-              )}
-
-              {titleState.isRewatching && (
-                <Chip size="sm" color="warning" variant="soft">
-                  {titleState.activePlaythroughNumber === 2
-                    ? t.status.rewatchingBadge
-                    : t.status.nthPlaythroughBadge(titleState.activePlaythroughNumber)}
                 </Chip>
               )}
             </div>

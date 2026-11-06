@@ -361,18 +361,52 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       );
       db.close();
 
-      // Opening TrackerRepository runs migration 002 and 003 automatically
+      // Opening TrackerRepository runs migrations 002, 003, and 004 automatically
+      const db2 = new DatabaseSync(dbPath);
+      const legacyMovie = {
+        source: 'tmdb',
+        sourceId: '438631',
+        mediaType: 'movie',
+        names: { original: 'Dune', zh: '沙丘' },
+        displayLang: null,
+        year: 2021,
+        runtimeMin: 155,
+        genres: [],
+        posterPath: 'https://image.tmdb.org/t/p/w500/zh_only.jpg',
+        backdropPath: null,
+        overview: { zh: '简介' },
+        showStatus: 'Released',
+        externalIds: {},
+        ratings: {},
+        manualState: null,
+        playthroughs: [{ id: 'p1', number: 1, startedAt: 1000 }],
+        activePlaythroughId: 'p1',
+        resume: null,
+        metaFetchedAt: 1000,
+        addedAt: 1000,
+        updatedAt: 1000,
+        lastActivityAt: 1000,
+      };
+      db2.prepare('INSERT INTO titles (id, data, added_at, updated_at) VALUES (?, ?, ?, ?)').run(
+        'tmdb_movie_438631',
+        JSON.stringify(legacyMovie),
+        1000,
+        1000
+      );
+      db2.close();
+
       const repo = new TrackerRepository({ dataDir: tmpDir });
       const state = repo.getState();
       const migratedTitle = state.titles['url_1'];
       expect(migratedTitle?.uploader).toBe('3Blue1Brown');
       expect(migratedTitle?.overview.zh).toBe('线性代数的本质合集');
       expect(migratedTitle?.releaseDate).toBe('2024-01-01');
-      expect(migratedTitle?.posters).toEqual({
-        zh: null,
-        en: null,
-        textless: null,
-      });
+      expect(migratedTitle?.posters).toBeUndefined();
+
+      // Migration 004 removes posters when posters.en === posters.zh and resets synthetic ${year}-01-01 releaseDate to null
+      const migratedMovie = state.titles['tmdb_movie_438631'];
+      expect(migratedMovie?.posters).toBeUndefined();
+      expect(migratedMovie?.releaseDate).toBeNull();
 
       const migratedSeasons = state.seasonsByTitle['url_1'];
       expect(migratedSeasons?.[0]?.name).toBeNull();
@@ -386,7 +420,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
     }
   });
 
-  it('7. TMDB images selection prefers CN/SG for zh posters, vote_average for en/textless, and textless for backdrops', async () => {
+  it('7. TMDB images selection fills posters.zh/en only from images.posters with iso_639_1 zh/en and keeps detail.poster_path only as defaultPosterPath', async () => {
     const prevToken = process.env.TMDB_READ_TOKEN;
     process.env.TMDB_READ_TOKEN = 'mock-tmdb-token';
     try {
@@ -440,6 +474,41 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
             { status: 200 }
           );
         }
+        if (url.includes('/movie/999999?') && url.includes('language=zh-CN')) {
+          return new Response(
+            JSON.stringify({
+              id: 999999,
+              title: '无语言海报电影',
+              original_title: 'Fallback Only Movie',
+              overview: '简介',
+              release_date: '2022-05-10',
+              runtime: 100,
+              status: 'Released',
+              poster_path: '/fallback_default.jpg',
+              backdrop_path: null,
+              genres: [],
+              images: { posters: [], backdrops: [] },
+            }),
+            { status: 200 }
+          );
+        }
+        if (url.includes('/movie/999999?') && url.includes('language=en-US')) {
+          return new Response(
+            JSON.stringify({
+              id: 999999,
+              title: 'Fallback Only Movie',
+              original_title: 'Fallback Only Movie',
+              overview: 'Overview',
+              release_date: '2022-05-10',
+              runtime: 100,
+              status: 'Released',
+              poster_path: '/fallback_en.jpg',
+              backdrop_path: null,
+              genres: [],
+            }),
+            { status: 200 }
+          );
+        }
         return new Response('Not Found', { status: 404 });
       };
 
@@ -451,6 +520,13 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
         textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
       });
       expect(title.backdropPath).toBe('https://image.tmdb.org/t/p/w1280/textless_bd.jpg');
+
+      // When images.posters has no iso_639_1 'zh' or 'en' entries, posters.zh and posters.en are not filled from detail.poster_path
+      const { title: fallbackTitle } = await fetchTmdbTitleDetails('movie', '999999', {
+        fetchFn: mockFetch,
+      });
+      expect(fallbackTitle.posters).toEqual({});
+      expect(fallbackTitle.posterPath).toBe('https://image.tmdb.org/t/p/w500/fallback_default.jpg');
     } finally {
       if (prevToken === undefined) {
         delete process.env.TMDB_READ_TOKEN;

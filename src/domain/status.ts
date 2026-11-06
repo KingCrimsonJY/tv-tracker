@@ -142,6 +142,12 @@ export function getTitleContinueProgressRatio(
   return overallProgressRatio;
 }
 
+export function countCompletedPlaythroughs(
+  playthroughs: TitleDoc['playthroughs']
+): number {
+  return playthroughs.filter((p) => p.completedAt != null).length;
+}
+
 export function computeTitleState(
   title: Pick<
     TitleDoc,
@@ -167,9 +173,9 @@ export function computeTitleState(
       startedAt: 0,
     };
 
-  const completedPlaythroughCount = title.playthroughs.filter(
-    (p) => p.completedAt !== undefined && p.completedAt !== null
-  ).length;
+  const completedPlaythroughCount = countCompletedPlaythroughs(title.playthroughs);
+  const isRewatching =
+    activePlaythrough.number > 1 && activePlaythrough.completedAt == null;
 
   const episodic = isEpisodic(title, seasons);
 
@@ -217,12 +223,11 @@ export function computeTitleState(
       watchedCount: isWatched ? 1 : 0,
       countableCount: 1,
       progressRatio: isWatched ? 1 : movieResumeRatio,
-      isRewatching:
-        activePlaythrough.number > 1 && status !== 'completed' && !activePlaythrough.completedAt,
+      isRewatching: status !== 'completed' && status !== 'unreleased' && isRewatching,
       activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount:
-        status === 'completed' && !activePlaythrough.completedAt
+        status === 'completed' && activePlaythrough.completedAt == null
           ? completedPlaythroughCount + 1
           : completedPlaythroughCount,
     };
@@ -272,7 +277,7 @@ export function computeTitleState(
       watchedCount,
       countableCount,
       progressRatio,
-      isRewatching: false,
+      isRewatching,
       activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount,
@@ -287,7 +292,7 @@ export function computeTitleState(
       watchedCount,
       countableCount,
       progressRatio,
-      isRewatching: false,
+      isRewatching,
       activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount,
@@ -319,7 +324,7 @@ export function computeTitleState(
       watchedCount: 0,
       countableCount,
       progressRatio: 0,
-      isRewatching: activePlaythrough.number > 1,
+      isRewatching,
       activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount,
@@ -341,7 +346,7 @@ export function computeTitleState(
       activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount:
-        status === 'completed' && !activePlaythrough.completedAt
+        status === 'completed' && activePlaythrough.completedAt == null
           ? completedPlaythroughCount + 1
           : completedPlaythroughCount,
     };
@@ -363,7 +368,7 @@ export function computeTitleState(
     watchedCount,
     countableCount,
     progressRatio,
-    isRewatching: activePlaythrough.number > 1,
+    isRewatching,
     activePlaythroughNumber: activePlaythrough.number,
     playthroughNumber: activePlaythrough.number,
     completedPlaythroughCount,

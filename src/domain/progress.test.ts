@@ -4,6 +4,7 @@ import {
   computeResumeRatio,
   computeSeasonState,
   computeTitleState,
+  countCompletedPlaythroughs,
   formatSeconds,
   getTitleContinueProgressRatio,
   isEpisodic,
@@ -14,6 +15,7 @@ import {
   resolveOverviewText,
   setResumePoint,
   setSeasonWatched,
+  startRewatch,
   toggleEpisodeWatched,
 } from './progress.ts';
 import { makeBaseTvTitle, makeSampleSeasons, TODAY } from './testFixtures.ts';
@@ -374,4 +376,78 @@ registerTest('10. pickPoster, pickBackdrop, and text/image fallbacks (including 
   assert.equal(zhCN.detail.overview.empty, '暂无简介');
   assert.equal(en.detail.overview.empty, 'No overview yet');
 });
+
+registerTest('11. Rewatch start: movie and series at start of rewatch set isRewatching=true and count only completedAt != null', () => {
+  // 1) Movie after 1 finished watch + startRewatch (2nd playthrough has completedAt: undefined)
+  const completedMovie = makeBaseTvTitle({
+    id: 'tmdb_movie_rewatch',
+    mediaType: 'movie',
+    year: 2021,
+    releaseDate: '2021-10-22',
+    showStatus: 'Released',
+    playthroughs: [{ id: 'p1', number: 1, startedAt: 1000, completedAt: 2000 }],
+    activePlaythroughId: 'p1',
+  });
+  const movieRewatch = startRewatch(
+    completedMovie,
+    [],
+    { playthroughId: 'p1', watched: {}, movieWatchedAt: 2000 },
+    { todayStr: TODAY, now: 3000, newPlaythroughId: 'p2' }
+  );
+  assert.equal(movieRewatch.playthroughs.length, 2);
+  assert.equal(movieRewatch.playthroughs[1].completedAt, undefined);
+
+  // countCompletedPlaythroughs must use != null so undefined completedAt is not counted
+  assert.equal(countCompletedPlaythroughs(movieRewatch.playthroughs), 1);
+
+  const movieState = computeTitleState(
+    {
+      ...completedMovie,
+      playthroughs: movieRewatch.playthroughs,
+      activePlaythroughId: movieRewatch.activePlaythroughId,
+      resume: movieRewatch.resume,
+    },
+    [],
+    movieRewatch.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(movieState.status, 'unwatched');
+  assert.equal(movieState.isRewatching, true);
+  assert.equal(movieState.activePlaythroughNumber, 2);
+  assert.equal(movieState.completedPlaythroughCount, 1);
+
+  // 2) Series at the start of a rewatch (0 episodes watched in playthrough 2)
+  const completedSeries = makeBaseTvTitle({
+    id: 'tmdb_tv_rewatch',
+    mediaType: 'tv',
+    showStatus: 'Ended',
+    playthroughs: [{ id: 'p1', number: 1, startedAt: 1000, completedAt: 2000 }],
+    activePlaythroughId: 'p1',
+  });
+  const seasons = [makeSampleSeasons()[1]];
+  const seriesRewatch = startRewatch(
+    completedSeries,
+    seasons,
+    { playthroughId: 'p1', watched: { s1e1: 1200, s1e2: 1500, s1e3: 2000 } },
+    { todayStr: TODAY, now: 3000, newPlaythroughId: 'p2' }
+  );
+  assert.equal(countCompletedPlaythroughs(seriesRewatch.playthroughs), 1);
+
+  const seriesState = computeTitleState(
+    {
+      ...completedSeries,
+      playthroughs: seriesRewatch.playthroughs,
+      activePlaythroughId: seriesRewatch.activePlaythroughId,
+      resume: seriesRewatch.resume,
+    },
+    seasons,
+    seriesRewatch.progress,
+    { todayStr: TODAY }
+  );
+  assert.equal(seriesState.status, 'unwatched');
+  assert.equal(seriesState.isRewatching, true);
+  assert.equal(seriesState.activePlaythroughNumber, 2);
+  assert.equal(seriesState.completedPlaythroughCount, 1);
+});
+
 

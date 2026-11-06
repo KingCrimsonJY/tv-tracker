@@ -77,8 +77,6 @@ export const ratingsBlockSchema: z.ZodType<RatingsBlock> = z.object({
   imdbVotes: z.string().optional(),
   rottenTomatoes: z.string().optional(),
   metacritic: z.string().optional(),
-  doubanManualScore: z.string().optional(),
-  doubanUrl: z.string().optional(),
   fetchedAt: z.number().nonnegative().optional(),
 });
 

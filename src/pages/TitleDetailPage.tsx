@@ -47,6 +47,10 @@ export const TitleDetailPage: React.FC = () => {
             onMarkMovieWatched={() => void detail.markWholeTitle(title.id, true)}
             onStartRewatch={() => void detail.startTitleRewatch(title.id)}
             onToggleEpisode={(epKey) => void detail.toggleEpisode(title.id, epKey)}
+            onOpenResume={(epKey) => {
+              detail.setResumeDefaultEpKey(epKey ?? title.resume?.episodeKey ?? titleState.nextUp?.key ?? null);
+              detail.setResumeDialogOpen(true);
+            }}
           />
           {detail.menuNode}
         </div>
@@ -98,14 +102,6 @@ export const TitleDetailPage: React.FC = () => {
 
         <PlaythroughHistory
           playthroughs={title.playthroughs}
-          activePlaythroughId={title.activePlaythroughId}
-          hasAnyProgress={Boolean(
-            title.playthroughs.length > 1 ||
-              title.resume ||
-              (activeProgress &&
-                (Object.keys(activeProgress.watched).length > 0 ||
-                  Boolean(activeProgress.movieWatchedAt)))
-          )}
           onUndoLatest={() => detail.setUndoPlaythroughOpen(true)}
           onDeletePlaythrough={(ptId) => detail.setDeletePlaythroughId(ptId)}
         />

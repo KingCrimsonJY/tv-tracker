@@ -6,7 +6,7 @@ import { useI18n } from '../../i18n';
 
 export const AboutSection: React.FC = () => {
   const { t } = useI18n();
-  const [appVersion, setAppVersion] = useState<string>('1.0.0');
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [ytdlpVersion, setYtdlpVersion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,7 +54,11 @@ export const AboutSection: React.FC = () => {
         <div className="flex flex-col gap-2 text-xs text-[var(--muted)] pt-3 border-t border-[var(--border)]">
           <div className="flex items-center justify-between gap-4">
             <span>{t.settings.about.versionLabel}</span>
-            <span className="font-mono text-[var(--foreground)]">{appVersion}</span>
+            {appVersion ? (
+              <span className="font-mono text-[var(--foreground)]">{appVersion}</span>
+            ) : (
+              <span className="font-mono text-[var(--muted)]">—</span>
+            )}
           </div>
           <div className="flex items-center justify-between gap-4">
             <span>{t.settings.about.ytdlpLabel}</span>

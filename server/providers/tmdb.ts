@@ -125,14 +125,8 @@ export function selectBestTmdbImages(
   );
   const bestTextlessItem = [...textlessCandidates].sort(compareByVotesDesc)[0] ?? null;
 
-  const zhPoster = tmdbImageUrl(
-    bestZhItem?.file_path ?? fallbacks.zhPosterPath ?? null,
-    'w500'
-  );
-  const enPoster = tmdbImageUrl(
-    bestEnItem?.file_path ?? fallbacks.enPosterPath ?? null,
-    'w500'
-  );
+  const zhPoster = tmdbImageUrl(bestZhItem?.file_path ?? null, 'w500');
+  const enPoster = tmdbImageUrl(bestEnItem?.file_path ?? null, 'w500');
   const textlessPoster = tmdbImageUrl(bestTextlessItem?.file_path ?? null, 'w500');
 
   const posters: NonNullable<TitleDoc['posters']> = {

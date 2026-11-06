@@ -184,6 +184,9 @@ export class TrackerRepository {
         if (migration.version === 3) {
           this.runMigration003InTx();
         }
+        if (migration.version === 4) {
+          this.runMigration004InTx();
+        }
         this.db.exec(`PRAGMA user_version = ${migration.version};`);
       });
     }
@@ -263,7 +266,7 @@ export class TrackerRepository {
     }
   }
 
-  private runMigration003InTx(): void {
+  private getFirstAirDatesByTitle(): Map<string, string> {
     const seasonRows = this.db
       .prepare('SELECT title_id, season_number, data FROM seasons WHERE season_number = 1')
       .all() as Array<{ title_id: string; season_number: number; data: string }>;
@@ -281,6 +284,11 @@ export class TrackerRepository {
         // Ignore malformed season row
       }
     }
+    return firstAirByTitle;
+  }
+
+  private runMigration003InTx(): void {
+    const firstAirByTitle = this.getFirstAirDatesByTitle();
 
     const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
       id: string;
@@ -319,6 +327,42 @@ export class TrackerRepository {
         }
       } catch {
         // Ignore malformed legacy row
+      }
+    }
+  }
+
+  private runMigration004InTx(): void {
+    const firstAirByTitle = this.getFirstAirDatesByTitle();
+    const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
+      id: string;
+      data: string;
+    }>;
+    const updateTitle = this.db.prepare('UPDATE titles SET data = ? WHERE id = ?');
+
+    for (const row of titleRows) {
+      try {
+        const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
+        let changed = false;
+
+        if (parsed.posters && parsed.posters.en === parsed.posters.zh) {
+          delete parsed.posters;
+          changed = true;
+        }
+
+        if (
+          typeof parsed.year === 'number' &&
+          parsed.releaseDate === `${parsed.year}-01-01` &&
+          firstAirByTitle.get(row.id) !== `${parsed.year}-01-01`
+        ) {
+          parsed.releaseDate = null;
+          changed = true;
+        }
+
+        if (changed) {
+          updateTitle.run(JSON.stringify(parsed), row.id);
+        }
+      } catch {
+        // Ignore malformed row
       }
     }
   }

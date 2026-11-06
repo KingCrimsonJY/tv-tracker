@@ -11,7 +11,6 @@ import {
   Edit3,
   Trash2,
   CheckCheck,
-  Undo2,
   RefreshCw,
 } from 'lucide-react';
 import { TitleDoc } from '../../domain/types';
@@ -21,11 +20,9 @@ import { useI18n } from '../../i18n';
 interface TitleMenuProps {
   title: TitleDoc;
   titleState: ComputedTitleState;
-  hasAnyProgress: boolean;
   onAddToList: () => void;
   onOpenResume: () => void;
   onMarkWholeWatched: () => void;
-  onUndoPlaythrough: () => void;
   onSetManualState: (state: 'paused' | 'dropped' | null) => void;
   onOpenLangSelect: () => void;
   onOpenEdit: () => void;
@@ -37,11 +34,9 @@ interface TitleMenuProps {
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
   titleState,
-  hasAnyProgress,
   onAddToList,
   onOpenResume,
   onMarkWholeWatched,
-  onUndoPlaythrough,
   onSetManualState,
   onOpenLangSelect,
   onOpenEdit,
@@ -63,9 +58,6 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
         break;
       case 'markAll':
         onMarkWholeWatched();
-        break;
-      case 'undoPlaythrough':
-        onUndoPlaythrough();
         break;
       case 'pause':
         onSetManualState('paused');
@@ -127,12 +119,6 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('markAll')}>
                     <CheckCheck className="w-4 h-4 mr-3" />
                     {t.detail.menu.markAllWatched}
-                  </Button>
-                )}
-                {hasAnyProgress && (
-                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('undoPlaythrough')}>
-                    <Undo2 className="w-4 h-4 mr-3" />
-                    {t.detail.menu.undoPlaythrough}
                   </Button>
                 )}
                 {title.manualState !== null ? (
@@ -206,12 +192,6 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                 <Dropdown.Item id="markAll">
                   <CheckCheck className="w-4 h-4 mr-2" />
                   <Label>{t.detail.menu.markAllWatched}</Label>
-                </Dropdown.Item>
-              )}
-              {hasAnyProgress && (
-                <Dropdown.Item id="undoPlaythrough">
-                  <Undo2 className="w-4 h-4 mr-2" />
-                  <Label>{t.detail.menu.undoPlaythrough}</Label>
                 </Dropdown.Item>
               )}
               {title.manualState !== null ? (

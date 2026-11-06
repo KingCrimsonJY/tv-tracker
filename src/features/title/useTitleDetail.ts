@@ -141,24 +141,15 @@ export function useTitleDetail() {
     metaParts.push(localizedGenres.slice(0, 2).join(' / '));
   }
 
-  const hasAnyProgress = Boolean(
-    title.playthroughs.length > 1 ||
-      title.resume ||
-      (activeProgress &&
-        (Object.keys(activeProgress.watched).length > 0 || Boolean(activeProgress.movieWatchedAt)))
-  );
-
   const menuNode = React.createElement(TitleMenu, {
     title,
     titleState,
-    hasAnyProgress,
     onAddToList: () => setAddToListOpen(true),
     onOpenResume: () => {
       setResumeDefaultEpKey(title.resume?.episodeKey ?? titleState.nextUp?.key ?? null);
       setResumeDialogOpen(true);
     },
     onMarkWholeWatched: () => void tracker.markWholeTitle(title.id, true),
-    onUndoPlaythrough: () => setUndoPlaythroughOpen(true),
     onSetManualState: (state) => void tracker.setTitleManualState(title.id, state),
     onOpenLangSelect: () => setLangModalOpen(true),
     onOpenEdit: () => setEditModalOpen(true),

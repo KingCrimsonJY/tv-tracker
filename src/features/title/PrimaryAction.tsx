@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@heroui/react';
-import { Play, Check, RotateCcw } from 'lucide-react';
+import { Check, RotateCcw } from 'lucide-react';
 import { SeasonDoc, TitleDoc } from '../../domain/types';
 import { ComputedTitleState, isEpisodic } from '../../domain/status';
 import { parseEpisodeKey } from '../../domain/progress';
@@ -14,6 +14,7 @@ interface PrimaryActionProps {
   onMarkMovieWatched: () => void;
   onStartRewatch: () => void;
   onToggleEpisode: (epKey: string) => void;
+  onOpenResume: (epKey?: string) => void;
 }
 
 export const PrimaryAction: React.FC<PrimaryActionProps> = ({
@@ -23,6 +24,7 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
   onMarkMovieWatched,
   onStartRewatch,
   onToggleEpisode,
+  onOpenResume,
 }) => {
   const { t, formatDate } = useI18n();
   const episodic = isEpisodic(title, seasons);
@@ -64,63 +66,45 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
 
   const resume = title.resume;
   const hasResume = Boolean(resume && resume.seconds > 0);
+  const resumeNode =
+    hasResume && resume ? (
+      <button
+        type="button"
+        onClick={() => onOpenResume(resume.episodeKey ?? undefined)}
+        className="text-xs sm:text-sm text-muted hover:text-foreground transition-colors tabular-nums cursor-pointer px-1 py-1"
+      >
+        {t.detail.primaryAction.stoppedAt(formatSeconds(resume.seconds))}
+      </button>
+    ) : null;
 
   if (!episodic) {
-    if (resume && resume.seconds > 0) {
-      return (
-        <Button variant="primary" onPress={onMarkMovieWatched}>
-          <Play className="w-4 h-4 mr-1.5" />
-          {t.detail.primaryAction.continueMovie(formatSeconds(resume.seconds))}
-        </Button>
-      );
-    }
     return (
-      <Button variant="primary" onPress={onMarkMovieWatched}>
-        <Check className="w-4 h-4 mr-1.5" />
-        {t.detail.primaryAction.markMovieWatched}
-      </Button>
+      <>
+        <Button variant="primary" onPress={onMarkMovieWatched}>
+          <Check className="w-4 h-4 mr-1.5" />
+          {t.detail.primaryAction.markMovieWatched}
+        </Button>
+        {resumeNode}
+      </>
     );
   }
 
   // Episodic TV / custom series
-  const nextEp = titleState.nextUp;
-
-  if (hasResume && resume && resume.episodeKey) {
-    const parsed = parseEpisodeKey(resume.episodeKey);
+  const targetEpKey = (hasResume && resume?.episodeKey) || titleState.nextUp?.key;
+  if (targetEpKey) {
+    const parsed = parseEpisodeKey(targetEpKey);
     const label = parsed
-      ? t.detail.primaryAction.continueEpisode(
-          parsed.seasonNumber,
-          parsed.episodeNumber,
-          formatSeconds(resume.seconds)
-        )
-      : `${resume.episodeKey.toUpperCase()} ${formatSeconds(resume.seconds)}`;
+      ? t.detail.primaryAction.markEpisodeWatched(parsed.seasonNumber, parsed.episodeNumber)
+      : targetEpKey.toUpperCase();
 
     return (
-      <Button variant="primary" onPress={() => onToggleEpisode(resume.episodeKey || '')}>
-        <Play className="w-4 h-4 mr-1.5" />
-        {label}
-      </Button>
-    );
-  }
-
-  if (nextEp) {
-    const isUnstarted = titleState.watchedCount === 0 && !hasResume;
-    const parsed = parseEpisodeKey(nextEp.key);
-    const label = isUnstarted
-      ? t.detail.primaryAction.startWatching
-      : parsed
-        ? t.detail.primaryAction.markEpisodeWatched(parsed.seasonNumber, parsed.episodeNumber)
-        : nextEp.key.toUpperCase();
-
-    return (
-      <Button variant="primary" onPress={() => onToggleEpisode(nextEp.key)}>
-        {isUnstarted ? (
-          <Play className="w-4 h-4 mr-1.5" />
-        ) : (
+      <>
+        <Button variant="primary" onPress={() => onToggleEpisode(targetEpKey)}>
           <Check className="w-4 h-4 mr-1.5" />
-        )}
-        {label}
-      </Button>
+          {label}
+        </Button>
+        {resumeNode}
+      </>
     );
   }
 

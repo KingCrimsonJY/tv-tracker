@@ -247,7 +247,11 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
-              <AlertDialog.Heading>{t.detail.playthroughs.cancelRewatch}</AlertDialog.Heading>
+              <AlertDialog.Heading>
+                {title.playthroughs.length > 1
+                  ? t.detail.playthroughs.cancelThisRewatch
+                  : t.detail.playthroughs.clearWatchHistory}
+              </AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
               <p className="text-sm text-[var(--muted)]">

@@ -88,8 +88,6 @@ export interface RatingsBlock {
   imdbVotes?: string;
   rottenTomatoes?: string;
   metacritic?: string;
-  doubanManualScore?: string;
-  doubanUrl?: string;
   fetchedAt?: number; // unix ms
 }
 
@@ -140,7 +138,7 @@ export interface TitleDoc {
   backdropPath: string | null;
   overview: LocalizedText;
   showStatus: ShowStatus;
-  externalIds: { imdb?: string; tvdb?: string; douban?: string };
+  externalIds: { imdb?: string; tvdb?: string };
   ratings: RatingsBlock;
   manualState: ManualState;
   playthroughs: Playthrough[];
