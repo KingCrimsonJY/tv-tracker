@@ -1,185 +1,140 @@
 import React from 'react';
-import { Check, CheckCheck, Clock, MoreHorizontal } from 'lucide-react';
-import { Button, Dropdown, Label, ProgressBar } from '@heroui/react';
-import { MediaImage } from '../../components/MediaImage';
-import { formatSeconds } from '../../domain/progress';
-import type { EpisodeMeta, ProgressDoc, TitleDoc } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import { Button, Dropdown, Label } from '@heroui/react';
+import { Check, MoreHorizontal, CheckCheck, Clock } from 'lucide-react';
+import { EpisodeMeta, TitleDoc } from '../../domain/types';
+import { isEpisodeAired, makeEpisodeKey } from '../../domain/airing';
+import { formatSeconds } from '../../domain/time';
+import { resolveLocalizedText } from '../../domain/ordering';
+import { useI18n } from '../../i18n';
 
 interface EpisodeRowProps {
-  title: TitleDoc;
-  ep: EpisodeMeta;
   seasonNumber: number;
-  aired: boolean;
-  progress: ProgressDoc | undefined;
-  isNextUp?: boolean;
-  onToggleWatched: (episodeKey: string) => void;
-  onMarkUpTo: (episodeKey: string) => void;
-  onRecordResume: (episodeKey: string) => void;
+  ep: EpisodeMeta;
+  title: TitleDoc;
+  isWatched: boolean;
+  today: string;
+  isHighlighted: boolean;
+  onToggle: (epKey: string) => void;
+  onMarkUpTo: (epKey: string) => void;
+  onOpenResume: (epKey: string) => void;
 }
 
 export const EpisodeRow: React.FC<EpisodeRowProps> = ({
-  title,
-  ep,
   seasonNumber,
-  aired,
-  progress,
-  isNextUp = false,
-  onToggleWatched,
+  ep,
+  title,
+  isWatched,
+  today,
+  isHighlighted,
+  onToggle,
   onMarkUpTo,
-  onRecordResume,
+  onOpenResume,
 }) => {
-  const watched = Boolean(progress?.watched[ep.key]);
-  const hasResume = title.resume?.episodeKey === ep.key;
-
-  const epResumePct =
-    hasResume && title.resume && ep.runtime && ep.runtime > 0
-      ? Math.max(
-          2,
-          Math.min(
-            100,
-            Math.round((title.resume.seconds / (ep.runtime * 60)) * 100)
-          )
-        )
-      : 50;
+  const { t, locale } = useI18n();
+  const epKey = makeEpisodeKey(seasonNumber, ep.number);
+  const aired = title.source !== 'tmdb' ? true : isEpisodeAired(ep, today);
+  const hasResumeHere = title.resume?.episodeKey === epKey;
+  const resolvedEpName =
+    resolveLocalizedText(ep.name, locale) ||
+    t.detail.seasons.episodeDefaultName(ep.number);
 
   return (
     <div
-      id={`ep-${ep.key}`}
-      className={`flex items-center justify-between gap-3 p-3 sm:p-4 transition-colors ${
-        !aired
-          ? 'opacity-50'
-          : isNextUp
-            ? 'bg-[var(--accent-subtle)]/50'
-            : 'hover:bg-[var(--surface-secondary)]'
+      id={`episode-${epKey}`}
+      className={`flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-xl border transition-colors ${
+        isHighlighted
+          ? 'bg-accent/15 border-accent'
+          : !aired
+          ? 'bg-[var(--surface)]/40 border-[var(--border)]/40 opacity-55'
+          : 'bg-[var(--surface)] border-[var(--border)] hover:border-default-300/40'
       }`}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* >= 44px tap target check circle */}
         <button
           type="button"
           disabled={!aired}
-          onClick={() => onToggleWatched(ep.key)}
-          aria-label={zh.detail.seasons.checkEpisodeAria(
-            seasonNumber,
-            ep.number,
-            watched
-          )}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 rounded-full cursor-pointer disabled:cursor-not-allowed"
+          onClick={() => aired && onToggle(epKey)}
+          aria-label={t.detail.seasons.checkEpisodeAria(seasonNumber, ep.number, isWatched)}
+          className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+            !aired ? 'cursor-not-allowed' : 'cursor-pointer'
+          }`}
         >
           <span
-            className={`w-6 h-6 rounded-full flex items-center justify-center border transition-colors ${
-              watched
-                ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-foreground)]'
-                : aired
-                  ? 'border-[var(--muted)] hover:border-[var(--foreground)]'
-                  : 'border-[var(--border)]'
+            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+              isWatched
+                ? 'bg-accent border-accent text-accent-foreground'
+                : 'border-default-300 hover:border-accent'
             }`}
           >
-            {watched && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+            {isWatched && <Check className="w-3.5 h-3.5 stroke-[3]" />}
           </span>
         </button>
 
-        {/* Episode Still Thumbnail on tablet and up */}
         {ep.stillPath && (
-          <div className="hidden sm:block w-28 shrink-0 rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--surface-secondary)]">
-            <MediaImage
+          <div className="hidden sm:block w-24 aspect-video rounded-lg overflow-hidden bg-default-100 shrink-0">
+            <img
               src={ep.stillPath}
-              alt={ep.name || zh.detail.seasons.episodePrefix(ep.number)}
-              aspect="still"
+              alt={resolvedEpName}
+              loading="lazy"
+              className="w-full h-full object-cover"
             />
           </div>
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-[var(--foreground)] truncate">
-              {zh.detail.seasons.episodePrefix(ep.number)} ·{' '}
-              {ep.name || zh.detail.seasons.episodeDefaultName(ep.number)}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`text-sm font-medium truncate ${
+                isWatched ? 'text-[var(--muted)]' : 'text-[var(--foreground)]'
+              }`}
+            >
+              {t.detail.seasons.episodePrefix(ep.number)} · {resolvedEpName}
             </span>
-            {hasResume && title.resume && (
-              <span className="px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent-text)] text-[11px] font-medium tabular-nums shrink-0">
+            {hasResumeHere && title.resume && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-accent/15 text-accent font-medium">
                 {formatSeconds(title.resume.seconds)}
               </span>
             )}
           </div>
-
-          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)] tabular-nums">
-            {ep.airDate ? (
-              <span>
-                {aired
-                  ? ep.airDate
-                  : zh.detail.seasons.unairedWithDate(ep.airDate)}
-              </span>
+          <div className="flex items-center gap-2 text-xs text-[var(--muted)] mt-0.5">
+            {!aired && ep.airDate ? (
+              <span>{t.detail.seasons.unairedWithDate(ep.airDate)}</span>
+            ) : !aired ? (
+              <span>{t.detail.seasons.unairedNoDate}</span>
             ) : (
-              !aired && <span>{zh.detail.seasons.unairedNoDate}</span>
-            )}
-            {ep.runtime && (
               <>
-                <span aria-hidden="true">·</span>
-                <span>{zh.detail.seasons.runtimeMinutes(ep.runtime)}</span>
+                {ep.airDate && <span>{ep.airDate}</span>}
+                {ep.runtime && <span>{t.detail.seasons.runtimeMinutes(ep.runtime)}</span>}
               </>
             )}
           </div>
-
-          {hasResume && title.resume && !watched && (
-            <div className="mt-2 max-w-xs">
-              <ProgressBar
-                aria-label={`${ep.key} ${zh.detail.movieWatchingProgress}`}
-                value={epResumePct}
-                size="sm"
-                className="w-full"
-              >
-                <ProgressBar.Track>
-                  <ProgressBar.Fill />
-                </ProgressBar.Track>
-              </ProgressBar>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Episode Row Actions Menu */}
       {aired && (
         <Dropdown>
           <Button
-            variant="ghost"
             size="sm"
+            variant="ghost"
             isIconOnly
-            aria-label={zh.detail.seasons.episodeMoreAria(
-              seasonNumber,
-              ep.number
-            )}
+            aria-label={t.detail.seasons.episodeMoreAria(seasonNumber, ep.number)}
           >
             <MoreHorizontal className="w-4 h-4" />
           </Button>
-          <Dropdown.Popover placement="bottom end">
+          <Dropdown.Popover>
             <Dropdown.Menu
-              aria-label={zh.detail.seasons.episodeMoreAria(
-                seasonNumber,
-                ep.number
-              )}
               onAction={(key) => {
-                if (key === 'up-to-here') {
-                  onMarkUpTo(ep.key);
-                } else if (key === 'record-time') {
-                  onRecordResume(ep.key);
-                }
+                if (key === 'upTo') onMarkUpTo(epKey);
+                if (key === 'resume') onOpenResume(epKey);
               }}
             >
-              <Dropdown.Item
-                id="up-to-here"
-                textValue={zh.detail.seasons.episodeMenu.markUpToHere}
-              >
-                <CheckCheck className="w-4 h-4 text-[var(--muted)]" />
-                <Label>{zh.detail.seasons.episodeMenu.markUpToHere}</Label>
+              <Dropdown.Item id="upTo">
+                <CheckCheck className="w-4 h-4 mr-2" />
+                <Label>{t.detail.seasons.episodeMenu.markUpToHere}</Label>
               </Dropdown.Item>
-              <Dropdown.Item
-                id="record-time"
-                textValue={zh.detail.seasons.episodeMenu.recordTime}
-              >
-                <Clock className="w-4 h-4 text-[var(--muted)]" />
-                <Label>{zh.detail.seasons.episodeMenu.recordTime}</Label>
+              <Dropdown.Item id="resume">
+                <Clock className="w-4 h-4 mr-2" />
+                <Label>{t.detail.seasons.episodeMenu.recordTime}</Label>
               </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>

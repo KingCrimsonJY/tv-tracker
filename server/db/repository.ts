@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
+import {
+  normalizeLocalizedEpisodeName,
+  normalizeLocalizedSeasonName,
+  splitUploaderPrefixFromOverview,
+} from '../../src/domain/progress.ts';
 import type {
   AppSettingsDoc,
   AppStateSnapshot,
@@ -172,8 +178,85 @@ export class TrackerRepository {
       const sqlContent = fs.readFileSync(sqlPath, 'utf-8');
       this.runInTransaction(() => {
         this.db.exec(sqlContent);
+        if (migration.version === 2) {
+          this.runMigration002InTx();
+        }
         this.db.exec(`PRAGMA user_version = ${migration.version};`);
       });
+    }
+  }
+
+  private runMigration002InTx(): void {
+    const seasonRows = this.db
+      .prepare('SELECT title_id, season_number, data FROM seasons')
+      .all() as Array<{ title_id: string; season_number: number; data: string }>;
+    const updateSeason = this.db.prepare(
+      'UPDATE seasons SET data = ? WHERE title_id = ? AND season_number = ?'
+    );
+
+    for (const row of seasonRows) {
+      try {
+        const parsed = JSON.parse(row.data) as SeasonDoc & {
+          name?: unknown;
+          episodes?: Array<{ name?: unknown }>;
+        };
+        const normalizedSeason: SeasonDoc = {
+          ...parsed,
+          name: normalizeLocalizedSeasonName(parsed.name as string | null | undefined),
+          episodes: Array.isArray(parsed.episodes)
+            ? parsed.episodes.map((ep) => ({
+                ...ep,
+                name: normalizeLocalizedEpisodeName(ep.name as string | null | undefined),
+              }))
+            : [],
+        };
+        updateSeason.run(JSON.stringify(normalizedSeason), row.title_id, row.season_number);
+      } catch {
+        // Ignore malformed legacy row
+      }
+    }
+
+    const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
+      id: string;
+      data: string;
+    }>;
+    const updateTitle = this.db.prepare('UPDATE titles SET data = ? WHERE id = ?');
+
+    for (const row of titleRows) {
+      try {
+        const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
+        let changed = false;
+
+        if ((parsed.source === 'url' || parsed.source === 'custom') && parsed.overview?.zh) {
+          const split = splitUploaderPrefixFromOverview(parsed.overview.zh);
+          if (split.uploader) {
+            parsed.uploader = parsed.uploader || split.uploader;
+            parsed.overview = {
+              ...parsed.overview,
+              zh: split.overview,
+            };
+            changed = true;
+          }
+        }
+
+        if (
+          (!parsed.genreIds || parsed.genreIds.length === 0) &&
+          Array.isArray(parsed.genres) &&
+          parsed.genres.length > 0
+        ) {
+          const ids = extractGenreIdsFromNames(parsed.genres);
+          if (ids.length > 0) {
+            parsed.genreIds = ids;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          updateTitle.run(JSON.stringify(parsed), row.id);
+        }
+      } catch {
+        // Ignore malformed legacy row
+      }
     }
   }
 

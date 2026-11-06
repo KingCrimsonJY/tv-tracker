@@ -1,6 +1,17 @@
-import { makeEpisodeKey } from '../../src/domain/progress.ts';
-import type { EpisodeMeta, Ratings, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
+import {
+  makeEpisodeKey,
+  normalizeLocalizedEpisodeName,
+  normalizeLocalizedSeasonName,
+} from '../../src/domain/progress.ts';
+import type { EpisodeMeta, RatingsBlock, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
 import { tmdbImageUrl } from '../providers/tmdb.ts';
+
+export interface DemoRatingsSpec {
+  tmdb?: string;
+  imdb?: string;
+  rottenTomatoes?: string;
+  metacritic?: string;
+}
 
 export interface DemoTitleSpec {
   mediaType: 'movie' | 'tv';
@@ -15,7 +26,7 @@ export interface DemoTitleSpec {
   backdropHash: string;
   showStatus: string | null;
   imdbId: string;
-  ratings: Omit<Ratings, 'fetchedAt'>;
+  ratings: DemoRatingsSpec;
   overviewZh: string;
   seasons?: Array<{
     seasonNumber: number;
@@ -145,7 +156,7 @@ function movieSpec(
   posterHash: string,
   backdropHash: string,
   imdbId: string,
-  ratings: Omit<Ratings, 'fetchedAt'>,
+  ratings: DemoRatingsSpec,
   overviewZh: string
 ): DemoTitleSpec {
   return {
@@ -486,6 +497,53 @@ export function buildFallbackTitleAndSeasons(
   now: number
 ): { title: TitleDoc; seasons: SeasonDoc[] } {
   const titleId = `tmdb_${spec.mediaType}_${spec.sourceId}`;
+  const parsedRatings: RatingsBlock = {
+    ...spec.ratings,
+    fetchedAt: now,
+  };
+  const EN_OVERVIEWS: Record<string, string> = {
+    '1396':
+      'When Walter White, a New Mexico chemistry teacher, is diagnosed with Stage III cancer and given a prognosis of only two years left to live, he becomes filled with a sense of fearlessness and an unrelenting desire to secure his family’s financial future at any cost.',
+    '95396':
+      'Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives. When a mysterious colleague appears outside of work, it begins a journey to discover the truth about their jobs.',
+    '136315':
+      'Carmy, a young fine-dining chef, comes home to Chicago to run his family sandwich shop after a heartbreaking death in his family.',
+    '129':
+      'A young girl, Chihiro, becomes trapped in a strange new world of spirits. When her parents undergo a mysterious transformation, she must call upon the courage she never knew she had to free her family.',
+    '209867':
+      'After the party of heroes defeated the Demon King, they restored peace to the land and returned to lives of solitude. Generations pass, and the elven mage Frieren comes face to face with humanity’s mortality.',
+    '238':
+      'Spanning the years 1945 to 1955, a chronicle of the fictional Italian-American Corleone crime family.',
+    '843':
+      'Two neighbors form a strong bond after both suspect extramarital activities of their spouses. However, they agree to keep their bond platonic so as not to commit similar wrongs.',
+    '496243':
+      'All unemployed, Ki-taek’s family takes peculiar interest in the wealthy and glamorous Parks for their livelihood until they get entangled in an unexpected incident.',
+    '157336':
+      'The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel and conquer the vast distances involved in an interstellar voyage.',
+  };
+
+  const EP_EN_MAP: Record<string, string> = {
+    关于地狱的好消息: 'Good News About Hell',
+    半环路: 'Half Loop',
+    永恒之中: 'In Perpetuity',
+    你就是你: 'The You You Are',
+    光学与设计部的残酷野蛮: 'The Grim Barbarity of Optics and Design',
+    捉迷藏: 'Hide and Seek',
+    挑衅性爵士乐: 'Defiant Jazz',
+    '晚饭吃什么？': "What's for Dinner?",
+    我们就是我们: 'The We We Are',
+    '你好，科贝尔女士': 'Hello, Ms. Cobel',
+    '再见，塞尔维格太太': 'Goodbye, Mrs. Selvig',
+    '谁还活着？': 'Who Is Alive?',
+    哀伤之谷: "Woe's Hollow",
+    特洛伊木马: "Trojan's Horse",
+    阿提拉: 'Attila',
+    奇卡海牙: 'Chikhai Bardo',
+    甜蜜的硫酸盐: 'Sweet Vitriol',
+    下班后: 'The After Hours',
+    冷港: 'Cold Harbor',
+  };
+
   const title: TitleDoc = {
     id: titleId,
     source: 'tmdb',
@@ -498,10 +556,13 @@ export function buildFallbackTitleAndSeasons(
     genres: spec.genres,
     posterPath: tmdbImageUrl(spec.posterHash, 'w500'),
     backdropPath: tmdbImageUrl(spec.backdropHash, 'w1280'),
-    overview: { zh: spec.overviewZh },
-    showStatus: spec.showStatus,
+    overview: {
+      zh: spec.overviewZh,
+      ...(EN_OVERVIEWS[spec.sourceId] ? { en: EN_OVERVIEWS[spec.sourceId] } : {}),
+    },
+    showStatus: spec.showStatus as TitleDoc['showStatus'],
     externalIds: { imdb: spec.imdbId },
-    ratings: { ...spec.ratings, fetchedAt: now },
+    ratings: parsedRatings,
     manualState: null,
     playthroughs: [{ id: 'p1', number: 1, startedAt: now - 30 * 86_400_000 }],
     activePlaythroughId: 'p1',
@@ -514,12 +575,15 @@ export function buildFallbackTitleAndSeasons(
 
   const seasons: SeasonDoc[] = (spec.seasons || []).map((s) => ({
     seasonNumber: s.seasonNumber,
-    name: s.name,
+    name: normalizeLocalizedSeasonName({ zh: s.name }),
     episodes: s.episodes.map(
       (ep): EpisodeMeta => ({
         number: ep.number,
         key: makeEpisodeKey(s.seasonNumber, ep.number),
-        name: ep.name,
+        name: normalizeLocalizedEpisodeName({
+          zh: ep.name,
+          ...(EP_EN_MAP[ep.name] ? { en: EP_EN_MAP[ep.name] } : {}),
+        }),
         airDate: ep.airDate,
         runtime: ep.runtime,
         stillPath: tmdbImageUrl(ep.stillHash || spec.backdropHash, 'w300'),

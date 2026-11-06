@@ -1,5 +1,5 @@
 import { createRandomId } from '../../domain/id.ts';
-import { makeEpisodeKey } from '../../domain/progress.ts';
+import { makeEpisodeKey, normalizeLocalizedEpisodeName } from '../../domain/progress.ts';
 import type {
   DisplayLang,
   EpisodeMeta,
@@ -9,7 +9,7 @@ import type {
   SeasonDoc,
   TitleDoc,
 } from '../../domain/types.ts';
-import { zh } from '../../i18n/zh.ts';
+import { getActiveCatalog } from '../../i18n/index.ts';
 import {
   fetchTmdbDetailsApi,
   patchTitleApi,
@@ -42,7 +42,7 @@ function buildCustomSeasons(
     return {
       number: epNum,
       key: makeEpisodeKey(1, epNum),
-      name: seed?.name?.trim() || `第 ${epNum} 集`,
+      name: normalizeLocalizedEpisodeName(seed?.name),
       airDate: '2020-01-01',
       runtime: seed?.runtime ?? runtimeMin,
       stillPath: null,
@@ -50,7 +50,7 @@ function buildCustomSeasons(
       ...(seed?.sourceVideoId ? { sourceVideoId: seed.sourceVideoId } : {}),
     };
   });
-  return [{ seasonNumber: 1, name: '第 1 季', episodes }];
+  return [{ seasonNumber: 1, name: null, episodes }];
 }
 
 export function createTitleActions(
@@ -129,7 +129,7 @@ export function createTitleActions(
   async function createCustomOrLinkTitle(input: CustomTitleInput): Promise<TitleDoc> {
     const now = Date.now();
     const id = createRandomId(input.source);
-    const trimmedName = input.name.trim() || '未命名作品';
+    const trimmedName = input.name.trim() || 'Untitled';
     const trimmedOrig = input.originalName?.trim() || trimmedName;
     const seedEpisodes = input.episodes && input.episodes.length > 0 ? input.episodes : undefined;
     const epCount =
@@ -143,6 +143,7 @@ export function createTitleActions(
     const posterUrl = rawPoster?.trim() ? rawPoster.trim().slice(0, 1000) : null;
     const rawSource = input.sourceUrl ?? input.sourceId;
     const sourceId = rawSource?.trim() ? rawSource.trim().slice(0, 2048) : null;
+    const uploader = input.uploader?.trim() ? input.uploader.trim().slice(0, 200) : null;
 
     const newTitle: TitleDoc = {
       id,
@@ -157,6 +158,7 @@ export function createTitleActions(
       posterPath: posterUrl,
       backdropPath: posterUrl,
       overview: { zh: input.overview?.trim() || '' },
+      ...(uploader ? { uploader } : {}),
       showStatus: 'Ended',
       externalIds: {},
       ratings: {},
@@ -235,6 +237,9 @@ export function createTitleActions(
         ...prevTitle.overview,
         ...(input.overview !== undefined ? { zh: input.overview.trim() } : {}),
       },
+      ...(input.uploader !== undefined
+        ? { uploader: input.uploader?.trim() || null }
+        : {}),
       updatedAt: now,
       lastActivityAt: now,
     };
@@ -265,6 +270,7 @@ export function createTitleActions(
       'posterPath',
       'backdropPath',
       'overview',
+      'uploader',
       'externalIds',
       'ratings',
     ] as const;
@@ -303,7 +309,7 @@ export function createTitleActions(
           ? { seasonsByTitle: { ...curr.seasonsByTitle, [titleId]: prevSeasons } }
           : {}),
       }));
-      showToast(zh.app.writeRollbackToast, 'danger');
+      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -354,7 +360,7 @@ export function createTitleActions(
             }
           : curr
       );
-      showToast(zh.app.writeRollbackToast, 'danger');
+      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -397,7 +403,7 @@ export function createTitleActions(
             }
           : curr
       );
-      showToast(zh.app.writeRollbackToast, 'danger');
+      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

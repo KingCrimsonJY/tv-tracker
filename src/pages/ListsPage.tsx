@@ -18,8 +18,9 @@ import {
 import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
+import { resolveDisplayTitle } from '../domain/progress';
 import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
-import { zh } from '../i18n/zh';
+import { useI18n } from '../i18n';
 
 export const ListsPage: React.FC = () => {
   const {
@@ -32,6 +33,7 @@ export const ListsPage: React.FC = () => {
     getActiveProgress,
     createList,
   } = useTracker();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -47,14 +49,14 @@ export const ListsPage: React.FC = () => {
   });
 
   const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
-  for (const t of Object.values(titles)) {
-    progressByTitleMap[t.id] = getActiveProgress(t);
+  for (const titleDoc of Object.values(titles)) {
+    progressByTitleMap[titleDoc.id] = getActiveProgress(titleDoc);
   }
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setNameError(zh.lists.createModal.nameRequiredError);
+      setNameError(t.lists.createModal.nameRequiredError);
       return;
     }
     const created = await createList({
@@ -74,10 +76,10 @@ export const ListsPage: React.FC = () => {
       <header className="flex items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-            {zh.lists.title}
+            {t.lists.title}
           </h1>
           <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
-            {zh.lists.countLabel(sortedLists.length)}
+            {t.lists.countLabel(sortedLists.length)}
           </span>
         </div>
 
@@ -87,14 +89,14 @@ export const ListsPage: React.FC = () => {
           onPress={() => setCreateOpen(true)}
         >
           <Plus className="w-4 h-4" />
-          <span>{zh.lists.createList}</span>
+          <span>{t.lists.createList}</span>
         </Button>
       </header>
 
       {loadingData ? (
         <div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
-          aria-label={zh.lists.loadingAria}
+          aria-label={t.lists.loadingAria}
         >
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-56 rounded-2xl" />
@@ -106,14 +108,14 @@ export const ListsPage: React.FC = () => {
             <Layers className="w-6 h-6" />
           </div>
           <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {zh.lists.emptyListsTitle}
+            {t.lists.emptyListsTitle}
           </h2>
           <p className="text-sm text-[var(--muted)] leading-relaxed">
-            {zh.lists.emptyListsDescription}
+            {t.lists.emptyListsDescription}
           </p>
           <Button variant="primary" onPress={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4" />
-            <span>{zh.lists.createList}</span>
+            <span>{t.lists.createList}</span>
           </Button>
         </div>
       ) : (
@@ -131,7 +133,8 @@ export const ListsPage: React.FC = () => {
               hydrated,
               list.kind,
               list.collectionSort,
-              settings.defaultTitleLang
+              settings.defaultTitleLang,
+              locale
             );
 
             const stats = computeListProgress(
@@ -165,7 +168,14 @@ export const ListsPage: React.FC = () => {
                         {item ? (
                           <MediaImage
                             src={item.posterPath}
-                            alt={item.names.zh || item.names.original}
+                            alt={
+                              resolveDisplayTitle(
+                                item.names,
+                                item.displayLang,
+                                settings.defaultTitleLang,
+                                locale
+                              ).primary
+                            }
                             aspect="poster"
                             mediaType={item.mediaType}
                           />
@@ -191,15 +201,15 @@ export const ListsPage: React.FC = () => {
                         )}
                         <span>
                           {list.kind === 'ordered'
-                            ? zh.lists.orderedType
-                            : zh.lists.collectionType}
+                            ? t.lists.orderedType
+                            : t.lists.collectionType}
                         </span>
                       </span>
 
                       {list.pinned && (
                         <span className="flex items-center gap-1 text-[var(--muted)]">
                           <Pin className="w-3 h-3" />
-                          <span>{zh.lists.pinnedBadge}</span>
+                          <span>{t.lists.pinnedBadge}</span>
                         </span>
                       )}
                     </div>
@@ -217,9 +227,9 @@ export const ListsPage: React.FC = () => {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
-                      <span>{zh.lists.totalTitlesLabel(stats.totalCount)}</span>
+                      <span>{t.lists.totalTitlesLabel(stats.totalCount)}</span>
                       <span>
-                        {zh.lists.progressLabel(
+                        {t.lists.progressLabel(
                           stats.completedCount,
                           stats.totalCount
                         )}
@@ -227,7 +237,7 @@ export const ListsPage: React.FC = () => {
                     </div>
 
                     <ProgressBar
-                      aria-label={zh.lists.progressAria(list.name)}
+                      aria-label={t.lists.progressAria(list.name)}
                       value={pct}
                       size="sm"
                       className="w-full"
@@ -249,7 +259,7 @@ export const ListsPage: React.FC = () => {
         <Modal.Container size="md" placement="center">
           <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading>{zh.lists.createModal.title}</Modal.Heading>
+              <Modal.Heading>{t.lists.createModal.title}</Modal.Heading>
             </Modal.Header>
 
             <form onSubmit={handleCreateSubmit}>
@@ -264,8 +274,8 @@ export const ListsPage: React.FC = () => {
                   fullWidth
                   variant="secondary"
                 >
-                  <Label>{zh.lists.createModal.nameLabel}</Label>
-                  <Input placeholder={zh.lists.createModal.namePlaceholder} />
+                  <Label>{t.lists.createModal.nameLabel}</Label>
+                  <Input placeholder={t.lists.createModal.namePlaceholder} />
                   {nameError && <FieldError>{nameError}</FieldError>}
                 </TextField>
 
@@ -274,7 +284,7 @@ export const ListsPage: React.FC = () => {
                   onChange={(val) => setKind(val as ListKind)}
                   variant="secondary"
                 >
-                  <Label>{zh.lists.createModal.kindLabel}</Label>
+                  <Label>{t.lists.createModal.kindLabel}</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-1">
                     <Radio value="ordered">
                       <Radio.Content>
@@ -282,8 +292,8 @@ export const ListsPage: React.FC = () => {
                           <Radio.Indicator />
                         </Radio.Control>
                         <div className="flex flex-col gap-0.5">
-                          <Label>{zh.lists.orderedType}</Label>
-                          <Description>{zh.lists.orderedTypeHint}</Description>
+                          <Label>{t.lists.orderedType}</Label>
+                          <Description>{t.lists.orderedTypeHint}</Description>
                         </div>
                       </Radio.Content>
                     </Radio>
@@ -294,8 +304,8 @@ export const ListsPage: React.FC = () => {
                           <Radio.Indicator />
                         </Radio.Control>
                         <div className="flex flex-col gap-0.5">
-                          <Label>{zh.lists.collectionType}</Label>
-                          <Description>{zh.lists.collectionTypeHint}</Description>
+                          <Label>{t.lists.collectionType}</Label>
+                          <Description>{t.lists.collectionTypeHint}</Description>
                         </div>
                       </Radio.Content>
                     </Radio>
@@ -308,8 +318,8 @@ export const ListsPage: React.FC = () => {
                   fullWidth
                   variant="secondary"
                 >
-                  <Label>{zh.lists.createModal.descriptionLabel}</Label>
-                  <Input placeholder={zh.lists.createModal.descriptionPlaceholder} />
+                  <Label>{t.lists.createModal.descriptionLabel}</Label>
+                  <Input placeholder={t.lists.createModal.descriptionPlaceholder} />
                 </TextField>
 
                 <div className="pt-1">
@@ -318,7 +328,7 @@ export const ListsPage: React.FC = () => {
                       <Switch.Control>
                         <Switch.Thumb />
                       </Switch.Control>
-                      <Label>{zh.lists.createModal.pinnedLabel}</Label>
+                      <Label>{t.lists.createModal.pinnedLabel}</Label>
                     </Switch.Content>
                   </Switch>
                 </div>
@@ -331,10 +341,10 @@ export const ListsPage: React.FC = () => {
                   size="sm"
                   onPress={() => setCreateOpen(false)}
                 >
-                  {zh.lists.createModal.cancel}
+                  {t.lists.createModal.cancel}
                 </Button>
                 <Button type="submit" variant="primary" size="sm">
-                  {zh.lists.createModal.submit}
+                  {t.lists.createModal.submit}
                 </Button>
               </Modal.Footer>
             </form>

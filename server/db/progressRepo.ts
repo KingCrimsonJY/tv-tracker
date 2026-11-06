@@ -10,7 +10,7 @@ export function putProgress(
   return ctx.runInTransaction(() => {
     const exists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(titleId);
     if (!exists) {
-      throw new NotFoundError(`未找到作品: ${titleId}`);
+      throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
     const payload: StoredProgressData = {
@@ -62,7 +62,7 @@ export function patchProgress(
   return ctx.runInTransaction(() => {
     const exists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(titleId);
     if (!exists) {
-      throw new NotFoundError(`未找到作品: ${titleId}`);
+      throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
     const row = ctx.db

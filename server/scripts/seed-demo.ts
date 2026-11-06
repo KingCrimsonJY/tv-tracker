@@ -21,6 +21,7 @@ async function resolveDemoTitle(
   spec: DemoTitleSpec,
   now: number
 ): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
+  const fallback = buildFallbackTitleAndSeasons(spec, now);
   if (isTmdbConfigured()) {
     try {
       const fetched = await fetchTmdbTitleDetails(spec.mediaType, spec.sourceId);
@@ -31,12 +32,12 @@ async function resolveDemoTitle(
             ...fetched.title.externalIds,
             imdb: fetched.title.externalIds.imdb || spec.imdbId,
           },
-          ratings: { ...spec.ratings, ...fetched.title.ratings, fetchedAt: now },
+          ratings: { ...fallback.title.ratings, ...fetched.title.ratings, fetchedAt: now },
         },
         seasons:
           fetched.seasons.length > 0
             ? fetched.seasons
-            : buildFallbackTitleAndSeasons(spec, now).seasons,
+            : fallback.seasons,
       };
     } catch (err) {
       console.warn(
@@ -45,7 +46,7 @@ async function resolveDemoTitle(
       );
     }
   }
-  return buildFallbackTitleAndSeasons(spec, now);
+  return fallback;
 }
 
 function buildEpisodeMap(
@@ -271,11 +272,11 @@ async function main() {
   const ytSeasons: SeasonDoc[] = [
     {
       seasonNumber: 1,
-      name: '第 1 季',
+      name: null,
       episodes: ytLinkResult.episodes.map((ep, idx) => ({
         number: idx + 1,
         key: makeEpisodeKey(1, idx + 1),
-        name: ep.name,
+        name: ep.name ? { zh: ep.name, en: ep.name } : null,
         airDate: '2016-08-04',
         runtime: ep.runtime ?? null,
         stillPath: ytLinkResult.posterUrl,
@@ -296,6 +297,7 @@ async function main() {
       id: ytId,
       source: 'url',
       sourceId: ytLinkResult.sourceUrl,
+      uploader: ytLinkResult.uploader ?? null,
       mediaType: 'other',
       names: {
         original: ytLinkResult.title,
@@ -308,7 +310,7 @@ async function main() {
       genres: ['数学', '教程'],
       posterPath: ytLinkResult.posterUrl,
       backdropPath: ytLinkResult.posterUrl,
-      overview: { zh: ytLinkResult.overview },
+      overview: { zh: ytLinkResult.overview, en: ytLinkResult.overview },
       showStatus: 'Ended',
       externalIds: {},
       ratings: {},
@@ -334,11 +336,11 @@ async function main() {
   const biliSeasons: SeasonDoc[] = [
     {
       seasonNumber: 1,
-      name: '第 1 季',
+      name: null,
       episodes: biliLinkResult.episodes.map((ep, idx) => ({
         number: idx + 1,
         key: makeEpisodeKey(1, idx + 1),
-        name: ep.name,
+        name: ep.name ? { zh: ep.name, en: ep.name } : null,
         airDate: '2016-08-25',
         runtime: ep.runtime ?? null,
         stillPath: biliLinkResult.posterUrl,
@@ -359,6 +361,7 @@ async function main() {
       id: biliId,
       source: 'url',
       sourceId: biliLinkResult.sourceUrl,
+      uploader: biliLinkResult.uploader ?? null,
       mediaType: 'other',
       names: {
         original: biliLinkResult.title,

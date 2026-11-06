@@ -228,7 +228,7 @@ export function markUpToEpisode(
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
   const showEnded = isShowEnded(title.showStatus, title.source);
 
-  const countable = getCountableEpisodes(seasons, {
+  const { countable } = getCountableEpisodes(seasons, {
     includeSpecials,
     todayStr,
     treatAllAsAired,
@@ -319,7 +319,7 @@ export function markWholeTitleWatched(
     };
   }
 
-  const countable = getCountableEpisodes(seasons, {
+  const { countable } = getCountableEpisodes(seasons, {
     includeSpecials,
     todayStr,
     treatAllAsAired,

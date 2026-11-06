@@ -15,15 +15,22 @@ import type {
   WatchListDoc,
 } from '../domain/types.ts';
 
+export type { LinkImportResult, SystemInfoResponse, TmdbSearchItem };
+export type TmdbSearchHit = TmdbSearchItem;
+
 const IFRAME_TOKEN_STORAGE_KEY = 'zhenji_iframe_session_token';
 
 export class ApiError extends Error {
   public readonly status: number;
+  public readonly code?: string;
+  public readonly field?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string, field?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
+    this.field = field;
   }
 }
 
@@ -100,20 +107,30 @@ async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
   const isJson = contentType.includes('application/json');
 
   if (!res.ok) {
-    let message = `请求失败 (HTTP ${res.status})`;
+    let message = `Request failed (HTTP ${res.status})`;
+    let code: string | undefined;
+    let field: string | undefined;
     if (isJson) {
       try {
-        const body = (await res.json()) as { error?: string };
-        if (body.error) message = body.error;
+        const body = (await res.json()) as {
+          code?: string;
+          message?: string;
+          error?: string;
+          field?: string;
+        };
+        if (body.code) code = body.code;
+        if (body.field) field = body.field;
+        if (body.message) message = body.message;
+        else if (body.error) message = body.error;
       } catch {
         // ignore parse error
       }
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, code, field);
   }
 
   if (!isJson) {
-    throw new ApiError(res.status, '响应格式不是有效的 JSON');
+    throw new ApiError(res.status, 'Invalid JSON response', 'INTERNAL_ERROR');
   }
 
   return (await res.json()) as T;
@@ -343,11 +360,19 @@ export async function importDataApi(payload: unknown): Promise<StateMutationResu
 }
 
 export async function searchTmdbApi(
-  query: string
+  query: string,
+  lang: 'zh-CN' | 'en-US' = 'zh-CN'
 ): Promise<{ configured?: boolean; results: TmdbSearchItem[] }> {
   return apiJson<{ configured?: boolean; results: TmdbSearchItem[] }>(
-    `/api/tmdb/search?q=${encodeURIComponent(query)}`
+    `/api/tmdb/search?q=${encodeURIComponent(query)}&lang=${encodeURIComponent(lang)}`
   );
+}
+
+export async function fetchTmdbGenresApi(): Promise<{
+  zh: Record<number, string>;
+  en: Record<number, string>;
+}> {
+  return apiJson<{ zh: Record<number, string>; en: Record<number, string> }>('/api/tmdb/genres');
 }
 
 export async function fetchTmdbDetailsApi(

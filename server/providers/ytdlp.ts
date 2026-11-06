@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { isGenericEpisodeLabel } from '../../src/domain/airing.ts';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
 import { assertSafePublicUrl, type DnsLookupFn } from '../security/ssrf.ts';
 
@@ -9,16 +10,16 @@ export const YTDLP_TIMEOUT_MS = 30_000;
 export const YTDLP_MAX_BUFFER_BYTES = 20 * 1024 * 1024; // 20 MB
 
 export class YtdlpNotInstalledError extends Error {
-  public readonly code = 'YTDLP_NOT_INSTALLED';
+  public readonly code = 'YTDLP_MISSING';
   constructor(binaryPath: string) {
-    super(`未找到 yt-dlp 可执行文件 (${binaryPath})`);
+    super(`yt-dlp executable not found (${binaryPath})`);
     this.name = 'YtdlpNotInstalledError';
   }
 }
 
 export class YtdlpExecutionError extends Error {
   public readonly code: string;
-  constructor(message: string, code = 'YTDLP_EXECUTION_ERROR') {
+  constructor(message: string, code = 'YTDLP_FAILED') {
     super(message);
     this.name = 'YtdlpExecutionError';
     this.code = code;
@@ -55,13 +56,13 @@ export const defaultYtdlpExec: YtdlpExecFn = (file, args, options) =>
             return;
           }
           if ((err as { killed?: boolean }).killed || errno === 'ETIMEDOUT') {
-            reject(new YtdlpExecutionError('yt-dlp 解析超时 (30s)', 'YTDLP_TIMEOUT'));
+            reject(new YtdlpExecutionError('yt-dlp timed out (30s)', 'YTDLP_TIMEOUT'));
             return;
           }
           reject(
             new YtdlpExecutionError(
-              stderr?.trim() || err.message || 'yt-dlp 执行失败',
-              'YTDLP_EXIT_ERROR'
+              stderr?.trim() || err.message || 'yt-dlp execution failed',
+              'YTDLP_FAILED'
             )
           );
           return;
@@ -255,7 +256,7 @@ export function mapYtdlpJsonToLinkResult(
   options: { forceImport?: boolean } = {}
 ): LinkImportResult {
   if (rawJson === null || typeof rawJson !== 'object') {
-    throw new YtdlpExecutionError('yt-dlp 未返回有效 JSON 对象', 'YTDLP_INVALID_JSON');
+    throw new YtdlpExecutionError('yt-dlp did not return a valid JSON object', 'YTDLP_FAILED');
   }
 
   const parsed = ytdlpOutputSchema.parse(rawJson);
@@ -274,18 +275,10 @@ export function mapYtdlpJsonToLinkResult(
   const title = (rawTitle || fallbackHost).slice(0, 200);
   const posterUrl = selectBestThumbnail(parsed);
 
-  const uploader = parsed.uploader?.trim() || '';
+  const uploader = parsed.uploader?.trim() || null;
   const desc = parsed.description?.trim() || '';
   const cleanDesc = desc === '-' ? '' : desc;
-  let overview = '';
-  if (uploader && cleanDesc) {
-    overview = `${uploader} · ${cleanDesc}`;
-  } else if (cleanDesc) {
-    overview = cleanDesc;
-  } else if (uploader) {
-    overview = `作者：${uploader}`;
-  }
-  overview = overview.slice(0, 2000);
+  const overview = cleanDesc.slice(0, 2000);
 
   const sourceUrl = (parsed.webpage_url?.trim() || inputUrl).slice(0, 2048);
 
@@ -305,14 +298,14 @@ export function mapYtdlpJsonToLinkResult(
     : [];
 
   const episodes: LinkImportEpisodeSeed[] = validEntries.map((entry, idx) => {
-    const epNum = idx + 1;
-    const epTitle = entry.title?.trim() || `第 ${epNum} 集`;
+    const rawEpTitle = entry.title?.trim() || null;
+    const epTitle = rawEpTitle && !isGenericEpisodeLabel(rawEpTitle) ? rawEpTitle.slice(0, 300) : null;
     const epRuntime =
       typeof entry.duration === 'number' && Number.isFinite(entry.duration) && entry.duration > 0
         ? Math.max(1, Math.round(entry.duration / 60))
         : null;
     return {
-      name: epTitle.slice(0, 300),
+      name: epTitle,
       sourceVideoId: deriveEntrySourceVideoId(entry, idx),
       runtime: epRuntime,
     };
@@ -324,6 +317,7 @@ export function mapYtdlpJsonToLinkResult(
       title,
       posterUrl,
       overview,
+      uploader,
       sourceUrl,
       year,
       runtimeMin,
@@ -340,6 +334,7 @@ export function mapYtdlpJsonToLinkResult(
     title,
     posterUrl,
     overview,
+    uploader,
     sourceUrl,
     year,
     runtimeMin,
@@ -372,7 +367,7 @@ export async function resolveWithYtdlp(
 
   const trimmed = stdout.trim();
   if (!trimmed || trimmed === 'null') {
-    throw new YtdlpExecutionError('yt-dlp 返回空结果', 'YTDLP_EMPTY_OUTPUT');
+    throw new YtdlpExecutionError('yt-dlp returned empty output', 'YTDLP_FAILED');
   }
 
   const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim().startsWith('{')) ?? trimmed;
@@ -380,7 +375,7 @@ export async function resolveWithYtdlp(
   try {
     parsedJson = JSON.parse(firstLine);
   } catch {
-    throw new YtdlpExecutionError('yt-dlp 输出不是合法 JSON', 'YTDLP_INVALID_JSON');
+    throw new YtdlpExecutionError('yt-dlp output is not valid JSON', 'YTDLP_FAILED');
   }
 
   return mapYtdlpJsonToLinkResult(parsedJson, safeUrl.toString(), {

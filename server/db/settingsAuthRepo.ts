@@ -70,7 +70,7 @@ export function setStoredPasswordHash(
   ctx.runInTransaction(() => {
     const existing = getStoredPasswordHash(ctx);
     if (existing) {
-      throw new ConflictError('密码已设置，无法重复初始化');
+      throw new ConflictError('Password has already been configured', 'PASSWORD_ALREADY_SET');
     }
     const data: StoredAuthData = { passwordHash, updatedAt: now };
     ctx.db

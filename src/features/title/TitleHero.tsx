@@ -1,117 +1,143 @@
 import React from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { Button, Chip } from '@heroui/react';
-import { MediaImage } from '../../components/MediaImage';
-import type { ComputedTitleState } from '../../domain/progress';
-import type { TitleDoc } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import { ArrowLeft, Film } from 'lucide-react';
+import { TitleDoc } from '../../domain/types';
+import { ComputedTitleState } from '../../domain/status';
+import { useI18n } from '../../i18n';
 
 interface TitleHeroProps {
   title: TitleDoc;
-  state: ComputedTitleState;
-  primary: string;
-  secondary?: string;
+  titleState: ComputedTitleState;
+  displayTitle: string;
+  showOriginalSub: boolean;
   metaParts: string[];
   onBack: () => void;
+  children?: React.ReactNode;
 }
 
 export const TitleHero: React.FC<TitleHeroProps> = ({
   title,
-  state,
-  primary,
-  secondary,
+  titleState,
+  displayTitle,
+  showOriginalSub,
   metaParts,
   onBack,
+  children,
 }) => {
-  const statusChipColor =
-    state.status === 'completed' || state.status === 'caught_up'
-      ? 'success'
-      : state.status === 'watching'
-        ? 'accent'
-        : state.status === 'paused'
-          ? 'warning'
-          : state.status === 'dropped'
-            ? 'danger'
-            : 'default';
+  const { t } = useI18n();
+  const backdropSrc = title.backdropPath || title.posterPath;
+  const isCustomOrLink = title.source !== 'tmdb';
 
   return (
-    <>
-      {/* Full-bleed Backdrop Hero (~55vh on phone) */}
-      <div className="relative h-[55vh] sm:h-[48vh] lg:h-[52vh] w-full overflow-hidden">
-        <MediaImage
-          src={title.backdropPath || title.posterPath}
-          alt={primary}
-          aspect="backdrop"
-          mediaType={title.mediaType}
-          priority
-          className="w-full h-full"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/65 to-black/30" />
-
-        <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
-          <Button
-            variant="secondary"
-            isIconOnly
-            onPress={onBack}
-            aria-label={zh.app.back}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Overlapping Header Section */}
-      <div className="relative z-10 -mt-28 sm:-mt-36 px-4 sm:px-6 lg:px-10">
-        <div className="flex flex-col sm:flex-row gap-5 sm:gap-7 items-start sm:items-end">
-          {/* Overlapping 2:3 Poster on tablet/desktop */}
-          <div className="hidden sm:block w-36 md:w-44 lg:w-48 shrink-0 rounded-xl overflow-hidden shadow-2xl border border-[var(--border)] bg-[var(--surface)]">
-            <MediaImage
-              src={title.posterPath}
-              alt={primary}
-              aspect="poster"
-              mediaType={title.mediaType}
-              priority
+    <div className="relative">
+      <div className="relative h-[clamp(260px,55vh,520px)] w-full overflow-hidden bg-default-100 pointer-events-none select-none">
+        {backdropSrc ? (
+          isCustomOrLink ? (
+            <>
+              <img
+                src={backdropSrc}
+                alt=""
+                aria-hidden="true"
+                className="w-full h-full object-cover scale-110 blur-2xl opacity-50"
+              />
+              <div className="absolute inset-0 flex items-center justify-center p-6 pb-16 sm:hidden">
+                <img
+                  src={backdropSrc}
+                  alt={displayTitle}
+                  className="max-h-full max-w-full object-contain rounded-lg shadow-lg"
+                />
+              </div>
+            </>
+          ) : (
+            <img
+              src={backdropSrc}
+              alt={displayTitle}
+              className="w-full h-full object-cover"
             />
+          )
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-default-300">
+            <Film className="w-16 h-16 opacity-30" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-transparent to-transparent" />
+      </div>
+
+      <div className="absolute top-4 left-4 sm:left-6 z-20">
+        <Button variant="secondary" size="sm" onPress={onBack}>
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          {t.app.back}
+        </Button>
+      </div>
+
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 sm:-mt-32">
+        <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-end">
+          <div
+            className={`hidden sm:block rounded-xl overflow-hidden shadow-2xl border border-[var(--border)] bg-default-100 shrink-0 ${
+              isCustomOrLink ? 'w-44 md:w-52 max-h-64' : 'w-36 md:w-44 aspect-[2/3]'
+            }`}
+          >
+            {title.posterPath ? (
+              <img
+                src={title.posterPath}
+                alt={displayTitle}
+                className={`w-full h-full ${isCustomOrLink ? 'object-contain bg-black/40' : 'object-cover'}`}
+              />
+            ) : (
+              <div className="w-full h-48 flex items-center justify-center text-[var(--muted)]">
+                <Film className="w-10 h-10" />
+              </div>
+            )}
           </div>
 
-          <div className="flex-1 min-w-0 space-y-3">
-            {/* Status & Rewatch / New Episode Badges */}
+          <div className="flex-1 min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <Chip variant="secondary" color={statusChipColor} size="sm">
-                {state.label}
+              <Chip
+                size="sm"
+                variant="soft"
+                color={
+                  titleState.status === 'completed' || titleState.status === 'caught_up'
+                    ? 'success'
+                    : titleState.status === 'watching'
+                    ? 'accent'
+                    : 'default'
+                }
+              >
+                {t.status[titleState.status]}
               </Chip>
-              {state.hasNewEpisodes && (
-                <Chip variant="primary" color="accent" size="sm">
-                  {zh.detail.newEpisodeBadge}
+              {titleState.hasNewEpisodes && (
+                <Chip size="sm" color="accent" variant="primary">
+                  {t.detail.newEpisodeBadge}
                 </Chip>
               )}
-              {state.isRewatching && (
-                <Chip variant="soft" color="warning" size="sm">
-                  {state.playthroughNumber === 2
-                    ? zh.status.rewatchingBadge
-                    : zh.status.nthPlaythroughBadge(state.playthroughNumber)}
+              {titleState.isRewatching && (
+                <Chip size="sm" color="warning" variant="soft">
+                  {titleState.playthroughNumber > 2
+                    ? t.status.nthPlaythroughBadge(titleState.playthroughNumber)
+                    : t.status.rewatchingBadge}
                 </Chip>
               )}
             </div>
 
-            <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[var(--foreground)] leading-tight">
-                {primary}
-              </h1>
-              {secondary && (
-                <p className="mt-1 text-sm sm:text-base text-[var(--muted)] font-medium">
-                  {secondary}
-                </p>
-              )}
-            </div>
-
-            {/* Single Meta Line: year · type · runtime/seasons · up to 2 genres */}
-            <p className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[var(--foreground)]">
+              {displayTitle}
+            </h1>
+            {showOriginalSub && (
+              <div className="text-sm text-[var(--muted)]">{title.names.original}</div>
+            )}
+            <div className="text-xs sm:text-sm text-[var(--muted)]">
               {metaParts.join(' · ')}
-            </p>
+            </div>
           </div>
         </div>
+
+        {children && (
+          <div className="mt-5 space-y-4">
+            {children}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 };

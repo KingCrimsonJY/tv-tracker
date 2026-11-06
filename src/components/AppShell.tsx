@@ -14,21 +14,22 @@ import {
 import { Button, Modal } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext.tsx';
 import { usePWAInstall } from '../hooks/usePWAInstall.ts';
-import { zh } from '../i18n/zh.ts';
-
-const NAV_ITEMS = [
-  { to: '/', label: zh.nav.home, icon: Home, end: true },
-  { to: '/library', label: zh.nav.library, icon: Film, end: false },
-  { to: '/lists', label: zh.nav.lists, icon: Layers, end: false },
-  { to: '/search', label: zh.nav.search, icon: Search, end: false },
-];
+import { useI18n } from '../i18n/index.ts';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { lists, signOut } = useTracker();
+  const { t } = useI18n();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  const navItems = [
+    { to: '/', label: t.nav.home, icon: Home, end: true },
+    { to: '/library', label: t.nav.library, icon: Film, end: false },
+    { to: '/lists', label: t.nav.lists, icon: Layers, end: false },
+    { to: '/search', label: t.nav.search, icon: Search, end: false },
+  ];
 
   const pinnedLists = Object.values(lists)
     .filter((l) => l.pinned)
@@ -38,7 +39,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex flex-col sm:flex-row">
       {/* Desktop Left Sidebar (>= 1024px) */}
       <aside
-        aria-label={zh.app.desktopNavAria}
+        aria-label={t.app.desktopNavAria}
         className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 bg-[var(--surface)] border-r border-[var(--border)] z-30 select-none"
       >
         <div className="h-16 px-6 flex items-center justify-between border-b border-[var(--separator)]">
@@ -47,14 +48,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-[var(--foreground)] whitespace-nowrap"
           >
             <span className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-sm">
-              {zh.app.logoChar}
+              {t.app.logoChar}
             </span>
-            <span>{zh.app.name}</span>
+            <span>{t.app.name}</span>
           </NavLink>
         </div>
 
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -78,7 +79,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           {pinnedLists.length > 0 && (
             <div className="pt-6 mt-6 border-t border-[var(--separator)]">
               <div className="px-3.5 mb-2 text-xs font-medium text-[var(--muted)] tracking-wider">
-                {zh.nav.pinnedListsHeader}
+                {t.nav.pinnedListsHeader}
               </div>
               <div className="space-y-1">
                 {pinnedLists.map((list) => (
@@ -116,7 +117,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               className="justify-start"
             >
               <Download className="w-4 h-4" />
-              <span>{zh.app.installApp}</span>
+              <span>{t.app.installApp}</span>
             </Button>
           )}
 
@@ -126,14 +127,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               className="flex items-center gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 rounded-lg hover:bg-[var(--surface-tertiary)] transition-colors"
             >
               <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)] shrink-0 font-semibold text-xs">
-                {zh.app.logoChar}
+                {t.app.logoChar}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium text-[var(--foreground)] truncate">
-                  {zh.settings.title}
+                  {t.settings.title}
                 </p>
                 <p className="text-[11px] text-[var(--muted)] truncate">
-                  {zh.app.syncConnected}
+                  {t.app.syncConnected}
                 </p>
               </div>
             </NavLink>
@@ -142,7 +143,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               size="sm"
               isIconOnly
               onPress={() => void signOut()}
-              aria-label={zh.app.signOut}
+              aria-label={t.app.signOut}
             >
               <LogOut className="w-4 h-4" />
             </Button>
@@ -152,19 +153,19 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Tablet Left Navigation Rail (640px - 1024px) */}
       <aside
-        aria-label={zh.app.tabletNavAria}
+        aria-label={t.app.tabletNavAria}
         className="hidden sm:flex lg:hidden sm:w-20 sm:flex-col sm:fixed sm:inset-y-0 sm:left-0 bg-[var(--surface)] border-r border-[var(--border)] z-30 items-center py-4 select-none"
       >
         <NavLink
           to="/"
-          aria-label={zh.app.name}
+          aria-label={t.app.name}
           className="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-base mb-6"
         >
-          {zh.app.logoChar}
+          {t.app.logoChar}
         </NavLink>
 
         <nav className="flex-1 flex flex-col items-center gap-2 w-full px-2">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -191,7 +192,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             variant="secondary"
             isIconOnly
             onPress={() => navigate('/settings')}
-            aria-label={zh.settings.title}
+            aria-label={t.settings.title}
           >
             <Settings className="w-4 h-4" />
           </Button>
@@ -199,7 +200,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             variant="secondary"
             isIconOnly
             onPress={() => void signOut()}
-            aria-label={zh.app.signOut}
+            aria-label={t.app.signOut}
           >
             <LogOut className="w-4 h-4" />
           </Button>
@@ -215,11 +216,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Phone Bottom Tab Bar (< 640px): height = 64px + env(safe-area-inset-bottom), icons & labels inside 64px area */}
       <nav
-        aria-label={zh.app.mobileNavAria}
+        aria-label={t.app.mobileNavAria}
         className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--surface-glass)] backdrop-blur-md border-t border-[var(--border)] h-[calc(64px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-2 select-none"
       >
         <div className="grid grid-cols-4 items-center h-[64px] w-full">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isDetailActive =
               item.to === '/library' && location.pathname.startsWith('/title/');
@@ -251,14 +252,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <Modal.Container size="sm" placement="center">
           <Modal.Dialog>
             <Modal.Header>
-              <Modal.Heading>{zh.app.installIosGuideTitle}</Modal.Heading>
+              <Modal.Heading>{t.app.installIosGuideTitle}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
-              <p>{zh.app.installIosGuideBody}</p>
+              <p>{t.app.installIosGuideBody}</p>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" size="sm" onPress={() => setShowIosGuide(false)}>
-                {zh.app.close}
+                {t.app.close}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

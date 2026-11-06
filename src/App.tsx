@@ -14,8 +14,7 @@ import {
 } from '@heroui/react';
 import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
-import { ApiError } from './data/api.ts';
-import { zh } from './i18n/zh.ts';
+import { useI18n } from './i18n/index.ts';
 import { HomePage } from './pages/HomePage.tsx';
 import { LibraryPage } from './pages/LibraryPage.tsx';
 import { ListDetailPage } from './pages/ListDetailPage.tsx';
@@ -26,6 +25,7 @@ import { TitleDetailPage } from './pages/TitleDetailPage.tsx';
 
 const AuthScreen: React.FC = () => {
   const { needsSetup, setupPassword, loginWithPassword } = useTracker();
+  const { t, translateError } = useI18n();
   const [setupCode, setSetupCode] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -36,15 +36,15 @@ const AuthScreen: React.FC = () => {
 
     if (needsSetup) {
       if (!setupCode.trim()) {
-        setErrorMsg(zh.app.setupCodeRequiredError);
+        setErrorMsg(t.app.setupCodeRequiredError);
         return;
       }
       if (password.length < 10) {
-        setErrorMsg(zh.app.passwordTooShortError);
+        setErrorMsg(t.app.passwordTooShortError);
         return;
       }
     } else if (!password.trim()) {
-      setErrorMsg(zh.app.passwordRequiredError);
+      setErrorMsg(t.app.passwordRequiredError);
       return;
     }
 
@@ -57,17 +57,7 @@ const AuthScreen: React.FC = () => {
         await loginWithPassword(password);
       }
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.status === 429) {
-          setErrorMsg(zh.app.tooManyAttemptsError);
-        } else if (err.status === 401 && !needsSetup) {
-          setErrorMsg(zh.app.wrongPasswordError);
-        } else {
-          setErrorMsg(err.message);
-        }
-      } else {
-        setErrorMsg(err instanceof Error ? err.message : zh.app.errorGeneric);
-      }
+      setErrorMsg(translateError(err));
     } finally {
       setSubmitting(false);
     }
@@ -78,15 +68,15 @@ const AuthScreen: React.FC = () => {
       <Card className="w-full max-w-md">
         <Card.Content className="flex flex-col items-center space-y-6">
           <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-2xl shadow-lg">
-            {zh.app.logoChar}
+            {t.app.logoChar}
           </div>
 
           <div className="space-y-1.5 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-              {needsSetup ? zh.app.setupPasswordTitle : zh.app.loginTitle}
+              {needsSetup ? t.app.setupPasswordTitle : t.app.loginTitle}
             </h1>
             <p className="text-sm text-[var(--muted)]">
-              {needsSetup ? zh.app.setupPasswordSubtitle : zh.app.loginSubtitle}
+              {needsSetup ? t.app.setupPasswordSubtitle : t.app.loginSubtitle}
             </p>
           </div>
 
@@ -101,9 +91,9 @@ const AuthScreen: React.FC = () => {
                 fullWidth
                 variant="secondary"
               >
-                <Label>{zh.app.setupCodeLabel}</Label>
+                <Label>{t.app.setupCodeLabel}</Label>
                 <Input
-                  placeholder={zh.app.setupCodePlaceholder}
+                  placeholder={t.app.setupCodePlaceholder}
                   autoComplete="off"
                 />
               </TextField>
@@ -116,14 +106,14 @@ const AuthScreen: React.FC = () => {
                 setPassword(val);
                 if (errorMsg) setErrorMsg(null);
               }}
-              aria-label={!needsSetup ? zh.app.passwordLabel : undefined}
+              aria-label={!needsSetup ? t.app.passwordLabel : undefined}
               fullWidth
               variant="secondary"
             >
-              {needsSetup && <Label>{zh.app.setupPasswordTitle}</Label>}
+              {needsSetup && <Label>{t.app.setupPasswordTitle}</Label>}
               <Input
                 placeholder={
-                  needsSetup ? zh.app.passwordPlaceholder : zh.app.loginPasswordPlaceholder
+                  needsSetup ? t.app.passwordPlaceholder : t.app.loginPasswordPlaceholder
                 }
                 autoComplete={needsSetup ? 'new-password' : 'current-password'}
               />
@@ -146,7 +136,7 @@ const AuthScreen: React.FC = () => {
               isPending={submitting}
             >
               {submitting && <Spinner size="sm" color="current" />}
-              <span>{needsSetup ? zh.app.setupPasswordSubmit : zh.app.loginSubmit}</span>
+              <span>{needsSetup ? t.app.setupPasswordSubmit : t.app.loginSubmit}</span>
             </Button>
           </form>
         </Card.Content>
@@ -157,6 +147,7 @@ const AuthScreen: React.FC = () => {
 
 const OfflineScreen: React.FC = () => {
   const { retryConnection } = useTracker();
+  const { t } = useI18n();
   const [retrying, setRetrying] = useState(false);
 
   const handleRetry = async () => {
@@ -180,10 +171,10 @@ const OfflineScreen: React.FC = () => {
           </div>
           <div className="space-y-1.5">
             <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)]">
-              {zh.app.offlineTitle}
+              {t.app.offlineTitle}
             </h1>
             <p className="text-sm text-[var(--muted)] leading-relaxed">
-              {zh.app.offlineDescription}
+              {t.app.offlineDescription}
             </p>
           </div>
           <div className="w-full pt-2">
@@ -199,7 +190,7 @@ const OfflineScreen: React.FC = () => {
               ) : (
                 <RefreshCw className="w-4 h-4" />
               )}
-              <span>{zh.app.offlineRetry}</span>
+              <span>{t.app.offlineRetry}</span>
             </Button>
           </div>
         </Card.Content>

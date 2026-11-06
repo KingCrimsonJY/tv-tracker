@@ -6,7 +6,7 @@ import {
   authPasswordRequestSchema,
   authSetupRequestSchema,
 } from '../src/domain/schemas.ts';
-import type { StateMutationResult } from '../src/domain/types.ts';
+import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
 import {
   clearSessionCookie,
   generateSessionToken,
@@ -43,6 +43,21 @@ interface SseClient {
   res: Response;
   tokenHash: string;
   close: () => void;
+}
+
+export function sendApiError(
+  res: Response,
+  status: number,
+  code: ServerErrorCode,
+  message: string,
+  extra?: Record<string, unknown>
+): void {
+  res.status(status).json({
+    code,
+    message,
+    error: message,
+    ...(extra || {}),
+  });
 }
 
 function extractAuthToken(req: Request): { token: string | null; viaCookie: boolean } {
@@ -172,12 +187,17 @@ export function createApp(options: CreateAppOptions): Express {
   app.post('/api/auth/setup', (req, res, next) => {
     try {
       if (getActivePasswordHash()) {
-        res.status(403).json({ error: '密码已设置，无法重复初始化' });
+        sendApiError(res, 403, 'PASSWORD_ALREADY_SET', 'Password has already been configured.');
         return;
       }
       const { password, setupCode: providedSetupCode } = authSetupRequestSchema.parse(req.body);
       if (!verifySetupCode(providedSetupCode, activeSetupCode)) {
-        res.status(403).json({ error: '设置码不正确，请检查服务器日志或 SETUP_CODE 环境变量' });
+        sendApiError(
+          res,
+          403,
+          'SETUP_CODE_INVALID',
+          'Invalid setup code. Check server logs or SETUP_CODE.'
+        );
         return;
       }
       const now = nowFn();
@@ -196,18 +216,23 @@ export function createApp(options: CreateAppOptions): Express {
       const now = nowFn();
       const clientIp = getClientIp(req, trustProxy);
       if (rateLimiter.isBlocked(clientIp, now)) {
-        res.status(429).json({ error: '登录尝试次数过多，请 15 分钟后再试' });
+        sendApiError(
+          res,
+          429,
+          'TOO_MANY_ATTEMPTS',
+          'Too many failed login attempts. Try again in 15 minutes.'
+        );
         return;
       }
       const activeHash = getActivePasswordHash();
       if (!activeHash) {
-        res.status(400).json({ error: '尚未设置密码，请先设置密码' });
+        sendApiError(res, 400, 'PASSWORD_NOT_SET', 'Password has not been configured yet.');
         return;
       }
       const { password } = authPasswordRequestSchema.parse(req.body);
       if (!verifyPassword(password, activeHash)) {
         rateLimiter.recordFailure(clientIp, now);
-        res.status(401).json({ error: '密码错误' });
+        sendApiError(res, 401, 'WRONG_PASSWORD', 'Incorrect password.');
         return;
       }
       rateLimiter.clear(clientIp);
@@ -223,7 +248,7 @@ export function createApp(options: CreateAppOptions): Express {
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     const { token, viaCookie } = extractAuthToken(req);
     if (!token) {
-      res.status(401).json({ error: '未登录或会话已过期' });
+      sendApiError(res, 401, 'UNAUTHENTICATED', 'Authentication required.');
       return;
     }
     const isMutating =
@@ -232,13 +257,18 @@ export function createApp(options: CreateAppOptions): Express {
       req.method === 'PATCH' ||
       req.method === 'DELETE';
     if (viaCookie && isMutating && !isSameOriginRequest(req)) {
-      res.status(403).json({ error: '跨站请求被拒绝 (Origin 校验未通过)' });
+      sendApiError(
+        res,
+        403,
+        'CSRF_ORIGIN_MISMATCH',
+        'Cross-origin request rejected (Origin check failed).'
+      );
       return;
     }
     const tokenHash = hashSessionToken(token);
     const now = nowFn();
     if (!repo.verifyAndTouchSession(tokenHash, now, now + SESSION_TTL_MS)) {
-      res.status(401).json({ error: '会话已过期，请重新登录' });
+      sendApiError(res, 401, 'SESSION_EXPIRED', 'Session has expired. Please sign in again.');
       return;
     }
     res.locals.tokenHash = tokenHash;
@@ -312,24 +342,25 @@ export function createApp(options: CreateAppOptions): Express {
   });
 
   app.use('/api', (_req: Request, res: Response) => {
-    res.status(404).json({ error: '未找到请求的 API 路径' });
+    sendApiError(res, 404, 'ROUTE_NOT_FOUND', 'Requested API endpoint was not found.');
   });
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
       const firstIssue = err.issues[0];
-      res.status(400).json({
-        error: firstIssue?.message || '请求数据格式不正确',
+      const field = firstIssue?.path.length ? firstIssue.path.join('.') : undefined;
+      sendApiError(res, 400, 'VALIDATION_ERROR', firstIssue?.message || 'Invalid request payload', {
+        ...(field ? { field } : {}),
         issues: err.issues,
       });
       return;
     }
     if (err instanceof NotFoundError) {
-      res.status(404).json({ error: err.message });
+      sendApiError(res, 404, err.code, err.message);
       return;
     }
     if (err instanceof ConflictError) {
-      res.status(409).json({ error: err.message });
+      sendApiError(res, 409, err.code, err.message);
       return;
     }
     if (
@@ -338,13 +369,16 @@ export function createApp(options: CreateAppOptions): Express {
       'type' in err &&
       (err as { type?: string }).type === 'entity.too.large'
     ) {
-      res.status(413).json({ error: '请求体过大' });
+      sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request payload is too large.');
       return;
     }
     console.error('Unhandled API error:', err);
-    res.status(500).json({
-      error: err instanceof Error ? err.message : '服务器内部错误',
-    });
+    sendApiError(
+      res,
+      500,
+      'INTERNAL_ERROR',
+      err instanceof Error ? err.message : 'Internal server error.'
+    );
   });
 
   return app;

@@ -12,6 +12,7 @@ import {
   ApiError,
   fetchAuthStatus,
   fetchStateSnapshot,
+  fetchTmdbGenresApi,
   loginPasswordApi,
   logoutAllApi,
   logoutApi,
@@ -39,6 +40,7 @@ import type {
   TitleDoc,
   WatchListDoc,
 } from '../domain/types.ts';
+import { applyResolvedLocaleToDom, resolveActiveLocale } from '../i18n/index.ts';
 import { useSseEventStream } from './useSseEventStream.ts';
 
 export type { CustomTitleInput, ToastVariant, UpdateTitleDetailsInput };
@@ -77,7 +79,9 @@ export interface TrackerContextValue {
   setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
   fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
   refreshTitleMetadata: (titleId: string) => Promise<void>;
+  refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<number>;
   refreshLinkTitlePlaylist: (titleId: string) => Promise<number>;
+  tmdbGenres: { zh: Record<number, string>; en: Record<number, string> } | null;
   removeTitle: (titleId: string) => Promise<void>;
   toggleEpisode: (titleId: string, episodeKey: string) => Promise<void>;
   toggleSeason: (titleId: string, seasonNumber: number, markWatched: boolean) => Promise<void>;
@@ -118,6 +122,10 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     () => typeof navigator !== 'undefined' && navigator.onLine === false
   );
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
+  const [tmdbGenres, setTmdbGenres] = useState<{
+    zh: Record<number, string>;
+    en: Record<number, string>;
+  } | null>(null);
 
   const state = useSyncExternalStore(
     trackerStore.subscribe,
@@ -176,6 +184,26 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     applyResolvedTheme(state.settings.theme);
   }, [state.settings.theme]);
+
+  useEffect(() => {
+    const applyCurrentLocale = () => {
+      applyResolvedLocaleToDom(resolveActiveLocale(state.settings.uiLang));
+    };
+    applyCurrentLocale();
+    if (state.settings.uiLang === 'system' && typeof window !== 'undefined') {
+      window.addEventListener('languagechange', applyCurrentLocale);
+      return () => window.removeEventListener('languagechange', applyCurrentLocale);
+    }
+  }, [state.settings.uiLang]);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    void fetchTmdbGenresApi()
+      .then((res) => setTmdbGenres(res))
+      .catch(() => {
+        // Ignore; static fallback genres in catalog are used
+      });
+  }, [authenticated]);
 
   const refreshStateFromServer = useCallback(async () => {
     try {
@@ -335,6 +363,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       signOut,
       signOutAll,
       getActiveProgress,
+      tmdbGenres,
       ...actions,
     }),
     [
@@ -351,6 +380,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       signOut,
       signOutAll,
       getActiveProgress,
+      tmdbGenres,
       actions,
     ]
   );

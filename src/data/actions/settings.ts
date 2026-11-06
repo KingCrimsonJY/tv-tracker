@@ -1,5 +1,5 @@
 import type { AppSettingsDoc } from '../../domain/types.ts';
-import { zh } from '../../i18n/zh.ts';
+import { getActiveCatalog } from '../../i18n/index.ts';
 import { patchSettingsApi } from '../api.ts';
 import type { TrackerActionDeps } from './types.ts';
 
@@ -11,6 +11,9 @@ export function createSettingsActions(
   async function updateSettings(partial: Partial<AppSettingsDoc>): Promise<void> {
     const prevSettings = getState().settings;
     const revertPartial: Partial<AppSettingsDoc> = {};
+    if (partial.uiLang !== undefined) {
+      revertPartial.uiLang = prevSettings.uiLang;
+    }
     if (partial.defaultTitleLang !== undefined) {
       revertPartial.defaultTitleLang = prevSettings.defaultTitleLang;
     }
@@ -43,7 +46,7 @@ export function createSettingsActions(
           ...revertPartial,
         },
       }));
-      showToast(zh.app.writeRollbackToast, 'danger');
+      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

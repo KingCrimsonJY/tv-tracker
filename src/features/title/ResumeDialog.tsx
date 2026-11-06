@@ -1,180 +1,161 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Button,
-  Description,
-  FieldError,
-  Input,
-  Label,
-  ListBox,
   Modal,
-  Select,
   TextField,
+  Label,
+  Input,
+  Select,
+  ListBox,
+  Button,
+  FieldError,
 } from '@heroui/react';
-import { formatSeconds, parseTimeInput } from '../../domain/progress';
-import type { SeasonDoc, TitleDoc } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import { SeasonDoc, TitleDoc } from '../../domain/types';
+import { makeEpisodeKey } from '../../domain/airing';
+import { formatSeconds, parseTimeInput } from '../../domain/time';
+import { resolveLocalizedText } from '../../domain/ordering';
+import { useI18n } from '../../i18n';
 
 interface ResumeDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   title: TitleDoc;
-  regularSeasons: SeasonDoc[];
-  initialEpisodeKey: string;
-  onSaveResume: (
-    resume: { episodeKey: string | null; seconds: number } | null
-  ) => Promise<void>;
+  seasons: SeasonDoc[];
+  defaultEpisodeKey: string | null;
+  onSave: (seconds: number, episodeKey: string | null) => void;
+  onClear: () => void;
 }
 
 export const ResumeDialog: React.FC<ResumeDialogProps> = ({
   isOpen,
   onOpenChange,
   title,
-  regularSeasons,
-  initialEpisodeKey,
-  onSaveResume,
+  seasons,
+  defaultEpisodeKey,
+  onSave,
+  onClear,
 }) => {
-  const [episodeKey, setEpisodeKey] = useState(initialEpisodeKey);
+  const { t, locale, translateTimeError } = useI18n();
+  const isEpisodeBased = title.mediaType === 'tv' || seasons.length > 0;
+
+  const allEpisodes = useMemo(() => {
+    const list: Array<{ key: string; label: string; runtime: number | null }> = [];
+    for (const s of [...seasons].sort((a, b) => a.seasonNumber - b.seasonNumber)) {
+      for (const ep of [...s.episodes].sort((a, b) => a.number - b.number)) {
+        const key = makeEpisodeKey(s.seasonNumber, ep.number);
+        const epName =
+          resolveLocalizedText(ep.name, locale) ||
+          t.detail.seasons.episodeDefaultName(ep.number);
+        list.push({
+          key,
+          label: t.detail.resumeModal.episodeSelectOption(s.seasonNumber, ep.number, epName),
+          runtime: ep.runtime,
+        });
+      }
+    }
+    return list;
+  }, [seasons, locale, t.detail.seasons, t.detail.resumeModal]);
+
+  const [selectedEpKey, setSelectedEpKey] = useState<string | null>(defaultEpisodeKey);
   const [timeInput, setTimeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setEpisodeKey(initialEpisodeKey);
-      setTimeInput(
-        title.resume?.seconds ? formatSeconds(title.resume.seconds) : ''
-      );
+      setSelectedEpKey(title.resume?.episodeKey ?? defaultEpisodeKey ?? allEpisodes[0]?.key ?? null);
+      setTimeInput(title.resume ? formatSeconds(title.resume.seconds) : '');
       setError(null);
     }
-  }, [isOpen, initialEpisodeKey, title.resume?.seconds]);
+  }, [isOpen, title.resume, defaultEpisodeKey, allEpisodes]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    let knownRuntime = title.runtimeMin;
-    if (title.mediaType === 'tv' && episodeKey) {
-      for (const s of regularSeasons) {
-        const found = s.episodes.find((ep) => ep.key === episodeKey);
-        if (found?.runtime) {
-          knownRuntime = found.runtime;
-          break;
-        }
-      }
-    }
+  const currentRuntime = useMemo(() => {
+    if (!isEpisodeBased) return title.runtimeMin;
+    const found = allEpisodes.find((e) => e.key === selectedEpKey);
+    return found?.runtime ?? title.runtimeMin ?? null;
+  }, [isEpisodeBased, title.runtimeMin, allEpisodes, selectedEpKey]);
 
-    const parsed = parseTimeInput(timeInput, knownRuntime);
+  const handleConfirm = () => {
+    const parsed = parseTimeInput(timeInput, currentRuntime);
     if (!parsed.ok) {
-      setError(parsed.error);
+      setError(translateTimeError(parsed));
       return;
     }
-
-    const isEpisodic = title.mediaType === 'tv' || regularSeasons.length > 0;
-    await onSaveResume({
-      episodeKey: isEpisodic ? episodeKey || null : null,
-      seconds: parsed.seconds,
-    });
+    onSave(parsed.seconds, isEpisodeBased ? selectedEpKey : null);
     onOpenChange(false);
   };
 
   return (
-    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
-      <Modal.Container size="sm" placement="center">
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="sm">
         <Modal.Dialog>
+          <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>{zh.detail.resumeModal.title}</Modal.Heading>
+            <Modal.Heading>{t.detail.resumeModal.title}</Modal.Heading>
           </Modal.Header>
-          <form onSubmit={handleSubmit}>
-            <Modal.Body className="space-y-4">
-              {(title.mediaType === 'tv' || regularSeasons.length > 0) && (
-                <Select
-                  selectedKey={episodeKey}
-                  onSelectionChange={(key) => {
-                    if (key != null) setEpisodeKey(String(key));
-                  }}
-                  variant="secondary"
-                  fullWidth
-                >
-                  <Label>{zh.detail.resumeModal.episodeLabel}</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox aria-label={zh.detail.resumeModal.episodeLabel}>
-                      {regularSeasons.flatMap((s) =>
-                        s.episodes.map((ep) => {
-                          const label =
-                            zh.detail.resumeModal.episodeSelectOption(
-                              s.seasonNumber,
-                              ep.number,
-                              ep.name ||
-                                zh.detail.seasons.episodeDefaultName(ep.number)
-                            );
-                          return (
-                            <ListBox.Item
-                              key={ep.key}
-                              id={ep.key}
-                              textValue={label}
-                            >
-                              <Label>{label}</Label>
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          );
-                        })
-                      )}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-              )}
-
-              <TextField
-                value={timeInput}
-                onChange={(val) => {
-                  setTimeInput(val);
-                  setError(null);
-                }}
-                isInvalid={Boolean(error)}
-                variant="secondary"
-                fullWidth
+          <Modal.Body className="space-y-4">
+            {isEpisodeBased && allEpisodes.length > 0 && (
+              <Select
+                selectedKey={selectedEpKey ?? undefined}
+                onSelectionChange={(k) => k && setSelectedEpKey(String(k))}
               >
-                <Label>{zh.detail.resumeModal.timeLabel}</Label>
-                <Input placeholder={zh.detail.resumeModal.timePlaceholder} />
-                {title.runtimeMin && (
-                  <Description>
-                    {zh.detail.resumeModal.runtimeHint(title.runtimeMin)}
-                  </Description>
-                )}
-                {error && <FieldError>{error}</FieldError>}
-              </TextField>
-            </Modal.Body>
+                <Label>{t.detail.resumeModal.episodeLabel}</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox className="max-h-60 overflow-y-auto">
+                    {allEpisodes.map((ep) => (
+                      <ListBox.Item key={ep.key} id={ep.key} textValue={ep.label}>
+                        {ep.label}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
+            )}
 
-            <Modal.Footer className="justify-between">
-              {title.resume && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onPress={async () => {
-                    await onSaveResume(null);
-                    onOpenChange(false);
-                  }}
-                >
-                  {zh.detail.resumeModal.clearButton}
-                </Button>
+            <TextField
+              value={timeInput}
+              onChange={(val) => {
+                setTimeInput(val);
+                setError(null);
+              }}
+              isInvalid={Boolean(error)}
+              isRequired
+            >
+              <Label>{t.detail.resumeModal.timeLabel}</Label>
+              <Input placeholder={t.detail.resumeModal.timePlaceholder} />
+              {currentRuntime && (
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  {t.detail.resumeModal.runtimeHint(currentRuntime)}
+                </p>
               )}
-              <div className="flex items-center gap-2 ml-auto">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => onOpenChange(false)}
-                >
-                  {zh.app.cancel}
-                </Button>
-                <Button type="submit" variant="primary" size="sm">
-                  {zh.detail.resumeModal.saveButton}
-                </Button>
-              </div>
-            </Modal.Footer>
-          </form>
+              {error && <FieldError>{error}</FieldError>}
+            </TextField>
+          </Modal.Body>
+          <Modal.Footer className="justify-between">
+            {title.resume ? (
+              <Button
+                variant="danger-soft"
+                onPress={() => {
+                  onClear();
+                  onOpenChange(false);
+                }}
+              >
+                {t.detail.resumeModal.clearButton}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex items-center gap-2">
+              <Button variant="tertiary" onPress={() => onOpenChange(false)}>
+                {t.app.cancel}
+              </Button>
+              <Button variant="primary" onPress={handleConfirm}>
+                {t.detail.resumeModal.saveButton}
+              </Button>
+            </div>
+          </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>

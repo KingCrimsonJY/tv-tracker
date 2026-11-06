@@ -1,3 +1,4 @@
+import { normalizeLocalizedEpisodeName } from '../../src/domain/progress.ts';
 import { titleDocSchema } from '../../src/domain/schemas.ts';
 import type {
   LinkImportEpisodeSeed,
@@ -112,7 +113,7 @@ export function patchTitle(
       | { data: string }
       | undefined;
     if (!row) {
-      throw new NotFoundError(`未找到作品: ${id}`);
+      throw new NotFoundError(`Title not found: ${id}`, 'TITLE_NOT_FOUND');
     }
 
     const existing = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
@@ -173,7 +174,7 @@ export function replaceSeasons(
   return ctx.runInTransaction(() => {
     const exists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(titleId);
     if (!exists) {
-      throw new NotFoundError(`未找到作品: ${titleId}`);
+      throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
     ctx.db.prepare('DELETE FROM seasons WHERE title_id = ?').run(titleId);
@@ -208,7 +209,7 @@ export function applyTitleAtomicAction(
       | { data: string }
       | undefined;
     if (!titleRow) {
-      throw new NotFoundError(`未找到作品: ${titleId}`);
+      throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
     const upserts: StateUpserts = {};
@@ -292,10 +293,10 @@ export function applyTitleAtomicAction(
         ...input.title,
         id: titleId,
       };
-      const validated = titleDocSchema.parse(merged);
-      if (!validated.playthroughs.some((p) => p.id === validated.activePlaythroughId)) {
-        throw new ConflictError('activePlaythroughId 必须存在于 playthroughs 中');
+      if (!merged.playthroughs.some((p) => p.id === merged.activePlaythroughId)) {
+        throw new ConflictError('activePlaythroughId must exist in playthroughs', 'CONFLICT_ERROR');
       }
+      const validated = titleDocSchema.parse(merged);
 
       const dataJson = serializeTitleData(validated);
       ctx.db
@@ -327,7 +328,7 @@ export function appendPlaylistEpisodes(
       | { data: string }
       | undefined;
     if (!titleRow) {
-      throw new NotFoundError(`未找到作品: ${titleId}`);
+      throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
     const existingTitle = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
@@ -340,7 +341,7 @@ export function appendPlaylistEpisodes(
     const seasons: SeasonDoc[] = seasonRows.map((r) => JSON.parse(r.data) as SeasonDoc);
     let season1 = seasons.find((s) => s.seasonNumber === 1);
     if (!season1) {
-      season1 = { seasonNumber: 1, name: '第 1 季', episodes: [] };
+      season1 = { seasonNumber: 1, name: null, episodes: [] };
       seasons.push(season1);
       seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
     }
@@ -371,7 +372,10 @@ export function appendPlaylistEpisodes(
       appendedEpisodes.push({
         number: maxEpNumber,
         key: `s1e${maxEpNumber}`,
-        name: item.name.trim() || `第 ${maxEpNumber} 集`,
+        name: normalizeLocalizedEpisodeName({
+          zh: item.name ?? undefined,
+          en: item.name ?? undefined,
+        }),
         airDate: '2020-01-01',
         runtime: item.runtime ?? existingTitle.runtimeMin ?? null,
         stillPath: null,

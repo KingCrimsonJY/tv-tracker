@@ -20,6 +20,7 @@ export interface CustomTitleInput {
   posterPath?: string | null;
   posterUrl?: string | null;
   overview?: string;
+  uploader?: string | null;
   episodeCount?: number | null;
   episodes?: LinkImportEpisodeSeed[];
   targetListId?: string;
@@ -33,6 +34,7 @@ export interface UpdateTitleDetailsInput {
   runtimeMin?: number | null;
   posterPath?: string | null;
   overview?: string;
+  uploader?: string | null;
   episodeCount?: number | null;
 }
 

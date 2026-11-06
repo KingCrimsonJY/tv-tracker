@@ -1,21 +1,48 @@
 import type { Express } from 'express';
 import { linkImportRequestSchema } from '../src/domain/schemas.ts';
-import type { StateMutationResult } from '../src/domain/types.ts';
+import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
+import { sendApiError } from './app.ts';
 import { NotFoundError, type TrackerRepository } from './db/repository.ts';
 import { type LinkImportDependencies, resolveLinkMetadata } from './providers/linkImport.ts';
 import {
   fetchCombinedRatings,
+  fetchTmdbGenres,
   fetchTmdbTitleDetails,
   isTmdbConfigured,
   searchTmdb,
 } from './providers/tmdb.ts';
-import { getYtdlpVersion, resolveWithYtdlp } from './providers/ytdlp.ts';
+import {
+  getYtdlpVersion,
+  resolveWithYtdlp,
+  YtdlpExecutionError,
+  YtdlpNotInstalledError,
+} from './providers/ytdlp.ts';
+import { UnsafeUrlError } from './security/ssrf.ts';
 
 export interface ProviderRoutesOptions {
   repo: TrackerRepository;
   broadcastMutation: (mutation: StateMutationResult) => StateMutationResult;
   nowFn?: () => number;
   linkDeps?: LinkImportDependencies;
+}
+
+function classifyProviderError(err: unknown, fallbackCode: ServerErrorCode): {
+  code: ServerErrorCode;
+  message: string;
+} {
+  if (err instanceof UnsafeUrlError) {
+    return { code: err.code as ServerErrorCode, message: err.message };
+  }
+  if (err instanceof YtdlpNotInstalledError) {
+    return { code: err.code as ServerErrorCode, message: err.message };
+  }
+  if (err instanceof YtdlpExecutionError) {
+    return { code: err.code as ServerErrorCode, message: err.message };
+  }
+  return {
+    code: fallbackCode,
+    message: err instanceof Error ? err.message : fallbackCode,
+  };
 }
 
 export function registerProviderRoutes(app: Express, options: ProviderRoutesOptions): void {
@@ -36,12 +63,19 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     res.json({ configured: isTmdbConfigured() });
   });
 
+  app.get('/api/tmdb/genres', async (_req, res) => {
+    const genres = await fetchTmdbGenres();
+    res.json(genres);
+  });
+
   app.get('/api/tmdb/search', async (req, res) => {
     const query = String(req.query.q || '').trim();
+    const rawLang = String(req.query.lang || '').trim();
+    const lang: 'zh-CN' | 'en-US' =
+      rawLang === 'en' || rawLang === 'en-US' ? 'en-US' : 'zh-CN';
+
     if (!isTmdbConfigured()) {
-      res.status(503).json({
-        error: '服务端未配置有效的 TMDB_READ_TOKEN 密钥，请在环境变量中配置后重试。',
-      });
+      sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_READ_TOKEN is not configured.');
       return;
     }
     if (!query) {
@@ -49,15 +83,15 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       return;
     }
     try {
-      const results = await searchTmdb(query);
+      const results = await searchTmdb(query, lang);
       res.json({ results });
     } catch (error) {
-      res.status(502).json({
-        error:
-          error instanceof Error
-            ? `TMDB 搜索请求失败: ${error.message}`
-            : 'TMDB 搜索请求失败，请检查密钥或网络连接。',
-      });
+      sendApiError(
+        res,
+        502,
+        'TMDB_UNAVAILABLE',
+        error instanceof Error ? error.message : 'TMDB search request failed.'
+      );
     }
   });
 
@@ -66,17 +100,20 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     const sourceId = String(req.params.id || '');
 
     if (mediaType !== 'movie' && mediaType !== 'tv') {
-      res.status(400).json({ error: '无效的媒体类型：仅支持 movie 或 tv' });
+      sendApiError(
+        res,
+        400,
+        'TMDB_INVALID_MEDIA_TYPE',
+        'Invalid media type: must be movie or tv.'
+      );
       return;
     }
     if (!/^\d+$/.test(sourceId)) {
-      res.status(400).json({ error: '无效的 TMDB ID：必须为纯数字' });
+      sendApiError(res, 400, 'TMDB_INVALID_ID', 'Invalid TMDB ID: must be numeric.');
       return;
     }
     if (!isTmdbConfigured()) {
-      res.status(503).json({
-        error: '服务端未配置有效的 TMDB_READ_TOKEN 密钥，无法获取 TMDB 详情。',
-      });
+      sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_READ_TOKEN is not configured.');
       return;
     }
 
@@ -84,9 +121,12 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       const details = await fetchTmdbTitleDetails(mediaType, sourceId);
       res.json(details);
     } catch (error) {
-      res.status(502).json({
-        error: error instanceof Error ? error.message : '获取 TMDB 详情失败',
-      });
+      sendApiError(
+        res,
+        502,
+        'TMDB_UNAVAILABLE',
+        error instanceof Error ? error.message : 'Failed to fetch TMDB title details.'
+      );
     }
   });
 
@@ -99,7 +139,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
   app.post('/api/import/link', async (req, res) => {
     const parsed = linkImportRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: '请输入有效的 http:// 或 https:// 链接' });
+      sendApiError(res, 400, 'INVALID_LINK_URL', 'Please enter a valid http:// or https:// URL.');
       return;
     }
     try {
@@ -109,9 +149,8 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       });
       res.json(data);
     } catch (err) {
-      res.status(400).json({
-        error: err instanceof Error ? err.message : '链接解析失败，请检查链接或手动添加',
-      });
+      const classified = classifyProviderError(err, 'LINK_PARSE_FAILED');
+      sendApiError(res, 400, classified.code, classified.message);
     }
   });
 
@@ -120,10 +159,15 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       const id = String(req.params.id || '');
       const title = repo.getTitle(id);
       if (!title) {
-        throw new NotFoundError(`未找到作品: ${id}`);
+        throw new NotFoundError(`Title not found: ${id}`, 'TITLE_NOT_FOUND');
       }
       if (title.source !== 'url' || !title.sourceId) {
-        res.status(400).json({ error: '仅通过链接导入的作品支持刷新剧集列表' });
+        sendApiError(
+          res,
+          400,
+          'REFRESH_LINK_ONLY_URL',
+          'Only link-imported titles support playlist refresh.'
+        );
         return;
       }
 
@@ -149,9 +193,8 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         next(err);
         return;
       }
-      res.status(400).json({
-        error: err instanceof Error ? err.message : '刷新列表失败，请确认 yt-dlp 已安装且链接有效',
-      });
+      const classified = classifyProviderError(err, 'REFRESH_LINK_FAILED');
+      sendApiError(res, 400, classified.code, classified.message);
     }
   });
 }

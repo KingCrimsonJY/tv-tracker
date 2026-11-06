@@ -14,9 +14,9 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png'],
         manifest: {
           id: '/',
-          name: '帧迹 · 私人观影进度追踪',
-          short_name: '帧迹',
-          description: '个人电影与剧集观看进度、剧集分集打卡与片单管理应用。',
+          name: '帧迹 Zhenji',
+          short_name: '帧迹 Zhenji',
+          description: 'Personal Movie & TV Watch Tracker · 个人影视进度追踪',
           theme_color: '#141417',
           background_color: '#121215',
           display: 'standalone',

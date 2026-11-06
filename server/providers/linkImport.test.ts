@@ -248,10 +248,8 @@ test('1. Single YouTube video via yt-dlp maps title, cover, runtimeMin, year, an
   assert.equal(result.fallbackUsed, 'yt-dlp');
   assert.equal(result.title, 'Part one: Billy Elliot The Musical is back!');
   assert.equal(result.posterUrl, 'https://i.ytimg.com/vi/KdyJYuKT44M/maxresdefault.jpg');
-  assert.equal(
-    result.overview,
-    'The Royal Ballet School · Behind the scenes at The Royal Ballet School.'
-  );
+  assert.equal(result.uploader, 'The Royal Ballet School');
+  assert.equal(result.overview, 'Behind the scenes at The Royal Ballet School.');
   assert.equal(result.runtimeMin, 25); // 1520s -> 25 min
   assert.equal(result.year, 2024);
   assert.equal(result.sourceUrl, 'https://www.youtube.com/watch?v=KdyJYuKT44M');
@@ -316,9 +314,9 @@ test('3. Bilibili video with 分P (multi-part) maps entries with episode names a
     sourceVideoId: 'BV17x411w7KC_p2',
     runtime: 20,
   });
-  // Entry 3 had null id/title -> derives BV17x411w7KC_p3 from URL and default episode title
+  // Entry 3 had null id/title -> derives BV17x411w7KC_p3 from URL and null episode name (rendered in active language)
   assert.deepEqual(result.episodes[2], {
-    name: '第 3 集',
+    name: null,
     sourceVideoId: 'BV17x411w7KC_p3',
     runtime: 18,
   });
@@ -407,12 +405,12 @@ test('6. Refresh playlist appends only new entries by sourceVideoId without alte
       seasons: [
         {
           seasonNumber: 1,
-          name: '第 1 季',
+          name: null,
           episodes: [
             {
               number: 1,
               key: 's1e1',
-              name: '第一期：星际拓荒 Outer Wilds (用户已改名)',
+              name: { zh: '第一期：星际拓荒 Outer Wilds (用户已改名)' },
               airDate: '2020-01-01',
               runtime: 25,
               stillPath: null,
@@ -422,7 +420,7 @@ test('6. Refresh playlist appends only new entries by sourceVideoId without alte
             {
               number: 2,
               key: 's1e2',
-              name: '第二期：极乐迪斯科 Disco Elysium',
+              name: { zh: '第二期：极乐迪斯科 Disco Elysium' },
               airDate: '2020-01-01',
               runtime: 30,
               stillPath: null,
@@ -459,7 +457,9 @@ test('6. Refresh playlist appends only new entries by sourceVideoId without alte
 
     // Existing episodes 1 and 2 keep their exact keys and custom names
     assert.equal(updatedS1.episodes[0]?.key, 's1e1');
-    assert.equal(updatedS1.episodes[0]?.name, '第一期：星际拓荒 Outer Wilds (用户已改名)');
+    assert.deepEqual(updatedS1.episodes[0]?.name, {
+      zh: '第一期：星际拓荒 Outer Wilds (用户已改名)',
+    });
     assert.equal(updatedS1.episodes[0]?.sourceVideoId, 'BV1hZ4y1h7PV');
     assert.equal(updatedS1.episodes[1]?.key, 's1e2');
     assert.equal(updatedS1.episodes[1]?.sourceVideoId, 'BV1Ps4y1R7uq');
@@ -467,11 +467,17 @@ test('6. Refresh playlist appends only new entries by sourceVideoId without alte
     // New episodes appended at the end as s1e3 and s1e4
     assert.equal(updatedS1.episodes[2]?.key, 's1e3');
     assert.equal(updatedS1.episodes[2]?.number, 3);
-    assert.equal(updatedS1.episodes[2]?.name, '第三期：空洞骑士 Hollow Knight');
+    assert.deepEqual(updatedS1.episodes[2]?.name, {
+      zh: '第三期：空洞骑士 Hollow Knight',
+      en: '第三期：空洞骑士 Hollow Knight',
+    });
     assert.equal(updatedS1.episodes[2]?.sourceVideoId, 'BV1NewEp003');
     assert.equal(updatedS1.episodes[3]?.key, 's1e4');
     assert.equal(updatedS1.episodes[3]?.number, 4);
-    assert.equal(updatedS1.episodes[3]?.name, '第四期：蔚蓝 Celeste');
+    assert.deepEqual(updatedS1.episodes[3]?.name, {
+      zh: '第四期：蔚蓝 Celeste',
+      en: '第四期：蔚蓝 Celeste',
+    });
     assert.equal(updatedS1.episodes[3]?.sourceVideoId, 'BV1NewEp004');
 
     // Watched progress on s1e1 and resume on s1e2 are completely untouched
@@ -516,7 +522,7 @@ test('7. yt-dlp missing (ENOENT) falls back to Open Graph with warning notice an
 
 test('8. yt-dlp timeout falls back to Open Graph, and to manual seed if Open Graph also fails', async () => {
   const execTimeout: YtdlpExecFn = async () => {
-    throw new YtdlpExecutionError('yt-dlp 解析超时 (30s)', 'YTDLP_TIMEOUT');
+    throw new YtdlpExecutionError('yt-dlp timed out (30s)', 'YTDLP_TIMEOUT');
   };
 
   const ogFallback = await resolveLinkMetadata('https://example.com/movies/solaris', {

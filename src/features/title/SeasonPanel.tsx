@@ -1,84 +1,91 @@
-import React from 'react';
-import { CheckCheck } from 'lucide-react';
-import { Button, Label, ListBox, ProgressBar, Select, Tabs } from '@heroui/react';
-import type { ComputedSeasonState, ComputedTitleState } from '../../domain/progress';
-import type { ProgressDoc, SeasonDoc, TitleDoc } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import React, { useState, useEffect } from 'react';
+import { Tabs, Select, ListBox, Button, ProgressBar, Disclosure, Label } from '@heroui/react';
+import { CheckCheck, RotateCcw, ChevronDown } from 'lucide-react';
+import { ProgressDoc, SeasonDoc, TitleDoc } from '../../domain/types';
+import { makeEpisodeKey, parseEpisodeKey } from '../../domain/airing';
+import { computeSeasonState } from '../../domain/status';
+import { resolveLocalizedText } from '../../domain/ordering';
 import { EpisodeRow } from './EpisodeRow';
+import { useI18n } from '../../i18n';
 
 interface SeasonPanelProps {
   title: TitleDoc;
-  state: ComputedTitleState;
-  regularSeasons: SeasonDoc[];
-  specialsSeason: SeasonDoc | undefined;
-  specialsSeasonState: ComputedSeasonState | null;
-  currentSeason: SeasonDoc | undefined;
-  currentSeasonState: ComputedSeasonState | null;
-  airedKeySet: Set<string>;
-  selectedSeasonNum: number;
-  onSelectSeason: (seasonNum: number) => void;
-  progress: ProgressDoc | undefined;
-  onToggleSeasonWatched: (seasonNumber: number, markWatched: boolean) => void;
-  onToggleEpisodeWatched: (episodeKey: string) => void;
-  onMarkEpisodeUpTo: (episodeKey: string) => void;
-  onRecordResume: (episodeKey: string) => void;
+  seasons: SeasonDoc[];
+  specialSeason?: SeasonDoc;
+  activeProgress?: ProgressDoc;
+  today: string;
+  highlightEpKey: string | null;
+  onToggleEpisode: (epKey: string) => void;
+  onMarkSeason: (seasonNumber: number, markWatched: boolean) => void;
+  onMarkUpTo: (epKey: string) => void;
+  onOpenResumeForEpisode: (epKey: string) => void;
 }
 
 export const SeasonPanel: React.FC<SeasonPanelProps> = ({
   title,
-  state,
-  regularSeasons,
-  specialsSeason,
-  specialsSeasonState,
-  currentSeason,
-  currentSeasonState,
-  airedKeySet,
-  selectedSeasonNum,
-  onSelectSeason,
-  progress,
-  onToggleSeasonWatched,
-  onToggleEpisodeWatched,
-  onMarkEpisodeUpTo,
-  onRecordResume,
+  seasons,
+  specialSeason,
+  activeProgress,
+  today,
+  highlightEpKey,
+  onToggleEpisode,
+  onMarkSeason,
+  onMarkUpTo,
+  onOpenResumeForEpisode,
 }) => {
-  if (regularSeasons.length === 0) return null;
+  const { t, locale } = useI18n();
+  const [selectedSeasonNum, setSelectedSeasonNum] = useState<number>(
+    seasons[0]?.seasonNumber ?? 1
+  );
 
-  const activeSeasonKey = String(currentSeason?.seasonNumber ?? selectedSeasonNum);
-  const isSingleSeasonCustomOrUrl =
-    (title.source === 'custom' || title.source === 'url') &&
-    regularSeasons.length === 1;
+  useEffect(() => {
+    if (highlightEpKey) {
+      const parsed = parseEpisodeKey(highlightEpKey);
+      if (parsed && parsed.seasonNumber > 0) {
+        setSelectedSeasonNum(parsed.seasonNumber);
+      }
+      setTimeout(() => {
+        const el = document.getElementById(`episode-${highlightEpKey}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    } else if (seasons.length > 0 && !seasons.some((s) => s.seasonNumber === selectedSeasonNum)) {
+      setSelectedSeasonNum(seasons[0].seasonNumber);
+    }
+  }, [highlightEpKey, seasons, selectedSeasonNum]);
 
-  const renderSeasonCard = (
-    season: SeasonDoc,
-    seasonState: ComputedSeasonState,
-    hideHeader = false
-  ) => (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-      {!hideHeader && (
-        <div className="p-4 sm:p-5 border-b border-[var(--separator)] flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1.5 flex-1 min-w-[200px]">
-            <div className="flex items-center justify-between text-xs sm:text-sm font-medium">
-              <span className="text-[var(--foreground)]">
-                {season.name || zh.detail.seasons.tabLabel(season.seasonNumber)}
+  if (seasons.length === 0 && !specialSeason) {
+    return null;
+  }
+
+  const renderSeasonBlock = (season: SeasonDoc) => {
+    const sState = computeSeasonState(season, activeProgress, {
+      todayStr: today,
+      treatAllAsAired: title.source !== 'tmdb',
+      allSeasons: seasons,
+    });
+    const pct =
+      sState.airedCount > 0 ? Math.round((sState.watchedCount / sState.airedCount) * 100) : 0;
+    const allAiredWatched = sState.airedCount > 0 && sState.watchedCount >= sState.airedCount;
+    const resolvedSeasonName =
+      resolveLocalizedText(season.name, locale) ||
+      t.detail.seasons.tabLabel(season.seasonNumber);
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+          <div className="space-y-1.5 flex-1 max-w-md">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-[var(--foreground)]">
+                {resolvedSeasonName} ·{' '}
+                {t.detail.seasons.progressText(sState.watchedCount, sState.airedCount)}
               </span>
-              <span className="text-[var(--muted)] tabular-nums">
-                {zh.detail.seasons.progressText(
-                  seasonState.watchedCount,
-                  seasonState.airedCount
-                )}
-              </span>
+              <span className="text-[var(--muted)]">{pct}%</span>
             </div>
             <ProgressBar
-              aria-label={zh.detail.seasons.progressAria(season.seasonNumber)}
-              value={
-                seasonState.airedCount > 0
-                  ? Math.round(
-                      (seasonState.watchedCount / seasonState.airedCount) * 100
-                    )
-                  : 0
-              }
+              aria-label={t.detail.seasons.progressAria(season.seasonNumber)}
+              value={pct}
               size="sm"
-              className="w-full"
+              color="accent"
             >
               <ProgressBar.Track>
                 <ProgressBar.Fill />
@@ -86,154 +93,142 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             </ProgressBar>
           </div>
 
-          {seasonState.airedCount > 0 && (
+          {sState.airedCount > 0 && (
             <Button
-              variant="secondary"
               size="sm"
-              onPress={() =>
-                onToggleSeasonWatched(
-                  season.seasonNumber,
-                  seasonState.state !== 'complete'
-                )
-              }
-              className="shrink-0"
+              variant={allAiredWatched ? 'tertiary' : 'secondary'}
+              onPress={() => onMarkSeason(season.seasonNumber, !allAiredWatched)}
             >
-              <CheckCheck className="w-4 h-4" />
-              <span>
-                {seasonState.state === 'complete'
-                  ? zh.detail.seasons.unmarkWholeSeason
-                  : zh.detail.seasons.markWholeSeason}
-              </span>
+              {allAiredWatched ? (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                  {t.detail.seasons.unmarkWholeSeason}
+                </>
+              ) : (
+                <>
+                  <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
+                  {t.detail.seasons.markWholeSeason}
+                </>
+              )}
             </Button>
           )}
         </div>
-      )}
 
-      {/* Episode List */}
-      <div className="divide-y divide-[var(--separator)]">
-        {season.episodes.map((ep) => (
-          <EpisodeRow
-            key={ep.key}
-            title={title}
-            ep={ep}
-            seasonNumber={season.seasonNumber}
-            aired={airedKeySet.has(ep.key)}
-            progress={progress}
-            isNextUp={state.nextUp?.key === ep.key}
-            onToggleWatched={onToggleEpisodeWatched}
-            onMarkUpTo={onMarkEpisodeUpTo}
-            onRecordResume={onRecordResume}
-          />
-        ))}
+        <div className="space-y-2">
+          {[...season.episodes]
+            .sort((a, b) => a.number - b.number)
+            .map((ep) => {
+              const epKey = makeEpisodeKey(season.seasonNumber, ep.number);
+              const isWatched = Boolean(activeProgress?.watched[epKey]);
+              return (
+                <EpisodeRow
+                  key={epKey}
+                  seasonNumber={season.seasonNumber}
+                  ep={ep}
+                  title={title}
+                  isWatched={isWatched}
+                  today={today}
+                  isHighlighted={highlightEpKey === epKey}
+                  onToggle={onToggleEpisode}
+                  onMarkUpTo={onMarkUpTo}
+                  onOpenResume={onOpenResumeForEpisode}
+                />
+              );
+            })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  const currentSeason = seasons.find((s) => s.seasonNumber === selectedSeasonNum) ?? seasons[0];
+  const specialState = specialSeason
+    ? computeSeasonState(specialSeason, activeProgress, {
+        todayStr: today,
+        treatAllAsAired: title.source !== 'tmdb',
+      })
+    : null;
 
   return (
-    <section className="space-y-4">
-      {isSingleSeasonCustomOrUrl ? (
-        currentSeason &&
-        currentSeasonState &&
-        renderSeasonCard(currentSeason, currentSeasonState, true)
-      ) : regularSeasons.length <= 6 ? (
-        <Tabs
-          selectedKey={activeSeasonKey}
-          onSelectionChange={(key) => onSelectSeason(Number(key))}
-          className="gap-4"
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label={zh.detail.seasons.selectAria}>
-              {regularSeasons.map((s) => (
-                <Tabs.Tab key={s.seasonNumber} id={String(s.seasonNumber)}>
-                  {zh.detail.seasons.tabLabel(s.seasonNumber)}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
-
-          {regularSeasons.map((s) => (
-            <Tabs.Panel key={s.seasonNumber} id={String(s.seasonNumber)}>
-              {currentSeason?.seasonNumber === s.seasonNumber &&
-              currentSeasonState
-                ? renderSeasonCard(currentSeason, currentSeasonState)
-                : null}
-            </Tabs.Panel>
-          ))}
-        </Tabs>
-      ) : (
-        <>
-          <Select
-            aria-label={zh.detail.seasons.selectAria}
-            selectedKey={activeSeasonKey}
-            onSelectionChange={(key) => {
-              if (key != null) onSelectSeason(Number(key));
-            }}
-            variant="secondary"
-            className="max-w-xs"
+    <div className="space-y-6">
+      {seasons.length > 0 &&
+        (seasons.length <= 6 ? (
+          <Tabs
+            selectedKey={String(currentSeason.seasonNumber)}
+            onSelectionChange={(k) => setSelectedSeasonNum(Number(k))}
           >
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox aria-label={zh.detail.seasons.selectAria}>
-                {regularSeasons.map((s) => {
-                  const label = `${zh.detail.seasons.tabLabel(s.seasonNumber)} (${s.episodes.length} 集)`;
-                  return (
-                    <ListBox.Item
-                      key={s.seasonNumber}
-                      id={String(s.seasonNumber)}
-                      textValue={label}
-                    >
-                      <Label>{label}</Label>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  );
-                })}
-              </ListBox>
-            </Select.Popover>
-          </Select>
+            {seasons.length > 1 && (
+              <Tabs.ListContainer className="mb-4 overflow-x-auto">
+                <Tabs.List aria-label={t.detail.seasons.selectAria}>
+                  {seasons.map((s) => (
+                    <Tabs.Tab key={s.seasonNumber} id={String(s.seasonNumber)}>
+                      {t.detail.seasons.tabLabel(s.seasonNumber)}
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs.ListContainer>
+            )}
+            {seasons.map((s) => (
+              <Tabs.Panel key={s.seasonNumber} id={String(s.seasonNumber)}>
+                {renderSeasonBlock(s)}
+              </Tabs.Panel>
+            ))}
+          </Tabs>
+        ) : (
+          <div className="space-y-4">
+            <Select
+              aria-label={t.detail.seasons.selectAria}
+              selectedKey={String(currentSeason.seasonNumber)}
+              onSelectionChange={(k) => k && setSelectedSeasonNum(Number(k))}
+              className="max-w-xs"
+            >
+              <Label>{t.detail.seasons.selectAria}</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox className="max-h-64 overflow-y-auto">
+                  {seasons.map((s) => {
+                    const optionLabel = t.detail.seasons.selectOptionWithCount(
+                      t.detail.seasons.tabLabel(s.seasonNumber),
+                      s.episodes.length
+                    );
+                    return (
+                      <ListBox.Item
+                        key={s.seasonNumber}
+                        id={String(s.seasonNumber)}
+                        textValue={optionLabel}
+                      >
+                        {optionLabel}
+                      </ListBox.Item>
+                    );
+                  })}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+            {renderSeasonBlock(currentSeason)}
+          </div>
+        ))}
 
-          {currentSeason &&
-            currentSeasonState &&
-            renderSeasonCard(currentSeason, currentSeasonState)}
-        </>
-      )}
-
-      {/* Collapsed Specials Section at Bottom */}
-      {specialsSeason &&
-        specialsSeason.episodes.length > 0 &&
-        specialsSeasonState && (
-          <details className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden group">
-            <summary className="p-4 sm:p-5 cursor-pointer select-none flex items-center justify-between text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]">
+      {specialSeason && specialSeason.episodes.length > 0 && specialState && (
+        <Disclosure className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
+          <Disclosure.Heading>
+            <Button variant="ghost" className="w-full justify-between">
               <span>
-                {zh.detail.seasons.specialsCollapsedTitle(
-                  specialsSeasonState.watchedCount,
-                  specialsSeasonState.airedCount
+                {t.detail.seasons.specialsCollapsedTitle(
+                  specialState.watchedCount,
+                  specialState.airedCount
                 )}
               </span>
-              <span className="text-xs group-open:rotate-180 transition-transform">
-                ▼
-              </span>
-            </summary>
-            <div className="border-t border-[var(--separator)] divide-y divide-[var(--separator)]">
-              {specialsSeason.episodes.map((ep) => (
-                <EpisodeRow
-                  key={ep.key}
-                  title={title}
-                  ep={ep}
-                  seasonNumber={0}
-                  aired={airedKeySet.has(ep.key)}
-                  progress={progress}
-                  onToggleWatched={onToggleEpisodeWatched}
-                  onMarkUpTo={onMarkEpisodeUpTo}
-                  onRecordResume={onRecordResume}
-                />
-              ))}
-            </div>
-          </details>
-        )}
-    </section>
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </Disclosure.Heading>
+          <Disclosure.Content className="pt-3">
+            {renderSeasonBlock(specialSeason)}
+          </Disclosure.Content>
+        </Disclosure>
+      )}
+    </div>
   );
 };

@@ -11,9 +11,10 @@ import {
   ToggleButtonGroup,
 } from '@heroui/react';
 import { PosterCard } from '../components/PosterCard';
+import { ScrollableFilterRow } from '../components/ScrollableFilterRow';
 import { useTracker } from '../context/TrackerContext';
 import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
-import { zh } from '../i18n/zh';
+import { useI18n } from '../i18n';
 
 type StatusFilter = 'all' | 'watching' | 'unwatched' | 'completed' | 'paused_dropped';
 type TypeFilter = 'all' | 'movie' | 'tv' | 'other';
@@ -21,6 +22,7 @@ type SortMode = 'recent' | 'added' | 'year' | 'name';
 
 export const LibraryPage: React.FC = () => {
   const { loadingData, titles, seasonsByTitle, settings, getActiveProgress } = useTracker();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -69,14 +71,16 @@ export const LibraryPage: React.FC = () => {
       const nameA = resolveDisplayTitle(
         a.title.names,
         a.title.displayLang,
-        settings.defaultTitleLang
+        settings.defaultTitleLang,
+        locale
       ).primary;
       const nameB = resolveDisplayTitle(
         b.title.names,
         b.title.displayLang,
-        settings.defaultTitleLang
+        settings.defaultTitleLang,
+        locale
       ).primary;
-      return nameA.localeCompare(nameB, 'zh-CN');
+      return nameA.localeCompare(nameB, locale);
     });
   }, [
     titles,
@@ -84,24 +88,25 @@ export const LibraryPage: React.FC = () => {
     getActiveProgress,
     settings.includeSpecials,
     settings.defaultTitleLang,
+    locale,
     statusFilter,
     typeFilter,
     sortMode,
   ]);
 
   const statusTabs: { id: StatusFilter; label: string }[] = [
-    { id: 'all', label: zh.library.filterStatus.all },
-    { id: 'watching', label: zh.library.filterStatus.watching },
-    { id: 'unwatched', label: zh.library.filterStatus.unwatched },
-    { id: 'completed', label: zh.library.filterStatus.completed },
-    { id: 'paused_dropped', label: zh.library.filterStatus.paused_dropped },
+    { id: 'all', label: t.library.filterStatus.all },
+    { id: 'watching', label: t.library.filterStatus.watching },
+    { id: 'unwatched', label: t.library.filterStatus.unwatched },
+    { id: 'completed', label: t.library.filterStatus.completed },
+    { id: 'paused_dropped', label: t.library.filterStatus.paused_dropped },
   ];
 
   const typeTabs: { id: TypeFilter; label: string }[] = [
-    { id: 'all', label: zh.library.filterType.all },
-    { id: 'movie', label: zh.library.filterType.movie },
-    { id: 'tv', label: zh.library.filterType.tv },
-    { id: 'other', label: zh.library.filterType.other },
+    { id: 'all', label: t.library.filterType.all },
+    { id: 'movie', label: t.library.filterType.movie },
+    { id: 'tv', label: t.library.filterType.tv },
+    { id: 'other', label: t.library.filterType.other },
   ];
 
   return (
@@ -109,10 +114,10 @@ export const LibraryPage: React.FC = () => {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-            {zh.library.title}
+            {t.library.title}
           </h1>
           <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
-            {zh.library.countLabel(items.length)}
+            {t.library.countLabel(items.length)}
           </span>
         </div>
 
@@ -122,54 +127,56 @@ export const LibraryPage: React.FC = () => {
           onPress={() => navigate('/search')}
         >
           <Plus className="w-4 h-4" />
-          <span>{zh.library.addMediaButton}</span>
+          <span>{t.library.addMediaButton}</span>
         </Button>
       </header>
 
       {/* Filter & Sort Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[var(--separator)]">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[var(--separator)] min-w-0">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 min-w-0 max-w-full">
           {/* Status filter */}
-          <ToggleButtonGroup
-            selectionMode="single"
-            disallowEmptySelection
-            size="sm"
-            selectedKeys={new Set([statusFilter])}
-            onSelectionChange={(keys) => {
-              const first = [...keys][0];
-              if (first != null) setStatusFilter(String(first) as StatusFilter);
-            }}
-            aria-label={zh.library.statusFilterAria}
-            className="flex-wrap"
-          >
-            {statusTabs.map((tab, index) => (
-              <ToggleButton key={tab.id} id={tab.id}>
-                {index > 0 && <ToggleButtonGroup.Separator />}
-                {tab.label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+          <ScrollableFilterRow>
+            <ToggleButtonGroup
+              selectionMode="single"
+              disallowEmptySelection
+              size="sm"
+              selectedKeys={new Set([statusFilter])}
+              onSelectionChange={(keys) => {
+                const first = [...keys][0];
+                if (first != null) setStatusFilter(String(first) as StatusFilter);
+              }}
+              aria-label={t.library.statusFilterAria}
+            >
+              {statusTabs.map((tab, index) => (
+                <ToggleButton key={tab.id} id={tab.id}>
+                  {index > 0 && <ToggleButtonGroup.Separator />}
+                  {tab.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </ScrollableFilterRow>
 
           {/* Type filter */}
-          <ToggleButtonGroup
-            selectionMode="single"
-            disallowEmptySelection
-            size="sm"
-            selectedKeys={new Set([typeFilter])}
-            onSelectionChange={(keys) => {
-              const first = [...keys][0];
-              if (first != null) setTypeFilter(String(first) as TypeFilter);
-            }}
-            aria-label={zh.library.typeFilterAria}
-            className="flex-wrap"
-          >
-            {typeTabs.map((tab, index) => (
-              <ToggleButton key={tab.id} id={tab.id}>
-                {index > 0 && <ToggleButtonGroup.Separator />}
-                {tab.label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+          <ScrollableFilterRow>
+            <ToggleButtonGroup
+              selectionMode="single"
+              disallowEmptySelection
+              size="sm"
+              selectedKeys={new Set([typeFilter])}
+              onSelectionChange={(keys) => {
+                const first = [...keys][0];
+                if (first != null) setTypeFilter(String(first) as TypeFilter);
+              }}
+              aria-label={t.library.typeFilterAria}
+            >
+              {typeTabs.map((tab, index) => (
+                <ToggleButton key={tab.id} id={tab.id}>
+                  {index > 0 && <ToggleButtonGroup.Separator />}
+                  {tab.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </ScrollableFilterRow>
         </div>
 
         {/* Sort selector */}
@@ -181,27 +188,27 @@ export const LibraryPage: React.FC = () => {
           }}
           className="flex-row items-center gap-2 self-start lg:self-auto"
         >
-          <Label className="whitespace-nowrap">{zh.library.sortLabel}</Label>
-          <Select.Trigger className="w-32">
+          <Label className="whitespace-nowrap">{t.library.sortLabel}</Label>
+          <Select.Trigger className="w-36">
             <Select.Value />
             <Select.Indicator />
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              <ListBox.Item id="recent" textValue={zh.library.sort.recent}>
-                <Label>{zh.library.sort.recent}</Label>
+              <ListBox.Item id="recent" textValue={t.library.sort.recent}>
+                <Label>{t.library.sort.recent}</Label>
                 <ListBox.ItemIndicator />
               </ListBox.Item>
-              <ListBox.Item id="added" textValue={zh.library.sort.added}>
-                <Label>{zh.library.sort.added}</Label>
+              <ListBox.Item id="added" textValue={t.library.sort.added}>
+                <Label>{t.library.sort.added}</Label>
                 <ListBox.ItemIndicator />
               </ListBox.Item>
-              <ListBox.Item id="year" textValue={zh.library.sort.year}>
-                <Label>{zh.library.sort.year}</Label>
+              <ListBox.Item id="year" textValue={t.library.sort.year}>
+                <Label>{t.library.sort.year}</Label>
                 <ListBox.ItemIndicator />
               </ListBox.Item>
-              <ListBox.Item id="name" textValue={zh.library.sort.name}>
-                <Label>{zh.library.sort.name}</Label>
+              <ListBox.Item id="name" textValue={t.library.sort.name}>
+                <Label>{t.library.sort.name}</Label>
                 <ListBox.ItemIndicator />
               </ListBox.Item>
             </ListBox>
@@ -213,7 +220,7 @@ export const LibraryPage: React.FC = () => {
       {loadingData ? (
         <div
           className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3.5 sm:gap-5"
-          aria-label={zh.library.loadingAria}
+          aria-label={t.library.loadingAria}
         >
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="space-y-2">
@@ -227,7 +234,7 @@ export const LibraryPage: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-[var(--surface-secondary)] flex items-center justify-center text-[var(--muted)] mx-auto">
             <Film className="w-6 h-6" />
           </div>
-          <p className="text-sm text-[var(--muted)]">{zh.library.emptyFiltered}</p>
+          <p className="text-sm text-[var(--muted)]">{t.library.emptyFiltered}</p>
           {(statusFilter !== 'all' || typeFilter !== 'all') && (
             <Button
               variant="secondary"
@@ -237,7 +244,7 @@ export const LibraryPage: React.FC = () => {
                 setTypeFilter('all');
               }}
             >
-              {zh.library.clearFilters}
+              {t.library.clearFilters}
             </Button>
           )}
         </div>

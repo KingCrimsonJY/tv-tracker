@@ -3,91 +3,42 @@ import {
   type CountableEpisode,
   getCountableEpisodes,
   isShowEnded,
-  makeEpisodeKey,
   toLocalDateString,
 } from './airing.ts';
 import { computeResumeRatio } from './time.ts';
 import type {
   ProgressDoc,
   SeasonDoc,
-  SeasonStatusCode,
+  SeasonStateCode,
   TitleDoc,
   TitleStatusCode,
-  TitleStatusLabel,
 } from './types.ts';
-
-export const STATUS_LABELS: Record<TitleStatusCode, TitleStatusLabel> = {
-  unwatched: '未看',
-  watching: '观看中',
-  caught_up: '已追平',
-  completed: '已看完',
-  unaired: '未开播',
-  paused: '暂停',
-  dropped: '弃剧',
-};
-
-export interface ComputedSeasonState {
-  seasonNumber: number;
-  state: SeasonStatusCode;
-  totalEpisodes: number;
-  airedCount: number;
-  watchedCount: number;
-  isCompleteSoFar: boolean;
-}
 
 export interface ComputedTitleState {
   status: TitleStatusCode;
-  label: TitleStatusLabel;
   hasNewEpisodes: boolean;
-  countableCount: number;
-  watchedCount: number;
-  progressRatio: number; // 0..1
   nextUp: CountableEpisode | null;
+  watchedCount: number;
+  countableCount: number;
+  progressRatio: number; // 0..1
   isRewatching: boolean;
+  activePlaythroughNumber: number;
   playthroughNumber: number;
   completedPlaythroughCount: number;
 }
 
-/**
- * Returns the progress bar ratio (0..1) for a title when displayed in Continue Watching or cards.
- */
-export function getTitleContinueProgressRatio(
-  title: Pick<TitleDoc, 'mediaType' | 'runtimeMin' | 'resume'>,
-  seasons: SeasonDoc[],
-  fallbackProgressRatio: number
-): number {
-  const resume = title.resume;
-  if (resume && resume.seconds > 0) {
-    if (resume.episodeKey) {
-      let epRuntime: number | null | undefined = null;
-      for (const s of seasons) {
-        for (const ep of s.episodes) {
-          const key = ep.key || makeEpisodeKey(s.seasonNumber, ep.number);
-          if (key === resume.episodeKey) {
-            epRuntime = ep.runtime;
-            break;
-          }
-        }
-        if (epRuntime !== null && epRuntime !== undefined) break;
-      }
-      const effectiveRuntime = epRuntime || title.runtimeMin;
-      if (effectiveRuntime && effectiveRuntime > 0) {
-        return computeResumeRatio(resume.seconds, effectiveRuntime);
-      }
-    } else if (title.runtimeMin && title.runtimeMin > 0) {
-      return computeResumeRatio(resume.seconds, title.runtimeMin);
-    }
-  }
-  return fallbackProgressRatio;
+export interface ComputedSeasonState {
+  seasonNumber: number;
+  state: SeasonStateCode;
+  watchedCount: number;
+  airedCount: number;
+  totalCount: number;
+  isCompleteSoFar: boolean;
 }
 
-/**
- * Computes the state of a single season: none / partial / complete.
- * A season with unaired episodes can be complete-so-far.
- */
 export function computeSeasonState(
   season: SeasonDoc,
-  progress: ProgressDoc | undefined | null,
+  progress: ProgressDoc | undefined,
   options: {
     todayStr?: string;
     treatAllAsAired?: boolean;
@@ -102,7 +53,6 @@ export function computeSeasonState(
     allSeasons,
   } = options;
   const watchedMap = progress?.watched ?? {};
-  const totalEpisodes = season.episodes.length;
 
   const airedKeys = buildAiredEpisodeKeySet(allSeasons ?? [season], {
     todayStr,
@@ -110,22 +60,22 @@ export function computeSeasonState(
     showEnded,
   });
 
-  const airedEpisodes = season.episodes.filter((ep) => {
-    const key = ep.key || makeEpisodeKey(season.seasonNumber, ep.number);
-    return airedKeys.has(key);
-  });
-  const airedCount = airedEpisodes.length;
-
+  let airedCount = 0;
   let watchedCount = 0;
-  for (const ep of airedEpisodes) {
-    const key = ep.key || makeEpisodeKey(season.seasonNumber, ep.number);
-    if (watchedMap[key] !== undefined) {
-      watchedCount++;
+  const totalCount = season.episodes.length;
+
+  for (const ep of season.episodes) {
+    const aired = airedKeys.has(ep.key);
+    if (aired) {
+      airedCount++;
+      if (watchedMap[ep.key] !== undefined) {
+        watchedCount++;
+      }
     }
   }
 
-  let state: SeasonStatusCode = 'none';
-  if (airedCount > 0 && watchedCount === airedCount) {
+  let state: SeasonStateCode = 'none';
+  if (airedCount > 0 && watchedCount >= airedCount) {
     state = 'complete';
   } else if (watchedCount > 0) {
     state = 'partial';
@@ -134,22 +84,58 @@ export function computeSeasonState(
   return {
     seasonNumber: season.seasonNumber,
     state,
-    totalEpisodes,
-    airedCount,
     watchedCount,
-    isCompleteSoFar: state === 'complete' && airedCount < totalEpisodes,
+    airedCount,
+    totalCount,
+    isCompleteSoFar: state === 'complete' && airedCount < totalCount,
   };
 }
 
-/**
- * Computes the derived status and progress of a title (TV, Movie, or Custom).
- * Never store derived status — always compute it from episode metadata + active playthrough progress + manualState.
- */
+export function getTitleContinueProgressRatio(
+  title: Pick<TitleDoc, 'mediaType' | 'resume'> & { runtimeMin?: number | null },
+  seasons: SeasonDoc[],
+  overallProgressRatio: number
+): number {
+  const resume = title.resume;
+  if (!resume || resume.seconds <= 0) {
+    return overallProgressRatio;
+  }
+
+  if (title.mediaType === 'movie' || !resume.episodeKey) {
+    if (title.runtimeMin && title.runtimeMin > 0) {
+      return computeResumeRatio(resume.seconds, title.runtimeMin);
+    }
+    return overallProgressRatio;
+  }
+
+  let epRuntime: number | null = null;
+  for (const s of seasons) {
+    const found = s.episodes.find((ep) => ep.key === resume.episodeKey);
+    if (found) {
+      epRuntime = found.runtime;
+      break;
+    }
+  }
+
+  const effectiveRuntime =
+    epRuntime && epRuntime > 0
+      ? epRuntime
+      : title.runtimeMin && title.runtimeMin > 0
+        ? title.runtimeMin
+        : null;
+
+  if (effectiveRuntime && effectiveRuntime > 0) {
+    return computeResumeRatio(resume.seconds, effectiveRuntime);
+  }
+
+  return overallProgressRatio;
+}
+
 export function computeTitleState(
   title: Pick<
     TitleDoc,
-    | 'source'
     | 'mediaType'
+    | 'source'
     | 'showStatus'
     | 'manualState'
     | 'resume'
@@ -157,18 +143,10 @@ export function computeTitleState(
     | 'activePlaythroughId'
   > & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
-  progress: ProgressDoc | undefined | null,
-  options: {
-    includeSpecials?: boolean;
-    todayStr?: string;
-  } = {}
+  progress: ProgressDoc | undefined,
+  options: { includeSpecials?: boolean; todayStr?: string } = {}
 ): ComputedTitleState {
   const { includeSpecials = false, todayStr = toLocalDateString() } = options;
-  const treatAllAsAired = title.source === 'custom' || title.source === 'url';
-  const showEnded = isShowEnded(title.showStatus, title.source);
-  const hasSeasons =
-    title.mediaType === 'tv' ||
-    (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
 
   const activePlaythrough =
     title.playthroughs.find((p) => p.id === title.activePlaythroughId) ??
@@ -178,81 +156,62 @@ export function computeTitleState(
       startedAt: 0,
     };
 
-  const completedPlaythroughCount = title.playthroughs.filter((p) =>
-    Boolean(p.completedAt)
+  const completedPlaythroughCount = title.playthroughs.filter(
+    (p) => p.completedAt !== undefined && p.completedAt !== null
   ).length;
-  const isRewatching = activePlaythrough.number > 1 && !activePlaythrough.completedAt;
 
-  if (!hasSeasons) {
-    const isWatched = Boolean(progress?.movieWatchedAt);
-    const resumeSeconds = title.resume?.seconds ?? 0;
-    const hasResume = resumeSeconds > 0;
-    const movieResumeRatio = hasResume
-      ? computeResumeRatio(resumeSeconds, title.runtimeMin)
-      : 0;
-    const progressRatio = isWatched ? 1 : movieResumeRatio;
+  const isEpisodic =
+    title.mediaType === 'tv' ||
+    seasons.some((s) => s.seasonNumber >= 1 && s.episodes.length > 0);
 
-    if (title.manualState === 'dropped' || title.manualState === 'paused') {
-      const status = title.manualState;
-      return {
-        status,
-        label: STATUS_LABELS[status],
-        hasNewEpisodes: false,
-        countableCount: 1,
-        watchedCount: isWatched ? 1 : 0,
-        progressRatio,
-        nextUp: null,
-        isRewatching,
-        playthroughNumber: activePlaythrough.number,
-        completedPlaythroughCount,
-      };
+  if (!isEpisodic) {
+    const isWatched = Boolean(
+      progress?.movieWatchedAt ||
+        (progress?.watched && Object.keys(progress.watched).length > 0)
+    );
+    const hasResume = Boolean(title.resume && title.resume.seconds > 0);
+
+    let status: TitleStatusCode;
+    if (title.manualState === 'dropped') {
+      status = 'dropped';
+    } else if (title.manualState === 'paused') {
+      status = 'paused';
+    } else if (isWatched) {
+      status = 'completed';
+    } else if (hasResume) {
+      status = 'watching';
+    } else {
+      status = 'unwatched';
     }
 
-    if (isWatched) {
-      return {
-        status: 'completed',
-        label: STATUS_LABELS.completed,
-        hasNewEpisodes: false,
-        countableCount: 1,
-        watchedCount: 1,
-        progressRatio: 1,
-        nextUp: null,
-        isRewatching: false,
-        playthroughNumber: activePlaythrough.number,
-        completedPlaythroughCount: Math.max(1, completedPlaythroughCount),
-      };
-    }
-
-    if (hasResume) {
-      return {
-        status: 'watching',
-        label: STATUS_LABELS.watching,
-        hasNewEpisodes: false,
-        countableCount: 1,
-        watchedCount: 0,
-        progressRatio: movieResumeRatio,
-        nextUp: null,
-        isRewatching,
-        playthroughNumber: activePlaythrough.number,
-        completedPlaythroughCount,
-      };
-    }
+    const movieResumeRatio =
+      hasResume && title.resume
+        ? title.runtimeMin && title.runtimeMin > 0
+          ? computeResumeRatio(title.resume.seconds, title.runtimeMin)
+          : 0.5
+        : 0;
 
     return {
-      status: 'unwatched',
-      label: STATUS_LABELS.unwatched,
+      status,
       hasNewEpisodes: false,
-      countableCount: 1,
-      watchedCount: 0,
-      progressRatio: 0,
       nextUp: null,
-      isRewatching,
+      watchedCount: isWatched ? 1 : 0,
+      countableCount: 1,
+      progressRatio: isWatched ? 1 : movieResumeRatio,
+      isRewatching:
+        activePlaythrough.number > 1 && status !== 'completed' && !activePlaythrough.completedAt,
+      activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
-      completedPlaythroughCount,
+      completedPlaythroughCount:
+        status === 'completed' && !activePlaythrough.completedAt
+          ? completedPlaythroughCount + 1
+          : completedPlaythroughCount,
     };
   }
 
-  const countable = getCountableEpisodes(seasons, {
+  const treatAllAsAired = title.source === 'custom' || title.source === 'url';
+  const showEnded = isShowEnded(title.showStatus, title.source);
+  const { countable, hasAnyAiredEpisode } = getCountableEpisodes(seasons, {
     includeSpecials,
     todayStr,
     treatAllAsAired,
@@ -260,133 +219,127 @@ export function computeTitleState(
   });
 
   const watchedMap = progress?.watched ?? {};
-  const watchedEpisodes: CountableEpisode[] = [];
-  const unwatchedEpisodes: CountableEpisode[] = [];
+  let watchedCount = 0;
+  let nextUp: CountableEpisode | null = null;
+  let maxWatchedAt = 0;
+  const unwatchedCountable: CountableEpisode[] = [];
 
   for (const ep of countable) {
-    if (watchedMap[ep.key] !== undefined) {
-      watchedEpisodes.push(ep);
+    const ts = watchedMap[ep.key];
+    if (ts !== undefined) {
+      watchedCount++;
+      if (ts > maxWatchedAt) {
+        maxWatchedAt = ts;
+      }
     } else {
-      unwatchedEpisodes.push(ep);
+      unwatchedCountable.push(ep);
+      if (!nextUp) {
+        nextUp = ep;
+      }
     }
   }
 
   const countableCount = countable.length;
-  const watchedCount = watchedEpisodes.length;
-
-  let resumeEpisodeFraction = 0;
-  const resumePoint = title.resume;
-  if (resumePoint && resumePoint.seconds > 0 && resumePoint.episodeKey) {
-    const resumedEp = countable.find((ep) => ep.key === resumePoint.episodeKey);
-    if (resumedEp && watchedMap[resumedEp.key] === undefined) {
-      const epRuntime = resumedEp.runtime ?? title.runtimeMin;
-      resumeEpisodeFraction = computeResumeRatio(resumePoint.seconds, epRuntime);
-    }
-  }
-
+  const hasResume = Boolean(title.resume && title.resume.seconds > 0);
   const progressRatio =
-    countableCount > 0
-      ? Math.min(1, (watchedCount + resumeEpisodeFraction) / countableCount)
-      : 0;
-  const nextUp = unwatchedEpisodes[0] ?? null;
+    countableCount > 0 ? Math.min(1, watchedCount / countableCount) : 0;
 
-  if (title.manualState === 'dropped' || title.manualState === 'paused') {
-    const status = title.manualState;
+  if (title.manualState === 'dropped') {
     return {
-      status,
-      label: STATUS_LABELS[status],
+      status: 'dropped',
       hasNewEpisodes: false,
-      countableCount,
-      watchedCount,
-      progressRatio,
       nextUp,
-      isRewatching,
+      watchedCount,
+      countableCount,
+      progressRatio,
+      isRewatching: false,
+      activePlaythroughNumber: activePlaythrough.number,
+      playthroughNumber: activePlaythrough.number,
+      completedPlaythroughCount,
+    };
+  }
+  if (title.manualState === 'paused') {
+    return {
+      status: 'paused',
+      hasNewEpisodes: false,
+      nextUp,
+      watchedCount,
+      countableCount,
+      progressRatio,
+      isRewatching: false,
+      activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount,
     };
   }
 
-  const allAiredKeys = buildAiredEpisodeKeySet(seasons, {
-    todayStr,
-    treatAllAsAired,
-    showEnded,
-  });
-  if (countableCount === 0 && allAiredKeys.size === 0) {
+  if (!hasAnyAiredEpisode && countableCount === 0) {
     return {
       status: 'unaired',
-      label: STATUS_LABELS.unaired,
       hasNewEpisodes: false,
-      countableCount: 0,
-      watchedCount: 0,
-      progressRatio: 0,
       nextUp: null,
-      isRewatching,
+      watchedCount: 0,
+      countableCount: 0,
+      progressRatio: 0,
+      isRewatching: false,
+      activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount,
     };
   }
 
-  const hasResume = Boolean(resumePoint && (resumePoint.seconds > 0 || resumePoint.episodeKey));
   if (watchedCount === 0 && !hasResume) {
     return {
       status: 'unwatched',
-      label: STATUS_LABELS.unwatched,
       hasNewEpisodes: false,
-      countableCount,
-      watchedCount: 0,
-      progressRatio: 0,
       nextUp,
-      isRewatching,
+      watchedCount: 0,
+      countableCount,
+      progressRatio: 0,
+      isRewatching: activePlaythrough.number > 1,
+      activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount,
     };
   }
 
-  if (countableCount > 0 && watchedCount === countableCount) {
-    const status: TitleStatusCode = showEnded ? 'completed' : 'caught_up';
+  if (countableCount > 0 && watchedCount >= countableCount) {
+    const ended = isShowEnded(title.showStatus, title.source);
+    const status: TitleStatusCode = ended ? 'completed' : 'caught_up';
     return {
       status,
-      label: STATUS_LABELS[status],
       hasNewEpisodes: false,
-      countableCount,
-      watchedCount,
-      progressRatio: 1,
       nextUp: null,
+      watchedCount,
+      countableCount,
+      progressRatio: 1,
       isRewatching: false,
+      activePlaythroughNumber: activePlaythrough.number,
       playthroughNumber: activePlaythrough.number,
       completedPlaythroughCount:
-        showEnded || activePlaythrough.number > 1
-          ? Math.max(activePlaythrough.number > 1 ? 2 : 1, completedPlaythroughCount)
+        status === 'completed' && !activePlaythrough.completedAt
+          ? completedPlaythroughCount + 1
           : completedPlaythroughCount,
     };
   }
 
   let hasNewEpisodes = false;
-  if (watchedCount > 0 && unwatchedEpisodes.length > 0 && !treatAllAsAired) {
-    let maxWatchedTs = 0;
-    for (const ep of watchedEpisodes) {
-      const ts = watchedMap[ep.key] ?? 0;
-      if (ts > maxWatchedTs) {
-        maxWatchedTs = ts;
-      }
-    }
-    if (maxWatchedTs > 0) {
-      const lastWatchDateStr = toLocalDateString(maxWatchedTs);
-      hasNewEpisodes = unwatchedEpisodes.every(
-        (ep) => Boolean(ep.airDate && ep.airDate > lastWatchDateStr)
-      );
-    }
+  if (watchedCount > 0 && unwatchedCountable.length > 0 && maxWatchedAt > 0) {
+    const lastWatchedDateStr = toLocalDateString(new Date(maxWatchedAt));
+    hasNewEpisodes = unwatchedCountable.every(
+      (ep) => ep.airDate !== null && ep.airDate > lastWatchedDateStr
+    );
   }
 
   return {
     status: 'watching',
-    label: STATUS_LABELS.watching,
     hasNewEpisodes,
-    countableCount,
-    watchedCount,
-    progressRatio,
     nextUp,
-    isRewatching,
+    watchedCount,
+    countableCount,
+    progressRatio,
+    isRewatching: activePlaythrough.number > 1,
+    activePlaythroughNumber: activePlaythrough.number,
     playthroughNumber: activePlaythrough.number,
     completedPlaythroughCount,
   };

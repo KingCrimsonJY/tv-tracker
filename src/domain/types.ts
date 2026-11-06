@@ -1,6 +1,17 @@
-export type MediaSource = 'tmdb' | 'url' | 'custom';
 export type MediaType = 'movie' | 'tv' | 'other';
+export type TitleSource = 'tmdb' | 'url' | 'custom';
 export type DisplayLang = 'zh' | 'original' | 'en' | 'custom';
+export type UiLocale = 'zh-CN' | 'en';
+export type UiLangSetting = 'system' | 'zh-CN' | 'en';
+export type DefaultTitleLang = 'auto' | 'zh' | 'original' | 'en' | null;
+export type ShowStatus =
+  | 'Returning Series'
+  | 'Ended'
+  | 'Canceled'
+  | 'In Production'
+  | 'Planned'
+  | 'Released'
+  | null;
 export type ManualState = 'paused' | 'dropped' | null;
 
 export type TitleStatusCode =
@@ -12,77 +23,118 @@ export type TitleStatusCode =
   | 'paused'
   | 'dropped';
 
-export type TitleStatusLabel =
-  | '未看'
-  | '观看中'
-  | '已追平'
-  | '已看完'
-  | '未开播'
-  | '暂停'
-  | '弃剧';
+export type SeasonStateCode = 'none' | 'partial' | 'complete';
 
-export type SeasonStatusCode = 'none' | 'partial' | 'complete';
+export type ServerErrorCode =
+  | 'PASSWORD_ALREADY_SET'
+  | 'PASSWORD_NOT_SET'
+  | 'SETUP_CODE_INVALID'
+  | 'WRONG_PASSWORD'
+  | 'TOO_MANY_ATTEMPTS'
+  | 'UNAUTHENTICATED'
+  | 'SESSION_EXPIRED'
+  | 'CSRF_ORIGIN_MISMATCH'
+  | 'TITLE_NOT_FOUND'
+  | 'LIST_NOT_FOUND'
+  | 'ENTRY_NOT_FOUND'
+  | 'CONFLICT_ERROR'
+  | 'VALIDATION_ERROR'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'ROUTE_NOT_FOUND'
+  | 'TMDB_NOT_CONFIGURED'
+  | 'TMDB_INVALID_MEDIA_TYPE'
+  | 'TMDB_INVALID_ID'
+  | 'TMDB_UNAVAILABLE'
+  | 'INVALID_LINK_URL'
+  | 'UNSAFE_URL'
+  | 'UNRESOLVABLE_HOST'
+  | 'YTDLP_MISSING'
+  | 'YTDLP_TIMEOUT'
+  | 'YTDLP_FAILED'
+  | 'LINK_PARSE_FAILED'
+  | 'REFRESH_LINK_ONLY_URL'
+  | 'REFRESH_LINK_FAILED'
+  | 'INTERNAL_ERROR';
 
-export interface LocalizedNames {
-  original: string;
+export interface LocalizedText {
   zh?: string;
   en?: string;
-  custom?: string;
 }
 
-export interface LocalizedOverview {
-  zh?: string;
-  en?: string;
+export interface Playthrough {
+  id: string; // 'p1', 'p2', ...
+  number: number; // 1, 2, ...
+  startedAt: number; // unix ms
+  completedAt?: number; // unix ms
 }
 
-export interface ExternalIds {
-  imdb?: string;
+export interface ResumePoint {
+  episodeKey: string | null; // null for movie
+  seconds: number;
+  updatedAt: number; // unix ms
 }
 
-export interface Ratings {
+export interface RatingsBlock {
   tmdb?: string;
   tmdbVotes?: number;
   imdb?: string;
   imdbVotes?: string;
   rottenTomatoes?: string;
   metacritic?: string;
-  fetchedAt?: number;
+  doubanManualScore?: string;
+  doubanUrl?: string;
+  fetchedAt?: number; // unix ms
 }
 
-export interface Playthrough {
+export type Ratings = RatingsBlock;
+
+export interface TmdbSearchItem {
   id: string;
-  number: number;
-  startedAt: number;
-  completedAt?: number;
+  sourceId: string;
+  mediaType: 'movie' | 'tv';
+  names: TitleNames;
+  year: number | null;
+  posterPath: string | null;
+  backdropPath: string | null;
+  overview: LocalizedText;
+  voteAverage?: number;
 }
 
-export interface ResumePoint {
-  episodeKey: string | null; // null = movie
-  seconds: number;
-  updatedAt: number;
+export interface SystemInfoResponse {
+  ytdlpInstalled: boolean;
+  ytdlpVersion: string | null;
+}
+
+export interface TitleNames {
+  original: string;
+  zh?: string;
+  en?: string;
+  custom?: string;
 }
 
 export interface TitleDoc {
   id: string;
-  source: MediaSource;
+  source: TitleSource;
   sourceId: string | null;
   mediaType: MediaType;
-  names: LocalizedNames;
+  names: TitleNames;
   displayLang: DisplayLang | null;
   year: number | null;
   runtimeMin: number | null;
   genres: string[];
+  genreIds?: number[];
+  uploader?: string | null;
   posterPath: string | null;
   backdropPath: string | null;
-  overview: LocalizedOverview;
-  showStatus: string | null;
-  externalIds: ExternalIds;
-  ratings: Ratings;
+  overview: LocalizedText;
+  showStatus: ShowStatus;
+  externalIds: { imdb?: string; tvdb?: string; douban?: string };
+  ratings: RatingsBlock;
   manualState: ManualState;
   playthroughs: Playthrough[];
   activePlaythroughId: string;
   resume: ResumePoint | null;
-  metaFetchedAt: number | null;
+  metaFetchedAt: number;
   addedAt: number;
   updatedAt: number;
   lastActivityAt: number;
@@ -90,25 +142,27 @@ export interface TitleDoc {
 
 export interface EpisodeMeta {
   number: number;
-  key: string; // s{season}e{episode}, e.g. s2e5
-  name: string;
-  airDate: string | null; // YYYY-MM-DD
+  key: string; // e.g. 's2e5'
+  name: LocalizedText | null;
+  airDate: string | null; // 'YYYY-MM-DD'
   runtime: number | null;
   stillPath: string | null;
-  overview: LocalizedOverview;
+  overview: LocalizedText;
   sourceVideoId?: string;
 }
 
 export interface SeasonDoc {
-  seasonNumber: number;
-  name: string;
+  seasonNumber: number; // 0 = specials, 1..N
+  name: LocalizedText | null;
+  posterPath?: string | null;
+  airDate?: string | null;
   episodes: EpisodeMeta[];
 }
 
 export interface ProgressDoc {
   playthroughId: string;
-  watched: Record<string, number>; // { [episodeKey]: timestampMs }
-  movieWatchedAt?: number;
+  watched: Record<string, number>; // episodeKey -> watchedAt (unix ms)
+  movieWatchedAt?: number; // unix ms (for movies)
 }
 
 export type ListKind = 'ordered' | 'collection';
@@ -117,10 +171,10 @@ export type CollectionSort = 'added' | 'name' | 'year' | 'rating' | 'manual';
 export interface WatchListDoc {
   id: string;
   name: string;
-  kind: ListKind;
   description?: string;
+  kind: ListKind;
   pinned: boolean;
-  rank: string;
+  rank: string; // fractional-indexing key
   collectionSort: CollectionSort;
   createdAt: number;
 }
@@ -128,7 +182,7 @@ export interface WatchListDoc {
 export interface ListEntryDoc {
   id: string;
   titleId: string;
-  rank: string;
+  rank: string; // fractional-indexing key
   note?: string;
   addedAt: number;
 }
@@ -143,37 +197,34 @@ export type HomeSectionId =
 export interface HomeSectionConfig {
   id: HomeSectionId;
   enabled: boolean;
-  rank: string;
 }
 
 export interface AppSettingsDoc {
-  defaultTitleLang: 'zh' | 'original' | 'en';
+  uiLang?: UiLangSetting;
+  defaultTitleLang: DefaultTitleLang;
   includeSpecials: boolean;
   homeSections: HomeSectionConfig[];
   theme: 'dark' | 'light' | 'system';
 }
 
-export interface StateUpserts {
-  titles?: Record<string, TitleDoc>;
-  seasonsByTitle?: Record<string, SeasonDoc[]>;
-  progressByTitle?: Record<string, Record<string, ProgressDoc>>;
-  lists?: Record<string, WatchListDoc>;
-  entriesByList?: Record<string, ListEntryDoc[]>;
-  settings?: AppSettingsDoc;
+export interface LinkImportEpisodeSeed {
+  name: string | null;
+  sourceVideoId?: string;
+  runtime?: number | null;
 }
 
-export interface StateDeletes {
-  titles?: string[];
-  progress?: Array<{ titleId: string; playthroughId: string }>;
-  lists?: string[];
-  entries?: Array<{ listId: string; entryId: string }>;
-}
-
-export interface StateMutationResult {
-  version: number;
-  epoch?: string;
-  upserts: StateUpserts;
-  deletes: StateDeletes;
+export interface LinkImportResult {
+  kind: 'video' | 'playlist' | 'tmdb-suggestion';
+  title: string;
+  posterUrl: string | null;
+  overview: string;
+  uploader?: string | null;
+  sourceUrl: string;
+  year: number | null;
+  runtimeMin: number | null;
+  episodes: LinkImportEpisodeSeed[];
+  fallbackUsed: 'yt-dlp' | 'og' | 'manual';
+  warning?: string;
 }
 
 export interface AppStateSnapshot {
@@ -187,16 +238,45 @@ export interface AppStateSnapshot {
   settings: AppSettingsDoc;
 }
 
+export interface StateUpserts {
+  titles?: Record<string, TitleDoc>;
+  seasonsByTitle?: Record<string, SeasonDoc[]>;
+  progressByTitle?: Record<string, Record<string, ProgressDoc>>;
+  lists?: Record<string, WatchListDoc>;
+  entriesByList?: Record<string, ListEntryDoc[]>;
+  settings?: AppSettingsDoc;
+}
+
+export interface StateDeletes {
+  titles?: string[];
+  lists?: string[];
+  entries?: Array<{ listId: string; entryId: string }>;
+  progress?: Array<{ titleId: string; playthroughId: string }>;
+}
+
+export interface StateMutationResult {
+  version: number;
+  epoch?: string;
+  upserts: StateUpserts;
+  deletes: StateDeletes;
+}
+
+export interface TitleAtomicProgressMutation {
+  playthroughId?: string;
+  set?: Record<string, number>;
+  unset?: string[];
+  movieWatchedAt?: number | null;
+  replaceWatched?: Record<string, number>;
+  deletePlaythroughId?: string;
+}
+
 export interface TitleAtomicActionInput {
-  progress?: {
-    playthroughId?: string;
-    set?: Record<string, number>;
-    unset?: string[];
-    movieWatchedAt?: number | null;
-    replaceWatched?: Record<string, number>;
-    deletePlaythroughId?: string;
-  };
+  progress?: TitleAtomicProgressMutation;
   title?: Partial<Omit<TitleDoc, 'id'>>;
+}
+
+export interface PlaylistRefreshResult extends StateMutationResult {
+  addedCount: number;
 }
 
 export interface ZhenjiExportV2 {
@@ -210,42 +290,3 @@ export interface ZhenjiExportV2 {
   lists: Record<string, WatchListDoc>;
   entriesByList: Record<string, ListEntryDoc[]>;
 }
-
-export interface TmdbSearchItem {
-  sourceId: string;
-  mediaType: 'movie' | 'tv';
-  names: { zh?: string; original: string; en?: string };
-  year?: number | null;
-  posterPath?: string | null;
-  backdropPath?: string | null;
-  overview?: string;
-}
-
-export interface LinkImportEpisodeSeed {
-  name: string;
-  sourceVideoId?: string;
-  runtime?: number | null;
-}
-
-export interface LinkImportResult {
-  kind: 'video' | 'playlist' | 'tmdb-suggestion';
-  title: string;
-  posterUrl: string | null;
-  overview: string;
-  sourceUrl: string;
-  year?: number | null;
-  runtimeMin?: number | null;
-  episodes: LinkImportEpisodeSeed[];
-  fallbackUsed: 'yt-dlp' | 'og' | 'manual';
-  warning?: string;
-}
-
-export interface PlaylistRefreshResult extends StateMutationResult {
-  addedCount: number;
-}
-
-export interface SystemInfoResponse {
-  appVersion: string;
-  ytdlpVersion: string | null;
-}
-

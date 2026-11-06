@@ -126,19 +126,18 @@ registerTest('4. Whole title mark watched works for both movies and TV shows', (
     { todayStr: TODAY }
   );
   assert.equal(watchedState.status, 'completed');
-  assert.equal(watchedState.label, '已看完');
 });
 
 registerTest('5. Missing air dates: episode with no airDate is treated as aired if show is Ended/Canceled or any later episode has aired', () => {
   const seasonsWithMissingAirDates: SeasonDoc[] = [
     {
       seasonNumber: 1,
-      name: '第 1 季',
+      name: null,
       episodes: [
         {
           number: 1,
           key: 's1e1',
-          name: '缺少日期但后续已播',
+          name: { zh: '缺少日期但后续已播' },
           airDate: null,
           runtime: 45,
           stillPath: null,
@@ -147,7 +146,7 @@ registerTest('5. Missing air dates: episode with no airDate is treated as aired 
         {
           number: 2,
           key: 's1e2',
-          name: '已播出剧集',
+          name: { zh: '已播出剧集' },
           airDate: '2026-10-01',
           runtime: 45,
           stillPath: null,
@@ -156,7 +155,7 @@ registerTest('5. Missing air dates: episode with no airDate is treated as aired 
         {
           number: 3,
           key: 's1e3',
-          name: '缺少日期且后续无已播',
+          name: { zh: '缺少日期且后续无已播' },
           airDate: null,
           runtime: 45,
           stillPath: null,
@@ -213,7 +212,7 @@ registerTest('5. Missing air dates: episode with no airDate is treated as aired 
   assert.equal(afterCheckS1E3Ended.progress.watched.s1e3, 3000);
 });
 
-registerTest('6. Rewatch of an ongoing show: reaching 已追平 sets completedAt and stops showing 二刷中', () => {
+registerTest('6. Rewatch of an ongoing show: reaching caught_up sets completedAt and stops showing isRewatching', () => {
   const ongoingTitle = makeBaseTvTitle({
     showStatus: 'Returning Series',
     playthroughs: [{ id: 'p1', number: 1, startedAt: 1000 }],
@@ -275,12 +274,11 @@ registerTest('6. Rewatch of an ongoing show: reaching 已追平 sets completedAt
     { todayStr: TODAY }
   );
   assert.equal(caughtUpRewatchState.status, 'caught_up');
-  assert.equal(caughtUpRewatchState.label, '已追平');
   assert.equal(caughtUpRewatchState.isRewatching, false);
 });
 
-registerTest('7. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
-  const seasons = [makeSampleSeasons()[1]]; // Season 1 with s1e1, s1e2, s1e3
+registerTest('7. Undo 3rd -> 2nd -> 1st -> unwatched step by step', () => {
+  const seasons = [makeSampleSeasons()[1]];
   const p1Progress: ProgressDoc = {
     playthroughId: 'p1',
     watched: { s1e1: 1100, s1e2: 1200, s1e3: 1300 },
@@ -305,7 +303,6 @@ registerTest('7. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
     resume: { episodeKey: 's1e2', seconds: 600, updatedAt: 3200 },
   });
 
-  // Step 1: Undo 3rd watch -> back to completed 2nd watch
   const undo3to2 = undoLatestPlaythrough(title3rd, {
     p1: p1Progress,
     p2: p2Progress,
@@ -333,10 +330,8 @@ registerTest('7. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
     { todayStr: TODAY }
   );
   assert.equal(stateAfter2nd.status, 'completed');
-  assert.equal(stateAfter2nd.label, '已看完');
   assert.equal(stateAfter2nd.playthroughNumber, 2);
 
-  // Step 2: Undo completed 2nd watch -> back to completed 1st watch
   const undo2to1 = undoLatestPlaythrough(
     {
       ...title3rd,
@@ -367,10 +362,8 @@ registerTest('7. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
     { todayStr: TODAY }
   );
   assert.equal(stateAfter1st.status, 'completed');
-  assert.equal(stateAfter1st.label, '已看完');
   assert.equal(stateAfter1st.playthroughNumber, 1);
 
-  // Step 3: Undo 1st watch -> clears progress, completedAt and resume so title becomes 未看
   const undo1toUnwatched = undoLatestPlaythrough(
     {
       ...title3rd,
@@ -404,12 +397,11 @@ registerTest('7. Undo 3rd -> 2nd -> 1st -> 未看 step by step', () => {
     { todayStr: TODAY }
   );
   assert.equal(stateUnwatched.status, 'unwatched');
-  assert.equal(stateUnwatched.label, '未看');
   assert.equal(stateUnwatched.watchedCount, 0);
   assert.equal(stateUnwatched.completedPlaythroughCount, 0);
 });
 
-registerTest('9. Deleting a middle playthrough renumbers remaining ones (第1次, 第2次...) by start date', () => {
+registerTest('9. Deleting a middle playthrough renumbers remaining ones by start date', () => {
   const p1Progress: ProgressDoc = {
     playthroughId: 'p1',
     watched: { s1e1: 1100, s1e2: 1200, s1e3: 1300 },

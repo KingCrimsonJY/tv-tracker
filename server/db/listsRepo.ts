@@ -64,7 +64,7 @@ export function patchList(
       | { data: string; rank: string }
       | undefined;
     if (!row) {
-      throw new NotFoundError(`未找到列表: ${id}`);
+      throw new NotFoundError(`List not found: ${id}`, 'LIST_NOT_FOUND');
     }
 
     const existing = JSON.parse(row.data) as Omit<WatchListDoc, 'id'>;
@@ -113,13 +113,13 @@ export function putListEntry(
   return ctx.runInTransaction(() => {
     const listExists = ctx.db.prepare('SELECT 1 FROM lists WHERE id = ?').get(listId);
     if (!listExists) {
-      throw new NotFoundError(`未找到列表: ${listId}`);
+      throw new NotFoundError(`List not found: ${listId}`, 'LIST_NOT_FOUND');
     }
     const titleExists = ctx.db
       .prepare('SELECT 1 FROM titles WHERE id = ?')
       .get(entryInput.titleId);
     if (!titleExists) {
-      throw new NotFoundError(`未找到作品: ${entryInput.titleId}`);
+      throw new NotFoundError(`Title not found: ${entryInput.titleId}`, 'TITLE_NOT_FOUND');
     }
 
     const entryDoc: ListEntryDoc = { ...entryInput, id: entryId };
@@ -160,7 +160,7 @@ export function patchListEntry(
       .prepare('SELECT title_id, rank, data FROM list_entries WHERE id = ? AND list_id = ?')
       .get(entryId, listId) as { title_id: string; rank: string; data: string } | undefined;
     if (!row) {
-      throw new NotFoundError(`未找到列表条目: ${entryId}`);
+      throw new NotFoundError(`List entry not found: ${entryId}`, 'ENTRY_NOT_FOUND');
     }
 
     const existing = JSON.parse(row.data) as Omit<ListEntryDoc, 'id'>;

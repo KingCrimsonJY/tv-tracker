@@ -1,257 +1,175 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
-import { Button, Modal, Tabs, toast } from '@heroui/react';
+import { SearchField, Button, Skeleton, toast } from '@heroui/react';
+import { Link2, PlusCircle } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
-import { searchTmdbApi } from '../data/api';
-import { LinkImportDialog } from '../features/search/LinkImportDialog';
+import { searchTmdbApi, TmdbSearchItem } from '../data/api';
+import { SearchResults } from '../features/search/SearchResults';
+import { LinkImportDialog, ManualSeed } from '../features/search/LinkImportDialog';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
-import {
-  SearchResults,
-  type TmdbSearchHit,
-} from '../features/search/SearchResults';
-import { zh } from '../i18n/zh';
-
-type TabMode = 'tmdb' | 'link' | 'manual';
+import { useI18n } from '../i18n';
 
 export const SearchPage: React.FC = () => {
-  const {
-    titles,
-    lists,
-    addTitleFromTmdb,
-    createCustomOrLinkTitle,
-  } = useTracker();
   const navigate = useNavigate();
+  const { titles, lists, addTitleFromTmdb } = useTracker();
+  const { t, locale, translateError } = useI18n();
 
-  const [tab, setTab] = useState<TabMode>('tmdb');
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<TmdbSearchHit[]>([]);
+  const [results, setResults] = useState<TmdbSearchItem[]>([]);
   const [searching, setSearching] = useState(false);
-  const [tmdbConfigured, setTmdbConfigured] = useState(true);
-  const [addingId, setAddingId] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [addingKey, setAddingKey] = useState<string | null>(null);
 
-  const [listPickerTarget, setListPickerTarget] =
-    useState<TmdbSearchHit | null>(null);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [manualSeed, setManualSeed] = useState<ManualSeed | null>(null);
 
-  // Debounced TMDB search
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
       setResults([]);
+      setSearchError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       setSearching(true);
+      setSearchError(null);
       try {
-        const data = await searchTmdbApi(trimmed);
-        setTmdbConfigured(data.configured !== false);
+        const lang = locale === 'en' ? 'en-US' : 'zh-CN';
+        const data = await searchTmdbApi(trimmed, lang);
         setResults(data.results || []);
-      } catch {
-        // Ignore transient search errors
+      } catch (err) {
+        setSearchError(translateError(err));
       } finally {
         setSearching(false);
       }
-    }, 320);
+    }, 350);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, locale, translateError]);
 
-  const handleAddClick = async (hit: TmdbSearchHit) => {
-    const id = `tmdb_${hit.mediaType}_${hit.sourceId}`;
-    if (titles[id]) return;
+  const existingTmdbKeys = new Set(
+    Object.values(titles)
+      .filter((item) => item.source === 'tmdb' && item.sourceId !== null)
+      .map((item) => `${item.mediaType}:${item.sourceId}`)
+  );
 
-    setAddingId(id);
-    try {
-      const created = await addTitleFromTmdb(hit.mediaType, hit.sourceId);
-      const displayName = created.names.zh || created.names.original;
-      toast.success(zh.search.addedTitleToast(displayName), {
-        actionProps: {
-          children: zh.search.viewAction,
-          onPress: () => navigate(`/title/${created.id}`),
-        },
-      });
-    } catch (err) {
-      toast.danger(
-        err instanceof Error ? err.message : zh.search.addFailedToast
-      );
-    } finally {
-      setAddingId(null);
-    }
-  };
+  const handleAddTmdb = useCallback(
+    async (hit: TmdbSearchItem, targetListId?: string) => {
+      const key = `${hit.mediaType}:${hit.sourceId}`;
+      setAddingKey(key);
+      try {
+        await addTitleFromTmdb(hit.mediaType, hit.sourceId, targetListId);
+      } catch (err) {
+        toast.danger(translateError(err));
+      } finally {
+        setAddingKey(null);
+      }
+    },
+    [addTitleFromTmdb, translateError]
+  );
 
-  const handleAddStraightToList = async (
-    hit: TmdbSearchHit,
-    listId: string
-  ) => {
-    const id = `tmdb_${hit.mediaType}_${hit.sourceId}`;
-    const targetList = lists[listId];
-    setAddingId(id);
-    try {
-      await toast.promise(
-        addTitleFromTmdb(hit.mediaType, hit.sourceId, listId),
-        {
-          loading: zh.search.addingToListToast,
-          success: targetList
-            ? zh.search.addedToListToast(targetList.name)
-            : zh.search.addedTitleToast(hit.names.zh || hit.names.original),
-          error: (err) =>
-            err instanceof Error
-              ? err.message
-              : zh.search.addToListFailedToast,
-        }
-      );
-      setListPickerTarget(null);
-    } finally {
-      setAddingId(null);
-    }
-  };
+  const listArray = Object.values(lists);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
-      <header>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-          {zh.search.title}
-        </h1>
-      </header>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.search.title}</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onPress={() => setLinkDialogOpen(true)}>
+            <Link2 className="w-4 h-4 mr-1.5" />
+            {t.search.tabLinkImport}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => {
+              setManualSeed(null);
+              setManualDialogOpen(true);
+            }}
+          >
+            <PlusCircle className="w-4 h-4 mr-1.5" />
+            {t.search.tabManual}
+          </Button>
+        </div>
+      </div>
 
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={(key) => setTab(key as TabMode)}
-        className="gap-5"
+      <SearchField
+        value={query}
+        onChange={setQuery}
+        aria-label={t.search.placeholder}
+        className="w-full"
       >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label={zh.search.title}>
-            <Tabs.Tab id="tmdb">
-              {zh.search.tabTmdb}
-              <Tabs.Indicator />
-            </Tabs.Tab>
+        <SearchField.Group>
+          <SearchField.SearchIcon />
+          <SearchField.Input placeholder={t.search.placeholder} />
+          <SearchField.ClearButton aria-label={t.search.clearSearchAria} />
+        </SearchField.Group>
+      </SearchField>
 
-            <Tabs.Tab id="link">
-              {zh.search.tabLinkImport}
-              <Tabs.Indicator />
-            </Tabs.Tab>
+      {searchError && (
+        <div className="p-4 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
+          {searchError}
+        </div>
+      )}
 
-            <Tabs.Tab id="manual">
-              {zh.search.tabManual}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
+      {searching ? (
+        <div className="space-y-3" aria-label={t.search.searching}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-[var(--surface)]">
+              <Skeleton className="w-14 h-20 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-5 w-48 rounded" />
+                <Skeleton className="h-4 w-32 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : query.trim() === '' ? (
+        <div className="py-16 text-center space-y-1">
+          <p className="text-sm font-medium text-[var(--foreground)]">{t.search.searchPromptTitle}</p>
+          <p className="text-xs text-[var(--muted)]">{t.search.searchPromptSubtitle}</p>
+        </div>
+      ) : results.length === 0 && !searchError ? (
+        <div className="py-16 text-center text-sm text-[var(--muted)]">
+          {t.search.noResults}
+        </div>
+      ) : (
+        <SearchResults
+          results={results}
+          existingTmdbKeys={existingTmdbKeys}
+          titles={titles}
+          lists={listArray}
+          addingKey={addingKey}
+          onAdd={handleAddTmdb}
+          onOpenExisting={(id) => navigate(`/title/${id}`)}
+        />
+      )}
 
-        <Tabs.Panel id="tmdb">
-          <SearchResults
-            query={query}
-            onQueryChange={setQuery}
-            searching={searching}
-            tmdbConfigured={tmdbConfigured}
-            results={results}
-            titles={titles}
-            addingId={addingId}
-            onAddTmdbHit={handleAddClick}
-            onOpenAddToList={setListPickerTarget}
-            onNavigateTitle={(id) => navigate(`/title/${id}`)}
-          />
-        </Tabs.Panel>
+      <LinkImportDialog
+        isOpen={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        onSearchTmdb={(suggestedTitle) => {
+          setLinkDialogOpen(false);
+          setQuery(suggestedTitle);
+        }}
+        onParsedToManual={(seed) => {
+          setLinkDialogOpen(false);
+          setManualSeed(seed);
+          setManualDialogOpen(true);
+        }}
+      />
 
-        <Tabs.Panel id="link">
-          <LinkImportDialog
-            onSearchTmdb={(suggestedTitle) => {
-              setQuery(suggestedTitle);
-              setTab('tmdb');
-            }}
-            onSubmitCustomItem={async (input) => {
-              try {
-                const created = await createCustomOrLinkTitle(input);
-                const displayName = created.names.zh || created.names.original;
-                toast.success(zh.search.addedTitleToast(displayName), {
-                  actionProps: {
-                    children: zh.search.viewAction,
-                    onPress: () => navigate(`/title/${created.id}`),
-                  },
-                });
-                navigate(`/title/${created.id}`);
-              } catch (err) {
-                toast.danger(
-                  err instanceof Error ? err.message : zh.search.addFailedToast
-                );
-              }
-            }}
-          />
-        </Tabs.Panel>
-
-        <Tabs.Panel id="manual">
-          <ManualItemDialog
-            onSubmitCustomItem={async (input) => {
-              try {
-                const created = await createCustomOrLinkTitle(input);
-                const displayName = created.names.zh || created.names.original;
-                toast.success(zh.search.addedTitleToast(displayName), {
-                  actionProps: {
-                    children: zh.search.viewAction,
-                    onPress: () => navigate(`/title/${created.id}`),
-                  },
-                });
-                navigate(`/title/${created.id}`);
-              } catch (err) {
-                toast.danger(
-                  err instanceof Error ? err.message : zh.search.addFailedToast
-                );
-              }
-            }}
-          />
-        </Tabs.Panel>
-      </Tabs>
-
-      {/* Add straight to List Modal */}
-      <Modal.Backdrop
-        isOpen={Boolean(listPickerTarget)}
-        onOpenChange={(open) => !open && setListPickerTarget(null)}
-        isDismissable
-      >
-        <Modal.Container size="sm" placement="center">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>{zh.search.addToListModalTitle}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="space-y-2 max-h-72 overflow-y-auto">
-              <p className="text-xs text-[var(--muted)] mb-2">
-                {zh.search.addToListModalHint}
-              </p>
-              {Object.values(lists).length === 0 ? (
-                <p className="text-sm text-[var(--muted)]">
-                  {zh.search.emptyListsInModal}
-                </p>
-              ) : (
-                Object.values(lists).map((list) => (
-                  <Button
-                    key={list.id}
-                    variant="secondary"
-                    fullWidth
-                    onPress={() =>
-                      listPickerTarget &&
-                      void handleAddStraightToList(listPickerTarget, list.id)
-                    }
-                    className="justify-between"
-                  >
-                    <span className="truncate">{list.name}</span>
-                    <Plus className="w-4 h-4 shrink-0 text-[var(--accent-text)]" />
-                  </Button>
-                ))
-              )}
-            </Modal.Body>
-            <Modal.Footer>
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={() => setListPickerTarget(null)}
-              >
-                {zh.app.close}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+      <ManualItemDialog
+        isOpen={manualDialogOpen}
+        onOpenChange={setManualDialogOpen}
+        initialSeed={manualSeed}
+        onCreated={(id) => {
+          setManualDialogOpen(false);
+          navigate(`/title/${id}`);
+        }}
+      />
     </div>
   );
 };

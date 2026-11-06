@@ -1,85 +1,115 @@
 import React from 'react';
-import { Check, MoreHorizontal, Play, RotateCcw } from 'lucide-react';
-import { Button, ProgressBar } from '@heroui/react';
-import { type ComputedTitleState, formatSeconds } from '../../domain/progress';
-import type { TitleDoc } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import { Button } from '@heroui/react';
+import { Play, Check, RotateCcw } from 'lucide-react';
+import { TitleDoc } from '../../domain/types';
+import { parseEpisodeKey } from '../../domain/airing';
+import { ComputedTitleState } from '../../domain/status';
+import { formatSeconds } from '../../domain/time';
+import { useI18n } from '../../i18n';
 
 interface PrimaryActionProps {
   title: TitleDoc;
-  state: ComputedTitleState;
-  label: string;
-  hasMovieResume: boolean;
-  movieResumePct: number;
-  onPrimaryAction: () => void;
-  onOpenMenu: () => void;
+  titleState: ComputedTitleState;
+  onMarkMovieWatched: () => void;
+  onStartRewatch: () => void;
+  onToggleEpisode: (episodeKey: string) => void;
 }
 
 export const PrimaryAction: React.FC<PrimaryActionProps> = ({
   title,
-  state,
-  label,
-  hasMovieResume,
-  movieResumePct,
-  onPrimaryAction,
-  onOpenMenu,
+  titleState,
+  onMarkMovieWatched,
+  onStartRewatch,
+  onToggleEpisode,
 }) => {
+  const { t } = useI18n();
+  const isEpisodeBased = title.mediaType === 'tv' || titleState.countableCount > 0;
+
+  if (titleState.status === 'completed') {
+    return (
+      <Button variant="primary" size="lg" onPress={onStartRewatch}>
+        <RotateCcw className="w-4 h-4 mr-2" />
+        {t.detail.primaryAction.completedStartRewatch}
+      </Button>
+    );
+  }
+
+  if (titleState.status === 'caught_up') {
+    return (
+      <Button variant="primary" size="lg" onPress={onStartRewatch}>
+        <RotateCcw className="w-4 h-4 mr-2" />
+        {t.detail.primaryAction.caughtUpStartRewatch}
+      </Button>
+    );
+  }
+
+  if (!isEpisodeBased) {
+    if (title.resume) {
+      const timeStr = formatSeconds(title.resume.seconds);
+      return (
+        <Button variant="primary" size="lg" onPress={onMarkMovieWatched}>
+          <Play className="w-4 h-4 mr-2 fill-current" />
+          {t.detail.primaryAction.continueMovie(timeStr)}
+        </Button>
+      );
+    }
+    return (
+      <Button variant="primary" size="lg" onPress={onMarkMovieWatched}>
+        <Check className="w-4 h-4 mr-2" />
+        {t.detail.primaryAction.markMovieWatched}
+      </Button>
+    );
+  }
+
+  if (titleState.status === 'unaired' || !titleState.nextUp) {
+    return (
+      <Button variant="secondary" size="lg" isDisabled>
+        {t.detail.primaryAction.unaired}
+      </Button>
+    );
+  }
+
+  if (title.resume && title.resume.episodeKey) {
+    const parsed = parseEpisodeKey(title.resume.episodeKey);
+    const sNum = parsed?.seasonNumber ?? titleState.nextUp.seasonNumber;
+    const eNum = parsed?.episodeNumber ?? titleState.nextUp.number;
+    const timeStr = formatSeconds(title.resume.seconds);
+    return (
+      <Button
+        variant="primary"
+        size="lg"
+        onPress={() => onToggleEpisode(title.resume!.episodeKey!)}
+      >
+        <Play className="w-4 h-4 mr-2 fill-current" />
+        {t.detail.primaryAction.continueEpisode(sNum, eNum, timeStr)}
+      </Button>
+    );
+  }
+
+  if (titleState.watchedCount === 0) {
+    return (
+      <Button
+        variant="primary"
+        size="lg"
+        onPress={() => onToggleEpisode(titleState.nextUp!.key)}
+      >
+        <Play className="w-4 h-4 mr-2 fill-current" />
+        {t.detail.primaryAction.startWatching}
+      </Button>
+    );
+  }
+
   return (
-    <>
-      <div className="flex items-center gap-3 pt-2">
-        <Button
-          variant="primary"
-          size="lg"
-          isDisabled={state.status === 'unaired'}
-          onPress={onPrimaryAction}
-        >
-          {state.status === 'completed' || state.status === 'caught_up' ? (
-            <RotateCcw className="w-4 h-4" />
-          ) : state.status === 'watching' ? (
-            <Check className="w-4 h-4" />
-          ) : (
-            <Play className="w-4 h-4 fill-current" />
-          )}
-          <span>{label}</span>
-        </Button>
-
-        <Button
-          variant="secondary"
-          size="lg"
-          isIconOnly
-          onPress={onOpenMenu}
-          aria-label={zh.detail.moreActionsAria}
-        >
-          <MoreHorizontal className="w-5 h-5" />
-        </Button>
-      </div>
-
-      {hasMovieResume && title.resume && (
-        <div className="max-w-md pt-1 space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-[var(--accent-text)] font-medium tabular-nums">
-            <span>
-              {zh.detail.primaryAction.continueMovie(
-                formatSeconds(title.resume.seconds)
-              )}
-            </span>
-            {title.runtimeMin && (
-              <span className="text-[var(--muted)]">
-                {zh.detail.resumeModal.runtimeHint(title.runtimeMin)}
-              </span>
-            )}
-          </div>
-          <ProgressBar
-            aria-label={zh.detail.movieWatchingProgress}
-            value={movieResumePct}
-            size="sm"
-            className="w-full"
-          >
-            <ProgressBar.Track>
-              <ProgressBar.Fill />
-            </ProgressBar.Track>
-          </ProgressBar>
-        </div>
+    <Button
+      variant="primary"
+      size="lg"
+      onPress={() => onToggleEpisode(titleState.nextUp!.key)}
+    >
+      <Check className="w-4 h-4 mr-2" />
+      {t.detail.primaryAction.markEpisodeWatched(
+        titleState.nextUp.seasonNumber,
+        titleState.nextUp.number
       )}
-    </>
+    </Button>
   );
 };

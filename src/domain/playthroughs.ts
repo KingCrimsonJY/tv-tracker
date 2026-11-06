@@ -31,7 +31,7 @@ export function startRewatch(
     todayStr,
   });
   if (computed.status !== 'completed' && computed.status !== 'caught_up') {
-    throw new Error('Can only start a rewatch when status is 已看完 or 已追平');
+    throw new Error('Can only start a rewatch when status is completed or caught_up');
   }
 
   const ordered = renumberPlaythroughsByStartDate(title.playthroughs);

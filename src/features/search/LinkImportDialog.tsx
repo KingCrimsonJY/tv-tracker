@@ -1,173 +1,138 @@
 import React, { useState } from 'react';
-import { Search } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  FieldError,
-  Input,
-  Label,
-  Spinner,
-  TextField,
-  toast,
-} from '@heroui/react';
-import { MediaImage } from '../../components/MediaImage';
-import type { CustomTitleInput } from '../../context/TrackerContext';
-import { importLinkApi } from '../../data/api';
-import type { LinkImportResult } from '../../domain/types';
-import { zh } from '../../i18n/zh';
-import { ManualItemDialog } from './ManualItemDialog';
+import { Modal, TextField, Label, Input, Button, toast } from '@heroui/react';
+import { importLinkApi, LinkImportResult } from '../../data/api';
+import { LinkImportEpisodeSeed, MediaType } from '../../domain/types';
+import { useI18n } from '../../i18n';
 
-export type ParsedLinkSeed = LinkImportResult;
+export interface ManualSeed {
+  title: string;
+  mediaType: MediaType;
+  posterUrl: string;
+  overview: string;
+  uploader?: string | null;
+  episodeCount: number;
+  episodes?: LinkImportEpisodeSeed[];
+  source: 'url' | 'custom';
+  sourceUrl: string | null;
+}
 
 interface LinkImportDialogProps {
-  onSearchTmdb: (query: string) => void;
-  onSubmitCustomItem: (input: CustomTitleInput) => Promise<void>;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSearchTmdb: (suggestedTitle: string) => void;
+  onParsedToManual: (seed: ManualSeed) => void;
 }
 
 export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
+  isOpen,
+  onOpenChange,
   onSearchTmdb,
-  onSubmitCustomItem,
+  onParsedToManual,
 }) => {
-  const [linkUrl, setLinkUrl] = useState('');
-  const [parsingLink, setParsingLink] = useState(false);
-  const [linkError, setLinkError] = useState<string | null>(null);
-  const [parsedResult, setParsedResult] = useState<LinkImportResult | null>(
-    null
-  );
-  const [forceLinkPreview, setForceLinkPreview] = useState(false);
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [tmdbSuggestion, setTmdbSuggestion] = useState<LinkImportResult | null>(null);
+  const { t, translateError } = useI18n();
 
-  const handleParseLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const raw = linkUrl.trim();
-    if (!raw) return;
-    setParsingLink(true);
-    setLinkError(null);
-    setForceLinkPreview(false);
+  const finishToManual = (res: LinkImportResult, sourceUrl: string) => {
+    onParsedToManual({
+      title: res.title || '',
+      mediaType: res.episodes && res.episodes.length > 1 ? 'other' : 'movie',
+      posterUrl: res.posterUrl || '',
+      overview: res.overview || '',
+      uploader: res.uploader ?? null,
+      episodeCount: res.episodes?.length ?? 0,
+      episodes: res.episodes,
+      source: 'url',
+      sourceUrl: res.sourceUrl || sourceUrl,
+    });
+    setUrl('');
+    setTmdbSuggestion(null);
+    toast.success(t.search.linkImport.parseSuccessToast);
+  };
 
+  const handleParse = async () => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    setLoading(true);
+    setTmdbSuggestion(null);
     try {
-      const parsePromise = importLinkApi(raw);
-      toast.promise(parsePromise, {
-        loading: zh.search.linkImport.parsing,
-        success: zh.search.linkImport.parseSuccessToast,
-        error: (err) =>
-          err instanceof Error
-            ? `${zh.search.linkImport.parseError}: ${err.message}`
-            : zh.search.linkImport.parseError,
-      });
-      const result = await parsePromise;
-      setParsedResult(result);
+      const res = await importLinkApi(trimmed);
+      if (res.kind === 'tmdb-suggestion') {
+        setTmdbSuggestion(res);
+        return;
+      }
+      finishToManual(res, trimmed);
     } catch (err) {
-      setLinkError(
-        err instanceof Error
-          ? `${zh.search.linkImport.parseError}: ${err.message}`
-          : zh.search.linkImport.parseError
-      );
+      toast.danger(translateError(err));
     } finally {
-      setParsingLink(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-5 max-w-xl">
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {zh.search.linkImport.title}
-          </h2>
-          <p className="text-xs sm:text-sm text-[var(--muted)] leading-relaxed">
-            {zh.search.linkImport.description}
-          </p>
-        </div>
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="md">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{t.search.linkImport.title}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="space-y-4">
+            <p className="text-xs text-[var(--muted)] leading-relaxed">
+              {t.search.linkImport.description}
+            </p>
+            <TextField value={url} onChange={setUrl} isRequired>
+              <Label>{t.search.linkImport.urlLabel}</Label>
+              <Input placeholder={t.search.linkImport.urlPlaceholder} type="url" />
+            </TextField>
 
-        <form onSubmit={handleParseLink} className="space-y-4">
-          <TextField
-            value={linkUrl}
-            onChange={(val) => {
-              setLinkUrl(val);
-              setLinkError(null);
-            }}
-            isInvalid={Boolean(linkError)}
-            isRequired
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.linkImport.urlLabel}</Label>
-            <Input placeholder={zh.search.linkImport.urlPlaceholder} />
-            {linkError && <FieldError>{linkError}</FieldError>}
-          </TextField>
-
-          <Button type="submit" variant="primary" isPending={parsingLink}>
-            {parsingLink && <Spinner size="sm" color="current" />}
-            <span>
-              {parsingLink
-                ? zh.search.linkImport.parsing
-                : zh.search.linkImport.parseButton}
-            </span>
-          </Button>
-        </form>
-      </section>
-
-      {parsedResult?.warning && (
-        <Alert status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Description>{parsedResult.warning}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      {parsedResult &&
-        parsedResult.kind === 'tmdb-suggestion' &&
-        !forceLinkPreview && (
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-4">
-            <div className="flex items-start gap-4">
-              {parsedResult.posterUrl && (
-                <div className="w-20 shrink-0 rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface-secondary)]">
-                  <MediaImage
-                    src={parsedResult.posterUrl}
-                    alt={parsedResult.title}
-                    aspect="poster"
-                    mediaType="tv"
-                  />
+            {tmdbSuggestion && (
+              <div className="p-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] space-y-2.5">
+                <div className="text-sm font-medium text-[var(--foreground)]">
+                  {t.search.linkImport.tmdbSuggestionTitle(tmdbSuggestion.title)}
                 </div>
-              )}
-              <div className="space-y-1.5 min-w-0 flex-1">
-                <h3 className="text-base font-semibold text-[var(--foreground)]">
-                  {zh.search.linkImport.tmdbSuggestionTitle(parsedResult.title)}
-                </h3>
-                <p className="text-xs sm:text-sm text-[var(--muted)] leading-relaxed">
-                  {zh.search.linkImport.tmdbSuggestionDescription}
+                <p className="text-xs text-[var(--muted)]">
+                  {t.search.linkImport.tmdbSuggestionDescription}
                 </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onPress={() => {
+                      const q = tmdbSuggestion.title;
+                      setTmdbSuggestion(null);
+                      setUrl('');
+                      onSearchTmdb(q);
+                    }}
+                  >
+                    {t.search.linkImport.searchTmdbButton(tmdbSuggestion.title)}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => finishToManual(tmdbSuggestion, url.trim())}
+                  >
+                    {t.search.linkImport.addAsLinkAnywayButton}
+                  </Button>
+                </div>
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Button
-                variant="primary"
-                onPress={() => onSearchTmdb(parsedResult.title)}
-              >
-                <Search className="w-4 h-4" />
-                <span>
-                  {zh.search.linkImport.searchTmdbButton(parsedResult.title)}
-                </span>
-              </Button>
-              <Button
-                variant="secondary"
-                onPress={() => setForceLinkPreview(true)}
-              >
-                {zh.search.linkImport.addAsLinkAnywayButton}
-              </Button>
-            </div>
-          </section>
-        )}
-
-      {parsedResult &&
-        (parsedResult.kind !== 'tmdb-suggestion' || forceLinkPreview) && (
-          <ManualItemDialog
-            initialSeed={parsedResult}
-            onSubmitCustomItem={onSubmitCustomItem}
-          />
-        )}
-    </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer className="gap-2">
+            <Button variant="tertiary" onPress={() => onOpenChange(false)}>
+              {t.app.cancel}
+            </Button>
+            <Button
+              variant="primary"
+              onPress={handleParse}
+              isDisabled={!url.trim() || loading}
+            >
+              {loading ? t.search.linkImport.parsing : t.search.linkImport.parseButton}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 };

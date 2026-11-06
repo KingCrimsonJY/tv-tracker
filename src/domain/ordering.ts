@@ -1,12 +1,21 @@
 import { generateKeyBetween } from 'fractional-indexing';
-import { computeTitleState, resolveDisplayTitle } from './progress';
+import {
+  computeTitleState,
+  resolveDisplayTitle,
+  resolveLocalizedText,
+  resolveOverviewText,
+} from './progress';
 import type {
   CollectionSort,
+  DefaultTitleLang,
   ListEntryDoc,
   ProgressDoc,
   SeasonDoc,
   TitleDoc,
+  UiLocale,
 } from './types';
+
+export { resolveDisplayTitle, resolveLocalizedText, resolveOverviewText };
 
 /**
  * Generates a fractional rank key to append at the end of a sorted list of ranks.
@@ -22,7 +31,7 @@ export function getNextRank(existingRanks: string[]): string {
 
 /**
  * Computes the new fractional rank when moving an item from `activeIndex` to `overIndex`
- * in a rank-sorted array of items. Only the moved item's document needs to be updated!
+ * in a rank-sorted array of items. Only the moved item's document needs to be updated.
  */
 export function computeMovedRank<T extends { rank: string }>(
   sortedItems: T[],
@@ -39,16 +48,13 @@ export function computeMovedRank<T extends { rank: string }>(
     return null;
   }
 
-  // Create array without the moving item
   const withoutActive = sortedItems.filter((_, idx) => idx !== activeIndex);
-  // In `withoutActive`, the item will be inserted at `overIndex`
   const prevItem = overIndex > 0 ? withoutActive[overIndex - 1] : null;
   const nextItem = overIndex < withoutActive.length ? withoutActive[overIndex] : null;
 
   const prevRank = prevItem ? prevItem.rank : null;
   const nextRank = nextItem ? nextItem.rank : null;
 
-  // Guard against identical neighbor ranks
   if (prevRank !== null && nextRank !== null && prevRank >= nextRank) {
     return generateKeyBetween(prevRank, null);
   }
@@ -68,7 +74,8 @@ export function sortListEntries(
   items: HydratedListEntry[],
   kind: 'ordered' | 'collection',
   collectionSort: CollectionSort,
-  defaultLang: 'zh' | 'original' | 'en' = 'zh'
+  defaultLang: DefaultTitleLang = 'auto',
+  activeLocale: UiLocale = 'zh-CN'
 ): HydratedListEntry[] {
   const copy = [...items];
 
@@ -81,9 +88,9 @@ export function sortListEntries(
       return copy.sort((a, b) => b.entry.addedAt - a.entry.addedAt);
     case 'name':
       return copy.sort((a, b) => {
-        const nameA = resolveDisplayTitle(a.title.names, a.title.displayLang, defaultLang).primary;
-        const nameB = resolveDisplayTitle(b.title.names, b.title.displayLang, defaultLang).primary;
-        return nameA.localeCompare(nameB, 'zh-CN');
+        const nameA = resolveDisplayTitle(a.title.names, a.title.displayLang, defaultLang, activeLocale).primary;
+        const nameB = resolveDisplayTitle(b.title.names, b.title.displayLang, defaultLang, activeLocale).primary;
+        return nameA.localeCompare(nameB, activeLocale);
       });
     case 'year':
       return copy.sort((a, b) => (b.title.year ?? 0) - (a.title.year ?? 0));
@@ -99,7 +106,7 @@ export function sortListEntries(
 }
 
 /**
- * Computes list progress (completed count / total count) and the first entry not `已看完` (completed).
+ * Computes list progress (completed count / total count) and the first entry not completed.
  */
 export function computeListProgress(
   orderedEntries: HydratedListEntry[],

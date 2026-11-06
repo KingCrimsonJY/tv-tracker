@@ -1,373 +1,377 @@
 import React, { useRef, useState } from 'react';
-import { Download, LogOut, Monitor, Moon, ShieldAlert, Sun, Upload } from 'lucide-react';
 import {
-  closestCenter,
+  Card,
+  Switch,
+  ToggleButtonGroup,
+  ToggleButton,
+  Button,
+  AlertDialog,
+  toast,
+  Label,
+} from '@heroui/react';
+import {
   DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
+  closestCenter,
   PointerSensor,
   TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
+  DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable';
-import {
-  AlertDialog,
-  Button,
-  Description,
-  Label,
-  Switch,
-  toast,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@heroui/react';
-import { useTracker } from '../context/TrackerContext.tsx';
-import type { AppSettingsDoc, HomeSectionId } from '../domain/types.ts';
-import { AboutSection } from '../features/settings/AboutSection.tsx';
-import { SortableSectionRow } from '../features/settings/SortableSectionRow.tsx';
-import { zh } from '../i18n/zh.ts';
+import { Download, Upload, LogOut, ShieldAlert, RefreshCw } from 'lucide-react';
+import { useTracker } from '../context/TrackerContext';
+import { AppSettingsDoc, DefaultTitleLang, HomeSectionConfig, UiLangSetting } from '../domain/types';
+import { SortableSectionRow } from '../features/settings/SortableSectionRow';
+import { AboutSection } from '../features/settings/AboutSection';
+import { ScrollableFilterRow } from '../components/ScrollableFilterRow';
+import { useI18n } from '../i18n';
 
 export const SettingsPage: React.FC = () => {
   const {
     settings,
+    titles,
     updateSettings,
+    refreshAllTmdbMetadata,
     exportAllDataJson,
     importBackupData,
     signOut,
     signOutAll,
-    showToast,
   } = useTracker();
-
+  const { t, translateError } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingImportText, setPendingImportText] = useState<string | null>(null);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [logoutAllConfirmOpen, setLogoutAllConfirmOpen] = useState(false);
+  const [pendingImportJson, setPendingImportJson] = useState<unknown | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [refreshingMeta, setRefreshingMeta] = useState<{ done: number; total: number } | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const handleSectionDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = settings.homeSections.findIndex((s) => s.id === active.id);
     const newIndex = settings.homeSections.findIndex((s) => s.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    await updateSettings({ homeSections: arrayMove(settings.homeSections, oldIndex, newIndex) });
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const next = arrayMove(settings.homeSections, oldIndex, newIndex);
+      void updateSettings({ homeSections: next });
+    }
   };
 
-  const handleToggleSection = async (id: HomeSectionId, enabled: boolean) => {
-    await updateSettings({
-      homeSections: settings.homeSections.map((s) => (s.id === id ? { ...s, enabled } : s)),
-    });
+  const handleToggleSection = (id: HomeSectionConfig['id'], enabled: boolean) => {
+    const next = settings.homeSections.map((s) => (s.id === id ? { ...s, enabled } : s));
+    void updateSettings({ homeSections: next });
   };
 
-  const handleExportDownload = () => {
+  const handleExport = () => {
     try {
-      const blob = new Blob([exportAllDataJson()], { type: 'application/json' });
+      const jsonStr = exportAllDataJson();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
       a.href = url;
-      a.download = `zhenji-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `zhenji-${dateStr}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast(zh.settings.dataManagement.exportSuccessToast, 'success');
-    } catch {
-      showToast(zh.settings.dataManagement.exportFailedToast, 'danger');
+      toast.success(t.settings.dataManagement.exportSuccessToast);
+    } catch (err) {
+      toast.danger(translateError(err, t.settings.dataManagement.exportFailedToast));
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRefreshAllMeta = async () => {
+    const tmdbCount = Object.values(titles).filter(
+      (item) => item.source === 'tmdb' && Boolean(item.sourceId)
+    ).length;
+    setRefreshingMeta({ done: 0, total: tmdbCount });
+    try {
+      await refreshAllTmdbMetadata((done, total) => {
+        setRefreshingMeta({ done, total });
+      });
+    } catch (err) {
+      toast.danger(translateError(err, t.settings.dataManagement.refreshAllFailedToast));
+    } finally {
+      setRefreshingMeta(null);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') setPendingImportText(reader.result);
-    };
-    reader.readAsText(file);
     e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || !parsed.titles) {
+        toast.danger(t.settings.dataManagement.importError);
+        return;
+      }
+      setPendingImportJson(parsed);
+      setImportDialogOpen(true);
+    } catch {
+      toast.danger(t.settings.dataManagement.importError);
+    }
   };
 
   const confirmImport = async () => {
-    if (!pendingImportText) return;
-    const rawText = pendingImportText;
-    setPendingImportText(null);
-    const runImport = async () => {
-      const parsed: unknown = JSON.parse(rawText);
-      await importBackupData(parsed);
-    };
+    if (!pendingImportJson) return;
+    setImporting(true);
     try {
-      const importPromise = runImport();
-      toast.promise(importPromise, {
-        loading: zh.settings.dataManagement.importingToast,
-        success: zh.settings.dataManagement.importSuccess,
-        error: zh.settings.dataManagement.importError,
-      });
-      await importPromise;
-      setImportStatus(zh.settings.dataManagement.importSuccess);
-    } catch {
-      setImportStatus(zh.settings.dataManagement.importError);
+      await importBackupData(pendingImportJson);
+      setImportDialogOpen(false);
+      setPendingImportJson(null);
+    } catch (err) {
+      toast.danger(translateError(err, t.settings.dataManagement.importError));
+    } finally {
+      setImporting(false);
     }
   };
 
-  const titleLangOptions: { id: AppSettingsDoc['defaultTitleLang']; label: string }[] = [
-    { id: 'zh', label: zh.settings.defaultTitleLang.zh },
-    { id: 'original', label: zh.settings.defaultTitleLang.original },
-    { id: 'en', label: zh.settings.defaultTitleLang.en },
-  ];
-
-  const themeOptions: { id: AppSettingsDoc['theme']; label: string; icon: typeof Moon }[] = [
-    { id: 'dark', label: zh.settings.theme.dark, icon: Moon },
-    { id: 'light', label: zh.settings.theme.light, icon: Sun },
-    { id: 'system', label: zh.settings.theme.system, icon: Monitor },
-  ];
+  const activeUiLang: UiLangSetting = settings.uiLang ?? 'system';
+  const activeDefaultTitleLang: NonNullable<DefaultTitleLang> = settings.defaultTitleLang ?? 'auto';
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 pb-12 max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-          {zh.settings.title}
-        </h1>
-        <p className="text-xs sm:text-sm text-[var(--muted)]">{zh.settings.subtitle}</p>
-      </header>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-2xl mx-auto">
+      <div className="space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.settings.title}</h1>
+        <p className="text-xs sm:text-sm text-[var(--muted)]">{t.settings.subtitle}</p>
+      </div>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.defaultTitleLang.label}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">
-            {zh.settings.defaultTitleLang.description}
-          </p>
-        </div>
-        <ToggleButtonGroup
-          selectionMode="single"
-          disallowEmptySelection
-          size="sm"
-          selectedKeys={new Set([settings.defaultTitleLang])}
-          onSelectionChange={(keys) => {
-            const first = [...keys][0];
-            if (first != null) {
-              void updateSettings({
-                defaultTitleLang: String(first) as AppSettingsDoc['defaultTitleLang'],
-              });
-            }
-          }}
-          aria-label={zh.settings.defaultTitleLang.label}
-        >
-          {titleLangOptions.map((opt) => (
-            <ToggleButton key={opt.id} id={opt.id}>
-              {opt.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </section>
+      <Card>
+        <Card.Header className="pb-2">
+          <Card.Title className="text-base">{t.settings.uiLang.label}</Card.Title>
+          <Card.Description className="text-xs">{t.settings.uiLang.description}</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <ScrollableFilterRow>
+            <ToggleButtonGroup
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={new Set<string>([activeUiLang])}
+              onSelectionChange={(keys) => {
+                const k = Array.from(keys)[0] as UiLangSetting | undefined;
+                if (k) void updateSettings({ uiLang: k });
+              }}
+              size="sm"
+              aria-label={t.settings.uiLang.label}
+            >
+              <ToggleButton id="system">{t.settings.uiLang.system}</ToggleButton>
+              <ToggleButton id="zh-CN">
+                <ToggleButtonGroup.Separator />
+                {t.settings.uiLang.zhCN}
+              </ToggleButton>
+              <ToggleButton id="en">
+                <ToggleButtonGroup.Separator />
+                {t.settings.uiLang.en}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </ScrollableFilterRow>
+        </Card.Content>
+      </Card>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <Switch
-          isSelected={settings.includeSpecials}
-          onChange={(val) => updateSettings({ includeSpecials: val })}
-          className="w-full"
-        >
-          <Switch.Content className="w-full justify-between">
-            <div className="flex flex-col gap-0.5">
-              <Label>{zh.settings.includeSpecials.label}</Label>
-              <Description>{zh.settings.includeSpecials.description}</Description>
-            </div>
+      <Card>
+        <Card.Header className="pb-2">
+          <Card.Title className="text-base">{t.settings.defaultTitleLang.label}</Card.Title>
+          <Card.Description className="text-xs">{t.settings.defaultTitleLang.description}</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <ScrollableFilterRow>
+            <ToggleButtonGroup
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={new Set<string>([activeDefaultTitleLang])}
+              onSelectionChange={(keys) => {
+                const k = Array.from(keys)[0] as NonNullable<DefaultTitleLang> | undefined;
+                if (k) void updateSettings({ defaultTitleLang: k });
+              }}
+              size="sm"
+              aria-label={t.settings.defaultTitleLang.label}
+            >
+              <ToggleButton id="auto">{t.settings.defaultTitleLang.auto}</ToggleButton>
+              <ToggleButton id="zh">
+                <ToggleButtonGroup.Separator />
+                {t.settings.defaultTitleLang.zh}
+              </ToggleButton>
+              <ToggleButton id="original">
+                <ToggleButtonGroup.Separator />
+                {t.settings.defaultTitleLang.original}
+              </ToggleButton>
+              <ToggleButton id="en">
+                <ToggleButtonGroup.Separator />
+                {t.settings.defaultTitleLang.en}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </ScrollableFilterRow>
+        </Card.Content>
+      </Card>
+
+      <Card>
+        <Card.Content>
+          <Switch
+            isSelected={settings.includeSpecials}
+            onChange={(includeSpecials) => void updateSettings({ includeSpecials })}
+            className="w-full justify-between"
+          >
+            <Switch.Content>
+              <div className="flex flex-col gap-0.5">
+                <Label className="text-sm font-medium">{t.settings.includeSpecials.label}</Label>
+                <span className="text-xs text-[var(--muted)]">{t.settings.includeSpecials.description}</span>
+              </div>
+            </Switch.Content>
             <Switch.Control>
               <Switch.Thumb />
             </Switch.Control>
-          </Switch.Content>
-        </Switch>
-      </section>
+          </Switch>
+        </Card.Content>
+      </Card>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.theme.label}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">{zh.settings.theme.description}</p>
-        </div>
-        <ToggleButtonGroup
-          selectionMode="single"
-          disallowEmptySelection
-          size="sm"
-          selectedKeys={new Set([settings.theme])}
-          onSelectionChange={(keys) => {
-            const first = [...keys][0];
-            if (first != null) {
-              void updateSettings({ theme: String(first) as AppSettingsDoc['theme'] });
-            }
-          }}
-          aria-label={zh.settings.theme.label}
-        >
-          {themeOptions.map((opt) => {
-            const Icon = opt.icon;
-            return (
-              <ToggleButton key={opt.id} id={opt.id}>
-                <Icon className="w-4 h-4" />
-                <span>{opt.label}</span>
+      <Card>
+        <Card.Header className="pb-2">
+          <Card.Title className="text-base">{t.settings.theme.label}</Card.Title>
+          <Card.Description className="text-xs">{t.settings.theme.description}</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <ScrollableFilterRow>
+            <ToggleButtonGroup
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={new Set<string>([settings.theme])}
+              onSelectionChange={(keys) => {
+                const k = Array.from(keys)[0] as AppSettingsDoc['theme'] | undefined;
+                if (k) void updateSettings({ theme: k });
+              }}
+              size="sm"
+              aria-label={t.settings.theme.label}
+            >
+              <ToggleButton id="dark">{t.settings.theme.dark}</ToggleButton>
+              <ToggleButton id="light">
+                <ToggleButtonGroup.Separator />
+                {t.settings.theme.light}
               </ToggleButton>
-            );
-          })}
-        </ToggleButtonGroup>
-      </section>
+              <ToggleButton id="system">
+                <ToggleButtonGroup.Separator />
+                {t.settings.theme.system}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </ScrollableFilterRow>
+        </Card.Content>
+      </Card>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.homeSections.label}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">
-            {zh.settings.homeSections.description}
-          </p>
-        </div>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleSectionDragEnd}
-        >
-          <SortableContext
-            items={settings.homeSections.map((s) => s.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2">
-              {settings.homeSections.map((sec) => (
+      <Card>
+        <Card.Header className="pb-2">
+          <Card.Title className="text-base">{t.settings.homeSections.label}</Card.Title>
+          <Card.Description className="text-xs">{t.settings.homeSections.description}</Card.Description>
+        </Card.Header>
+        <Card.Content className="space-y-2">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext
+              items={settings.homeSections.map((s) => s.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {settings.homeSections.map((section) => (
                 <SortableSectionRow
-                  key={sec.id}
-                  section={sec}
-                  onToggle={(val) => handleToggleSection(sec.id, val)}
+                  key={section.id}
+                  section={section}
+                  onToggle={(enabled) => handleToggleSection(section.id, enabled)}
                 />
               ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </section>
+            </SortableContext>
+          </DndContext>
+        </Card.Content>
+      </Card>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.dataManagement.label}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">
-            {zh.settings.dataManagement.description}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" size="sm" onPress={handleExportDownload}>
-            <Download className="w-4 h-4" />
-            <span>{zh.settings.dataManagement.exportJson}</span>
+      <Card>
+        <Card.Header className="pb-2">
+          <Card.Title className="text-base">{t.settings.dataManagement.label}</Card.Title>
+          <Card.Description className="text-xs">{t.settings.dataManagement.description}</Card.Description>
+        </Card.Header>
+        <Card.Content className="flex flex-wrap gap-3">
+          <Button variant="secondary" size="sm" onPress={handleExport}>
+            <Download className="w-4 h-4 mr-1.5" />
+            {t.settings.dataManagement.exportJson}
+          </Button>
+          <Button variant="secondary" size="sm" onPress={() => fileInputRef.current?.click()}>
+            <Upload className="w-4 h-4 mr-1.5" />
+            {t.settings.dataManagement.importJson}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            isDisabled={refreshingMeta !== null}
+            onPress={handleRefreshAllMeta}
+          >
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshingMeta ? 'animate-spin' : ''}`} />
+            {refreshingMeta
+              ? t.settings.dataManagement.refreshingAllToast(refreshingMeta.done, refreshingMeta.total)
+              : t.settings.dataManagement.refreshAllMetadata}
           </Button>
           <input
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
-            onChange={handleFileSelect}
             className="hidden"
+            onChange={handleFileChange}
           />
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() => fileInputRef.current?.click()}
-          >
-            <Upload className="w-4 h-4" />
-            <span>{zh.settings.dataManagement.importJson}</span>
-          </Button>
-        </div>
-        {importStatus && <p className="text-xs text-[var(--accent-text)]">{importStatus}</p>}
-      </section>
+        </Card.Content>
+      </Card>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.account.label}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">{zh.settings.account.description}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" size="sm" onPress={() => signOut()}>
-            <LogOut className="w-4 h-4" />
-            <span>{zh.settings.account.signOut}</span>
-          </Button>
-          <Button
-            variant="danger-soft"
-            size="sm"
-            onPress={() => setLogoutAllConfirmOpen(true)}
-          >
-            <ShieldAlert className="w-4 h-4" />
-            <span>{zh.settings.account.signOutAll}</span>
-          </Button>
-        </div>
-      </section>
+      <Card>
+        <Card.Header className="pb-2">
+          <Card.Title className="text-base">{t.settings.account.label}</Card.Title>
+        </Card.Header>
+        <Card.Content className="flex flex-wrap items-center justify-between gap-4">
+          <div className="text-xs text-[var(--muted)]">
+            {t.settings.account.description}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" onPress={() => void signOut()}>
+              <LogOut className="w-4 h-4 mr-1.5" />
+              {t.settings.account.signOut}
+            </Button>
+            <Button
+              variant="danger-soft"
+              size="sm"
+              onPress={() => void signOutAll()}
+            >
+              <ShieldAlert className="w-4 h-4 mr-1.5" />
+              {t.settings.account.signOutAll}
+            </Button>
+          </div>
+        </Card.Content>
+      </Card>
 
       <AboutSection />
 
-      <AlertDialog.Backdrop
-        isOpen={Boolean(pendingImportText)}
-        onOpenChange={(open) => !open && setPendingImportText(null)}
-        isDismissable
-      >
-        <AlertDialog.Container size="sm" placement="center">
+      <AlertDialog.Backdrop isOpen={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
-              <AlertDialog.Icon status="warning" />
-              <AlertDialog.Heading>
-                {zh.settings.dataManagement.importConfirmTitle}
-              </AlertDialog.Heading>
+              <AlertDialog.Heading>{t.settings.dataManagement.importConfirmTitle}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p>{zh.settings.dataManagement.importConfirmDescription}</p>
+              <p className="text-sm text-[var(--muted)]">
+                {t.settings.dataManagement.importConfirmDescription}
+              </p>
             </AlertDialog.Body>
-            <AlertDialog.Footer>
-              <Button variant="secondary" size="sm" onPress={() => setPendingImportText(null)}>
-                {zh.app.cancel}
+            <AlertDialog.Footer className="gap-2">
+              <Button variant="tertiary" onPress={() => setImportDialogOpen(false)}>
+                {t.app.cancel}
               </Button>
-              <Button variant="danger" size="sm" onPress={confirmImport}>
-                {zh.app.confirm}
-              </Button>
-            </AlertDialog.Footer>
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-
-      <AlertDialog.Backdrop
-        isOpen={logoutAllConfirmOpen}
-        onOpenChange={setLogoutAllConfirmOpen}
-        isDismissable
-      >
-        <AlertDialog.Container size="sm" placement="center">
-          <AlertDialog.Dialog>
-            <AlertDialog.Header>
-              <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading>
-                {zh.settings.account.signOutAll}
-              </AlertDialog.Heading>
-            </AlertDialog.Header>
-            <AlertDialog.Body>
-              <p>{zh.settings.account.signOutAllConfirm}</p>
-            </AlertDialog.Body>
-            <AlertDialog.Footer>
-              <Button variant="secondary" size="sm" onPress={() => setLogoutAllConfirmOpen(false)}>
-                {zh.app.cancel}
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onPress={async () => {
-                  setLogoutAllConfirmOpen(false);
-                  await signOutAll();
-                }}
-              >
-                {zh.app.confirm}
+              <Button variant="danger" onPress={confirmImport} isDisabled={importing}>
+                {t.app.confirm}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

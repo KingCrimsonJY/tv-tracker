@@ -13,7 +13,7 @@ import {
   resolveDisplayTitle,
 } from '../domain/progress';
 import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
-import { zh } from '../i18n/zh';
+import { useI18n } from '../i18n';
 
 export const HomePage: React.FC = () => {
   const {
@@ -27,6 +27,7 @@ export const HomePage: React.FC = () => {
     toggleEpisode,
     markWholeTitle,
   } = useTracker();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
 
   const allTitles = Object.values(titles);
@@ -34,8 +35,8 @@ export const HomePage: React.FC = () => {
   const includeSpecials = settings.includeSpecials;
 
   const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
-  for (const t of allTitles) {
-    progressByTitleMap[t.id] = getActiveProgress(t);
+  for (const titleDoc of allTitles) {
+    progressByTitleMap[titleDoc.id] = getActiveProgress(titleDoc);
   }
 
   const enriched = allTitles.map((title) => {
@@ -116,29 +117,30 @@ export const HomePage: React.FC = () => {
         return (
           <section key={key} className="space-y-4">
             <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
-              {zh.home.sections.continue_watching}
+              {t.home.sections.continue_watching}
             </h2>
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory no-scrollbar">
               {continueWatchingItems.map(({ title, seasons, state }) => {
                 const { primary } = resolveDisplayTitle(
                   title.names,
                   title.displayLang,
-                  defaultLang
+                  defaultLang,
+                  locale
                 );
                 const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
                 const pct = Math.max(3, Math.min(100, Math.round(ratio * 100)));
 
-                let subtitle: string = state.label;
+                let subtitle: string = t.status[state.status];
                 if (title.resume && title.resume.seconds > 0) {
                   const timeStr = formatSeconds(title.resume.seconds);
                   if (title.resume.episodeKey) {
                     const m = /^s(\d+)e(\d+)$/i.exec(title.resume.episodeKey);
-                    if (m) subtitle = zh.home.resumeEpisodeLabel(Number(m[1]), Number(m[2]), timeStr);
+                    if (m) subtitle = t.home.resumeEpisodeLabel(Number(m[1]), Number(m[2]), timeStr);
                   } else {
-                    subtitle = zh.home.resumeMovieLabel(timeStr);
+                    subtitle = t.home.resumeMovieLabel(timeStr);
                   }
                 } else if (state.nextUp) {
-                  subtitle = zh.home.nextEpisodeLabel(state.nextUp.seasonNumber, state.nextUp.number);
+                  subtitle = t.home.nextEpisodeLabel(state.nextUp.seasonNumber, state.nextUp.number);
                 }
 
                 const quickMarkEpisodeKey = title.resume?.episodeKey || state.nextUp?.key;
@@ -170,7 +172,7 @@ export const HomePage: React.FC = () => {
                           </p>
                         </div>
                         <ProgressBar
-                          aria-label={`${primary} ${zh.app.watchProgressAriaSuffix}`}
+                          aria-label={`${primary} ${t.app.watchProgressAriaSuffix}`}
                           value={pct}
                           size="sm"
                           className="w-full"
@@ -191,7 +193,7 @@ export const HomePage: React.FC = () => {
                           onPress={() => {
                             void toggleEpisode(title.id, quickMarkEpisodeKey);
                           }}
-                          aria-label={zh.home.markNextWatchedAria(
+                          aria-label={t.home.markNextWatchedAria(
                             primary,
                             quickMarkEpisodeKey.toUpperCase()
                           )}
@@ -208,7 +210,7 @@ export const HomePage: React.FC = () => {
                           onPress={() => {
                             void markWholeTitle(title.id, true);
                           }}
-                          aria-label={zh.home.markMovieWatchedAria(primary)}
+                          aria-label={t.home.markMovieWatchedAria(primary)}
                         >
                           <Check className="w-4 h-4" />
                         </Button>
@@ -223,7 +225,7 @@ export const HomePage: React.FC = () => {
       }
 
       case 'new_episodes':
-        return renderPosterGridSection(key, zh.home.sections.new_episodes, newEpisodeItems);
+        return renderPosterGridSection(key, t.home.sections.new_episodes, newEpisodeItems);
 
       case 'pinned_lists': {
         if (pinnedOrderedLists.length === 0) return null;
@@ -231,13 +233,13 @@ export const HomePage: React.FC = () => {
           <section key={key} className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
-                {zh.home.sections.pinned_lists}
+                {t.home.sections.pinned_lists}
               </h2>
               <Link
                 to="/lists"
                 className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 min-h-[44px] px-2"
               >
-                <span>{zh.home.manageLists}</span>
+                <span>{t.home.manageLists}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -254,7 +256,8 @@ export const HomePage: React.FC = () => {
                   hydrated,
                   list.kind,
                   list.collectionSort,
-                  defaultLang
+                  defaultLang,
+                  locale
                 );
                 const stats = computeListProgress(sorted, seasonsByTitle, progressByTitleMap, {
                   includeSpecials,
@@ -263,7 +266,8 @@ export const HomePage: React.FC = () => {
                   ? resolveDisplayTitle(
                       stats.nextEntry.title.names,
                       stats.nextEntry.title.displayLang,
-                      defaultLang
+                      defaultLang,
+                      locale
                     ).primary
                   : null;
                 const pct =
@@ -285,19 +289,19 @@ export const HomePage: React.FC = () => {
                         </div>
                         <p className="mt-1.5 text-sm font-medium text-[var(--foreground)] truncate">
                           {nextTitleName
-                            ? zh.home.pinnedListNextUp(nextTitleName)
+                            ? t.home.pinnedListNextUp(nextTitleName)
                             : stats.totalCount > 0
-                              ? zh.home.pinnedListAllDone
-                              : zh.home.pinnedListEmpty}
+                              ? t.home.pinnedListAllDone
+                              : t.home.pinnedListEmpty}
                         </p>
                       </div>
                       <span className="text-xs font-medium text-[var(--muted)] tabular-nums shrink-0">
-                        {zh.home.pinnedListProgress(stats.completedCount, stats.totalCount)}
+                        {t.home.pinnedListProgress(stats.completedCount, stats.totalCount)}
                       </span>
                     </div>
 
                     <ProgressBar
-                      aria-label={zh.lists.progressAria(list.name)}
+                      aria-label={t.lists.progressAria(list.name)}
                       value={pct}
                       size="sm"
                       className="w-full"
@@ -315,13 +319,13 @@ export const HomePage: React.FC = () => {
       }
 
       case 'recently_added':
-        return renderPosterGridSection(key, zh.home.sections.recently_added, recentlyAddedItems, {
+        return renderPosterGridSection(key, t.home.sections.recently_added, recentlyAddedItems, {
           to: '/library',
-          label: zh.home.viewAllLibrary,
+          label: t.home.viewAllLibrary,
         });
 
       case 'watchlist':
-        return renderPosterGridSection(key, zh.home.sections.watchlist, wantToWatchItems);
+        return renderPosterGridSection(key, t.home.sections.watchlist, wantToWatchItems);
 
       default:
         return null;
@@ -332,7 +336,7 @@ export const HomePage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-8">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-          {zh.home.title}
+          {t.home.title}
         </h1>
         <div className="flex items-center gap-2">
           <Button
@@ -341,14 +345,14 @@ export const HomePage: React.FC = () => {
             onPress={() => navigate('/search')}
           >
             <Plus className="w-4 h-4" />
-            <span>{zh.library.addMediaButton}</span>
+            <span>{t.library.addMediaButton}</span>
           </Button>
           <Button
             variant="secondary"
             size="sm"
             isIconOnly
             onPress={() => navigate('/settings')}
-            aria-label={zh.settings.title}
+            aria-label={t.settings.title}
           >
             <Settings className="w-4 h-4" />
           </Button>
@@ -356,7 +360,7 @@ export const HomePage: React.FC = () => {
       </header>
 
       {loadingData ? (
-        <div className="space-y-6" aria-label={zh.home.loadingAria}>
+        <div className="space-y-6" aria-label={t.home.loadingAria}>
           <Skeleton className="h-6 w-32 rounded-lg" />
           <div className="flex gap-4 overflow-hidden">
             {[0, 1, 2].map((i) => (
@@ -373,15 +377,15 @@ export const HomePage: React.FC = () => {
             <Film className="w-6 h-6" />
           </div>
           <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {zh.home.emptyLibraryTitle}
+            {t.home.emptyLibraryTitle}
           </h2>
           <p className="text-sm text-[var(--muted)] leading-relaxed">
-            {zh.home.emptyLibraryDescription}
+            {t.home.emptyLibraryDescription}
           </p>
           <div className="pt-2">
             <Button variant="primary" onPress={() => navigate('/search')}>
               <Plus className="w-4 h-4" />
-              <span>{zh.home.emptyLibraryCta}</span>
+              <span>{t.home.emptyLibraryCta}</span>
             </Button>
           </div>
         </div>

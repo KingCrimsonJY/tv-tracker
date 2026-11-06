@@ -1,137 +1,104 @@
-import React, { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
-import { Button, Modal, SearchField, toast } from '@heroui/react';
-import { MediaImage } from '../../components/MediaImage';
+import React, { useState } from 'react';
+import { Modal, SearchField, Button } from '@heroui/react';
+import { Check, Plus, Film } from 'lucide-react';
+import { DefaultTitleLang, TitleDoc } from '../../domain/types';
 import { resolveDisplayTitle } from '../../domain/progress';
-import type { ListEntryDoc, TitleDoc } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import { useI18n } from '../../i18n';
 
 interface AddTitlesDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   titles: Record<string, TitleDoc>;
-  rawEntries: ListEntryDoc[];
-  defaultLang: 'zh' | 'original' | 'en';
-  onAddTitle: (titleId: string) => Promise<void>;
+  existingTitleIds: Set<string>;
+  defaultLang: DefaultTitleLang;
+  onAdd: (titleId: string) => void;
 }
 
 export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
   isOpen,
   onOpenChange,
   titles,
-  rawEntries,
+  existingTitleIds,
   defaultLang,
-  onAddTitle,
+  onAdd,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [query, setQuery] = useState('');
+  const { t, locale } = useI18n();
+  const allTitles = Object.values(titles);
 
-  const availableTitlesToAdd = useMemo(() => {
-    const existingIds = new Set(rawEntries.map((e) => e.titleId));
-    const q = searchQuery.trim().toLowerCase();
-    return Object.values(titles).filter((t) => {
-      if (existingIds.has(t.id)) return false;
-      if (!q) return true;
-      const zhName = t.names.zh?.toLowerCase() || '';
-      const origName = t.names.original.toLowerCase();
-      return zhName.includes(q) || origName.includes(q);
-    });
-  }, [titles, rawEntries, searchQuery]);
+  const filtered = allTitles.filter((item) => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return (
+      (item.names.zh?.toLowerCase().includes(q) ?? false) ||
+      (item.names.en?.toLowerCase().includes(q) ?? false) ||
+      item.names.original.toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
-      <Modal.Container size="md" placement="center" scroll="inside">
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
+          <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>{zh.lists.addTitlesToList}</Modal.Heading>
+            <Modal.Heading>{t.lists.addTitlesToList}</Modal.Heading>
           </Modal.Header>
-
-          <Modal.Body className="space-y-3">
-            <SearchField
-              value={searchQuery}
-              onChange={setSearchQuery}
-              aria-label={zh.lists.searchLibraryPlaceholder}
-              variant="secondary"
-              fullWidth
-            >
+          <Modal.Body className="space-y-4">
+            <SearchField value={query} onChange={setQuery} aria-label={t.search.title}>
               <SearchField.Group>
                 <SearchField.SearchIcon />
-                <SearchField.Input
-                  placeholder={zh.lists.searchLibraryPlaceholder}
-                />
-                <SearchField.ClearButton
-                  aria-label={zh.search.clearSearchAria}
-                />
+                <SearchField.Input placeholder={t.lists.searchLibraryPlaceholder} />
+                <SearchField.ClearButton />
               </SearchField.Group>
             </SearchField>
 
-            <div className="max-h-80 overflow-y-auto space-y-2">
-              {availableTitlesToAdd.length === 0 ? (
-                <p className="py-8 text-center text-sm text-[var(--muted)]">
-                  {zh.lists.allTitlesAdded}
-                </p>
-              ) : (
-                availableTitlesToAdd.map((t) => {
-                  const { primary } = resolveDisplayTitle(
-                    t.names,
-                    t.displayLang,
-                    defaultLang
+            {filtered.length === 0 ? (
+              <p className="text-center text-sm text-[var(--muted)] py-8">{t.lists.allTitlesAdded}</p>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((title) => {
+                  const inList = existingTitleIds.has(title.id);
+                  const { primary: displayTitle } = resolveDisplayTitle(
+                    title.names,
+                    title.displayLang,
+                    defaultLang,
+                    locale
                   );
                   return (
                     <div
-                      key={t.id}
-                      className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)]"
+                      key={title.id}
+                      className="flex items-center justify-between gap-3 p-2 rounded-lg bg-[var(--surface-secondary)]"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 shrink-0 rounded overflow-hidden">
-                          <MediaImage
-                            src={t.posterPath}
-                            alt={primary}
-                            aspect="poster"
-                            mediaType={t.mediaType}
-                          />
+                        <div className="w-10 h-14 rounded overflow-hidden bg-[var(--surface)] shrink-0">
+                          {title.posterPath ? (
+                            <img src={title.posterPath} alt={displayTitle} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[var(--muted)]">
+                              <Film className="w-4 h-4" />
+                            </div>
+                          )}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                            {primary}
-                          </p>
-                          <p className="text-xs text-[var(--muted)]">
-                            {t.year ? `${t.year} · ` : ''}
-                            {zh.mediaType[t.mediaType]}
-                          </p>
+                          <div className="text-sm font-medium truncate">{displayTitle}</div>
+                          <div className="text-xs text-[var(--muted)]">{title.year ?? ''}</div>
                         </div>
                       </div>
-
                       <Button
-                        variant="primary"
                         size="sm"
-                        onPress={() => {
-                          toast.promise(onAddTitle(t.id), {
-                            loading: zh.search.addingToListToast,
-                            success: zh.search.addedToListToast(primary),
-                            error: zh.search.addToListFailedToast,
-                          });
-                        }}
-                        className="shrink-0"
+                        variant={inList ? 'tertiary' : 'secondary'}
+                        isDisabled={inList}
+                        onPress={() => onAdd(title.id)}
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>{zh.lists.addActionShort}</span>
+                        {inList ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                       </Button>
                     </div>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
           </Modal.Body>
-
-          <Modal.Footer>
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => onOpenChange(false)}
-            >
-              {zh.app.close}
-            </Button>
-          </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>

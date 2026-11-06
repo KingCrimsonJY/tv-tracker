@@ -1,92 +1,49 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  ArrowUpDown,
-  Bookmark,
-  Check,
-  ListOrdered,
-  Pin,
-  Plus,
-  Trash2,
-} from 'lucide-react';
-import {
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import {
-  AlertDialog,
-  Button,
-  Label,
-  ListBox,
-  ProgressBar,
-  Select,
-} from '@heroui/react';
+import React, { useState, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button, Chip, Switch, AlertDialog, Dropdown, Label } from '@heroui/react';
+import { ArrowLeft, Plus, Trash2, Pin, ListOrdered, Bookmark, ArrowUpDown, GripVertical } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
-import type {
-  CollectionSort,
-  ListEntryDoc,
-  ProgressDoc,
-  TitleDoc,
-} from '../domain/types';
-import { AddTitlesDialog } from '../features/lists/AddTitlesDialog';
-import { CollectionGridSection } from '../features/lists/CollectionGridSection';
+import { computeTitleState } from '../domain/status';
+import { CollectionSort, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { OrderedListSection } from '../features/lists/OrderedListSection';
-import { zh } from '../i18n/zh';
+import { CollectionGridSection } from '../features/lists/CollectionGridSection';
+import { AddTitlesDialog } from '../features/lists/AddTitlesDialog';
+import { useI18n } from '../i18n';
 
 export const ListDetailPage: React.FC = () => {
-  const { listId } = useParams<{ listId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-
   const {
-    titles,
-    seasonsByTitle,
     lists,
     entriesByList,
+    titles,
+    seasonsByTitle,
     settings,
     getActiveProgress,
+    deleteList,
     togglePinList,
     updateCollectionSort,
-    deleteList,
     addTitleToList,
     removeEntryFromList,
     reorderListEntry,
   } = useTracker();
+  const { t, locale } = useI18n();
 
-  const list = listId ? lists[listId] : undefined;
-  const rawEntries = useMemo(
-    () => (listId ? entriesByList[listId] || [] : []),
-    [entriesByList, listId]
-  );
-
-  const [reorderMode, setReorderMode] = useState(false);
+  const [isSorting, setIsSorting] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+  const list = id ? lists[id] : undefined;
+  const rawEntries = useMemo(() => (id ? entriesByList[id] ?? [] : []), [id, entriesByList]);
+
+  const hydratedEntries = useMemo(
+    () =>
+      rawEntries
+        .map((entry) => ({ entry, title: titles[entry.titleId] }))
+        .filter((x): x is { entry: ListEntryDoc; title: TitleDoc } => Boolean(x.title)),
+    [rawEntries, titles]
   );
-
-  const hydratedEntries = useMemo(() => {
-    return rawEntries
-      .map((entry) => ({ entry, title: titles[entry.titleId] }))
-      .filter(
-        (item): item is { entry: ListEntryDoc; title: TitleDoc } =>
-          Boolean(item.title)
-      );
-  }, [rawEntries, titles]);
 
   const sortedEntries = useMemo(() => {
     if (!list) return [];
@@ -94,260 +51,176 @@ export const ListDetailPage: React.FC = () => {
       hydratedEntries,
       list.kind,
       list.collectionSort,
-      settings.defaultTitleLang
+      settings.defaultTitleLang,
+      locale
     );
-  }, [hydratedEntries, list, settings.defaultTitleLang]);
+  }, [list, hydratedEntries, settings.defaultTitleLang, locale]);
 
   const progressByTitleMap = useMemo(() => {
     const map: Record<string, ProgressDoc | undefined> = {};
-    for (const { title } of sortedEntries) {
-      map[title.id] = getActiveProgress(title);
+    for (const item of sortedEntries) {
+      map[item.title.id] = getActiveProgress(item.title);
     }
     return map;
   }, [sortedEntries, getActiveProgress]);
 
-  const stats = useMemo(() => {
-    return computeListProgress(
-      sortedEntries,
-      seasonsByTitle,
-      progressByTitleMap,
-      { includeSpecials: settings.includeSpecials }
-    );
+  const titlesWithState = useMemo(() => {
+    return sortedEntries.map(({ entry, title }) => {
+      const seasons = seasonsByTitle[title.id] ?? [];
+      const progress = progressByTitleMap[title.id];
+      const state = computeTitleState(title, seasons, progress, {
+        includeSpecials: settings.includeSpecials,
+      });
+      return { entry, title, seasons, progress, state };
+    });
   }, [sortedEntries, seasonsByTitle, progressByTitleMap, settings.includeSpecials]);
 
   if (!list) {
     return (
-      <div className="px-6 py-16 text-center space-y-4">
-        <p className="text-base text-[var(--muted)]">{zh.lists.notFound}</p>
-        <Button
-          variant="secondary"
-          size="sm"
-          onPress={() => navigate('/lists')}
-        >
-          {zh.lists.backToLists}
+      <div className="p-8 text-center">
+        <p className="text-[var(--muted)] mb-4">{t.lists.notFound}</p>
+        <Button variant="secondary" onPress={() => navigate('/lists')}>
+          {t.lists.backToLists}
         </Button>
       </div>
     );
   }
 
-  const pct =
-    stats.totalCount > 0
-      ? Math.round((stats.completedCount / stats.totalCount) * 100)
-      : 0;
-
-  const isManualReorderAllowed =
-    list.kind === 'ordered' ||
-    (list.kind === 'collection' && list.collectionSort === 'manual');
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    await reorderListEntry(list.id, String(active.id), String(over.id));
-  };
+  const stats = computeListProgress(sortedEntries, seasonsByTitle, progressByTitleMap, {
+    includeSpecials: settings.includeSpecials,
+  });
+  const nextUpEntryId = list.kind === 'ordered' ? stats.nextEntry?.entry.id : undefined;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
-      {/* Top Navigation & Header */}
-      <header className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => navigate('/lists')}
-            className="-ml-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>{zh.lists.title}</span>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <Button variant="ghost" size="sm" onPress={() => navigate('/lists')} className="-ml-2 mb-1">
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            {t.lists.title}
           </Button>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant={list.pinned ? 'primary' : 'secondary'}
-              size="sm"
-              onPress={() => togglePinList(list.id)}
-              aria-label={list.pinned ? zh.lists.unpinAction : zh.lists.pinAction}
-            >
-              <Pin className="w-3.5 h-3.5" />
-              <span>
-                {list.pinned ? zh.lists.pinnedBadge : zh.lists.unpinnedBadge}
-              </span>
-            </Button>
-
-            <Button
-              variant="danger-soft"
-              size="sm"
-              isIconOnly
-              onPress={() => setDeleteConfirmOpen(true)}
-              aria-label={zh.app.delete}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {list.kind === 'ordered' ? (
+              <ListOrdered className="w-6 h-6 text-[var(--accent)]" />
+            ) : (
+              <Bookmark className="w-6 h-6 text-[var(--accent)]" />
+            )}
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{list.name}</h1>
+            <Chip size="sm" variant="soft">
+              {stats.completedCount}/{stats.totalCount}
+            </Chip>
           </div>
+          {list.description && (
+            <p className="text-sm text-[var(--muted)] max-w-2xl">{list.description}</p>
+          )}
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-[var(--separator)]">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-xs font-medium text-[var(--accent-text)]">
-              {list.kind === 'ordered' ? (
-                <ListOrdered className="w-4 h-4" />
-              ) : (
-                <Bookmark className="w-4 h-4" />
-              )}
-              <span>
-                {list.kind === 'ordered'
-                  ? zh.lists.orderedType
-                  : zh.lists.collectionType}
-              </span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-              {list.name}
-            </h1>
-
-            {list.description && (
-              <p className="text-sm text-[var(--muted)] max-w-2xl">
-                {list.description}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {list.kind === 'collection' && (
-              <Select
-                variant="secondary"
-                selectedKey={list.collectionSort}
-                onSelectionChange={async (key) => {
-                  if (key === null) return;
-                  const nextSort = String(key) as CollectionSort;
-                  await updateCollectionSort(list.id, nextSort);
-                  if (nextSort === 'manual') {
-                    setReorderMode(true);
-                  } else {
-                    setReorderMode(false);
-                  }
-                }}
-                className="flex-row items-center gap-2"
-              >
-                <Label className="whitespace-nowrap">{zh.lists.sortByLabel}</Label>
-                <Select.Trigger className="w-32">
-                  <Select.Value />
-                  <Select.Indicator />
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    <ListBox.Item id="added" textValue={zh.lists.sortBy.added}>
-                      <Label>{zh.lists.sortBy.added}</Label>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                    <ListBox.Item id="name" textValue={zh.lists.sortBy.name}>
-                      <Label>{zh.lists.sortBy.name}</Label>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                    <ListBox.Item id="year" textValue={zh.lists.sortBy.year}>
-                      <Label>{zh.lists.sortBy.year}</Label>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                    <ListBox.Item id="rating" textValue={zh.lists.sortBy.rating}>
-                      <Label>{zh.lists.sortBy.rating}</Label>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                    <ListBox.Item id="manual" textValue={zh.lists.sortBy.manual}>
-                      <Label>{zh.lists.sortBy.manual}</Label>
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            )}
-
-            {isManualReorderAllowed && sortedEntries.length > 1 && (
-              <Button
-                variant={reorderMode ? 'primary' : 'secondary'}
-                size="sm"
-                onPress={() => setReorderMode((v) => !v)}
-              >
-                {reorderMode ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <ArrowUpDown className="w-4 h-4" />
-                )}
-                <span>
-                  {reorderMode ? zh.lists.reorderDone : zh.lists.reorderToggle}
-                </span>
-              </Button>
-            )}
-
-            <Button
-              variant="primary"
-              size="sm"
-              onPress={() => setAddModalOpen(true)}
-            >
-              <Plus className="w-4 h-4" />
-              <span>{zh.lists.addTitlesButtonShort}</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* List Progress Summary */}
-        {stats.totalCount > 0 && (
-          <div className="flex items-center gap-4 max-w-md">
-            <span className="text-xs text-[var(--muted)] tabular-nums whitespace-nowrap">
-              {zh.lists.progressLabel(stats.completedCount, stats.totalCount)}
-            </span>
-            <ProgressBar
-              aria-label={zh.lists.progressAria(list.name)}
-              value={pct}
-              size="sm"
-              className="flex-1"
-            >
-              <ProgressBar.Track>
-                <ProgressBar.Fill />
-              </ProgressBar.Track>
-            </ProgressBar>
-          </div>
-        )}
-      </header>
-
-      {/* Entries Content */}
-      {sortedEntries.length === 0 ? (
-        <div className="py-16 text-center space-y-4">
-          <p className="text-sm text-[var(--muted)]">
-            {zh.lists.emptyListEntries}
-          </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" />
+            {t.lists.addTitlesButtonShort}
+          </Button>
           <Button
-            variant="primary"
+            variant="danger-soft"
             size="sm"
-            onPress={() => setAddModalOpen(true)}
+            isIconOnly
+            aria-label={t.app.delete}
+            onPress={() => setDeleteDialogOpen(true)}
           >
-            <Plus className="w-4 h-4" />
-            <span>{zh.lists.addTitlesToList}</span>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-[var(--border)]">
+        <div className="flex items-center gap-4">
+          <Switch
+            isSelected={list.pinned}
+            onChange={() => void togglePinList(list.id)}
+            size="sm"
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <Label className="text-xs flex items-center gap-1">
+                <Pin className="w-3.5 h-3.5" />
+                {list.pinned ? t.lists.pinnedBadge : t.lists.pinAction}
+              </Label>
+            </Switch.Content>
+          </Switch>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {list.kind === 'collection' && (
+            <Dropdown>
+              <Button variant="secondary" size="sm">
+                <ArrowUpDown className="w-3.5 h-3.5 mr-1.5" />
+                {t.lists.sortBy[list.collectionSort]}
+              </Button>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  selectionMode="single"
+                  selectedKeys={new Set([list.collectionSort])}
+                  onSelectionChange={(keys) => {
+                    const k = Array.from(keys)[0] as CollectionSort | undefined;
+                    if (k) {
+                      void updateCollectionSort(list.id, k);
+                      if (k === 'manual') setIsSorting(true);
+                      else setIsSorting(false);
+                    }
+                  }}
+                >
+                  <Dropdown.Item id="added"><Label>{t.lists.sortBy.added}</Label></Dropdown.Item>
+                  <Dropdown.Item id="name"><Label>{t.lists.sortBy.name}</Label></Dropdown.Item>
+                  <Dropdown.Item id="year"><Label>{t.lists.sortBy.year}</Label></Dropdown.Item>
+                  <Dropdown.Item id="rating"><Label>{t.lists.sortBy.rating}</Label></Dropdown.Item>
+                  <Dropdown.Item id="manual"><Label>{t.lists.sortBy.manual}</Label></Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          )}
+
+          {(list.kind === 'ordered' || list.collectionSort === 'manual') && (
+            <Button
+              variant={isSorting ? 'primary' : 'secondary'}
+              size="sm"
+              onPress={() => setIsSorting(!isSorting)}
+            >
+              <GripVertical className="w-3.5 h-3.5 mr-1" />
+              {isSorting ? t.lists.reorderDone : t.lists.reorderToggle}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {titlesWithState.length === 0 ? (
+        <div className="py-16 text-center space-y-3">
+          <p className="text-[var(--muted)] text-sm">{t.lists.emptyListEntries}</p>
+          <Button variant="secondary" size="sm" onPress={() => setAddModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" />
+            {t.lists.addTitlesToList}
           </Button>
         </div>
       ) : list.kind === 'ordered' ? (
         <OrderedListSection
-          sortedEntries={sortedEntries}
-          nextToWatchEntryId={stats.nextEntry?.entry.id}
-          reorderEnabled={reorderMode}
-          sensors={sensors}
-          onDragEnd={handleDragEnd}
-          seasonsByTitle={seasonsByTitle}
-          progressByTitleMap={progressByTitleMap}
+          listId={list.id}
+          items={titlesWithState}
+          nextUpEntryId={nextUpEntryId}
+          isSorting={isSorting}
           defaultLang={settings.defaultTitleLang}
-          includeSpecials={settings.includeSpecials}
-          onRemoveEntry={(entryId) => removeEntryFromList(list.id, entryId)}
+          onReorder={reorderListEntry}
+          onRemove={(entryId) => void removeEntryFromList(list.id, entryId)}
         />
       ) : (
         <CollectionGridSection
-          sortedEntries={sortedEntries}
-          reorderEnabled={reorderMode && list.collectionSort === 'manual'}
-          sensors={sensors}
-          onDragEnd={handleDragEnd}
-          seasonsByTitle={seasonsByTitle}
-          progressByTitleMap={progressByTitleMap}
+          listId={list.id}
+          items={titlesWithState}
+          isSorting={isSorting && list.collectionSort === 'manual'}
           defaultLang={settings.defaultTitleLang}
           includeSpecials={settings.includeSpecials}
-          onRemoveEntry={(entryId) => removeEntryFromList(list.id, entryId)}
+          onReorder={reorderListEntry}
+          onRemove={(entryId) => void removeEntryFromList(list.id, entryId)}
         />
       )}
 
@@ -355,43 +228,33 @@ export const ListDetailPage: React.FC = () => {
         isOpen={addModalOpen}
         onOpenChange={setAddModalOpen}
         titles={titles}
-        rawEntries={rawEntries}
+        existingTitleIds={new Set(rawEntries.map((e) => e.titleId))}
         defaultLang={settings.defaultTitleLang}
-        onAddTitle={(titleId) => addTitleToList(list.id, titleId)}
+        onAdd={(titleId) => void addTitleToList(list.id, titleId)}
       />
 
-      <AlertDialog.Backdrop
-        isOpen={deleteConfirmOpen}
-        onOpenChange={setDeleteConfirmOpen}
-        isDismissable
-      >
-        <AlertDialog.Container size="sm" placement="center">
+      <AlertDialog.Backdrop isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
-              <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading>{zh.app.delete}</AlertDialog.Heading>
+              <AlertDialog.Heading>{t.app.delete}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p>{zh.lists.deleteListConfirm}</p>
+              <p className="text-sm text-[var(--muted)]">{t.lists.deleteListConfirm}</p>
             </AlertDialog.Body>
-            <AlertDialog.Footer>
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={() => setDeleteConfirmOpen(false)}
-              >
-                {zh.app.cancel}
+            <AlertDialog.Footer className="gap-2">
+              <Button variant="tertiary" onPress={() => setDeleteDialogOpen(false)}>
+                {t.app.cancel}
               </Button>
               <Button
                 variant="danger"
-                size="sm"
                 onPress={async () => {
-                  setDeleteConfirmOpen(false);
                   await deleteList(list.id);
-                  navigate('/lists', { replace: true });
+                  setDeleteDialogOpen(false);
+                  navigate('/lists');
                 }}
               >
-                {zh.app.delete}
+                {t.app.delete}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

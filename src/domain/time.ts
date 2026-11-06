@@ -1,3 +1,12 @@
+export type TimeParseErrorCode =
+  | 'EMPTY'
+  | 'INVALID_FORMAT'
+  | 'NON_NUMERIC'
+  | 'MINUTES_OVER_59'
+  | 'SECONDS_OVER_59'
+  | 'NON_POSITIVE'
+  | 'EXCEEDS_RUNTIME';
+
 /**
  * Computes `resume.seconds / (runtimeMinutes * 60)` clamped to [0, 1].
  */
@@ -17,19 +26,21 @@ export function computeResumeRatio(
 export function parseTimeInput(
   input: string,
   runtimeMinutes?: number | null
-): { ok: true; seconds: number } | { ok: false; error: string } {
+):
+  | { ok: true; seconds: number }
+  | { ok: false; code: TimeParseErrorCode; maxMinutes?: number } {
   const trimmed = input.trim();
   if (!trimmed) {
-    return { ok: false, error: '请输入有效的时间格式（如 42:15 或 1:12:30）' };
+    return { ok: false, code: 'EMPTY' };
   }
 
   const parts = trimmed.split(':');
   if (parts.length !== 2 && parts.length !== 3) {
-    return { ok: false, error: '时间格式应为 mm:ss 或 h:mm:ss' };
+    return { ok: false, code: 'INVALID_FORMAT' };
   }
 
   if (parts.some((p) => !/^\d+$/.test(p))) {
-    return { ok: false, error: '时间只能包含数字和冒号' };
+    return { ok: false, code: 'NON_NUMERIC' };
   }
 
   let hours = 0;
@@ -44,17 +55,17 @@ export function parseTimeInput(
     minutes = Number(parts[1]);
     seconds = Number(parts[2]);
     if (minutes >= 60) {
-      return { ok: false, error: '分钟数应小于 60' };
+      return { ok: false, code: 'MINUTES_OVER_59' };
     }
   }
 
   if (seconds >= 60) {
-    return { ok: false, error: '秒数应小于 60' };
+    return { ok: false, code: 'SECONDS_OVER_59' };
   }
 
   const totalSeconds = hours * 3600 + minutes * 60 + seconds;
   if (totalSeconds <= 0) {
-    return { ok: false, error: '观看时间需大于 0 秒' };
+    return { ok: false, code: 'NON_POSITIVE' };
   }
 
   if (runtimeMinutes && runtimeMinutes > 0) {
@@ -62,7 +73,8 @@ export function parseTimeInput(
     if (totalSeconds > maxSeconds) {
       return {
         ok: false,
-        error: `超出正片时长（最长 ${runtimeMinutes} 分钟）`,
+        code: 'EXCEEDS_RUNTIME',
+        maxMinutes: runtimeMinutes,
       };
     }
   }

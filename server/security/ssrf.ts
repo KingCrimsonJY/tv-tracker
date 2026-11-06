@@ -2,9 +2,14 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 
 export class UnsafeUrlError extends Error {
-  constructor(message: string) {
+  public readonly code: 'UNSAFE_URL' | 'UNRESOLVABLE_HOST';
+  constructor(
+    message: string,
+    code: 'UNSAFE_URL' | 'UNRESOLVABLE_HOST' = 'UNSAFE_URL'
+  ) {
     super(message);
     this.name = 'UnsafeUrlError';
+    this.code = code;
   }
 }
 
@@ -60,7 +65,6 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   }
 
   if (version === 6) {
-    // Loopback ::1 or unspecified ::
     if (
       cleanIp === '::1' ||
       cleanIp === '::' ||
@@ -70,13 +74,11 @@ export function isPrivateOrReservedIp(ip: string): boolean {
       return true;
     }
 
-    // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1 or ::ffff:7f00:1)
     if (cleanIp.startsWith('::ffff:')) {
       const v4Part = cleanIp.slice('::ffff:'.length);
       if (net.isIP(v4Part) === 4) {
         return isPrivateOrReservedIp(v4Part);
       }
-      // Hex form ::ffff:7f00:0001
       const hexParts = v4Part.split(':');
       if (hexParts.length === 2) {
         const hi = Number.parseInt(hexParts[0], 16);
@@ -89,12 +91,10 @@ export function isPrivateOrReservedIp(ip: string): boolean {
       return true;
     }
 
-    // Unique local fc00::/7 (fc00... or fd00...)
     if (cleanIp.startsWith('fc') || cleanIp.startsWith('fd')) {
       return true;
     }
 
-    // Link-local fe80::/10 (fe8, fe9, fea, feb)
     if (
       cleanIp.startsWith('fe8') ||
       cleanIp.startsWith('fe9') ||
@@ -104,7 +104,6 @@ export function isPrivateOrReservedIp(ip: string): boolean {
       return true;
     }
 
-    // Multicast ff00::/8
     if (cleanIp.startsWith('ff')) {
       return true;
     }
@@ -112,7 +111,6 @@ export function isPrivateOrReservedIp(ip: string): boolean {
     return false;
   }
 
-  // Invalid IP format -> reject
   return true;
 }
 
@@ -128,18 +126,17 @@ export async function assertSafePublicUrl(
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new UnsafeUrlError('无效的链接格式');
+    throw new UnsafeUrlError('Invalid URL format', 'UNSAFE_URL');
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new UnsafeUrlError('仅支持 http 或 https 协议的链接');
+    throw new UnsafeUrlError('Only http or https URLs are supported', 'UNSAFE_URL');
   }
 
   if (parsed.username || parsed.password) {
-    throw new UnsafeUrlError('不支持包含认证信息的链接');
+    throw new UnsafeUrlError('URLs with embedded credentials are not allowed', 'UNSAFE_URL');
   }
 
-  // Strip IPv6 brackets if present
   const hostname = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (
     !hostname ||
@@ -149,32 +146,36 @@ export async function assertSafePublicUrl(
     hostname.endsWith('.internal') ||
     hostname === 'metadata.google.internal'
   ) {
-    throw new UnsafeUrlError('禁止访问内网或本地主机地址');
+    throw new UnsafeUrlError('Access to localhost or internal hosts is forbidden', 'UNSAFE_URL');
   }
 
-  // Direct IP literal in URL
   if (net.isIP(hostname) !== 0) {
     if (isPrivateOrReservedIp(hostname)) {
-      throw new UnsafeUrlError('禁止访问私有、环回或链路本地 IP 地址');
+      throw new UnsafeUrlError(
+        'Access to private, loopback, or link-local IP addresses is forbidden',
+        'UNSAFE_URL'
+      );
     }
     return parsed;
   }
 
-  // Resolve DNS records and verify every resolved IP
   let records: Array<{ address: string }>;
   try {
     records = await lookupFn(hostname);
   } catch {
-    throw new UnsafeUrlError('无法解析目标域名');
+    throw new UnsafeUrlError('Could not resolve target hostname', 'UNRESOLVABLE_HOST');
   }
 
   if (!records || records.length === 0) {
-    throw new UnsafeUrlError('无法解析目标域名');
+    throw new UnsafeUrlError('Could not resolve target hostname', 'UNRESOLVABLE_HOST');
   }
 
   for (const rec of records) {
     if (isPrivateOrReservedIp(rec.address)) {
-      throw new UnsafeUrlError('目标域名解析为私有或受限 IP 地址，已拒绝访问');
+      throw new UnsafeUrlError(
+        'Target hostname resolved to a private or restricted IP address',
+        'UNSAFE_URL'
+      );
     }
   }
 
@@ -213,10 +214,10 @@ export async function safeFetchFollowingRedirects(
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
       if (!location) {
-        throw new UnsafeUrlError('重定向缺少目标地址');
+        throw new UnsafeUrlError('Redirect response missing Location header', 'UNSAFE_URL');
       }
       if (hop === maxRedirects) {
-        throw new UnsafeUrlError('重定向次数过多');
+        throw new UnsafeUrlError('Too many redirects', 'UNSAFE_URL');
       }
       const nextUrlStr = new URL(location, currentUrlObj).toString();
       currentUrlObj = await assertSafePublicUrl(nextUrlStr, lookupFn);
@@ -226,5 +227,5 @@ export async function safeFetchFollowingRedirects(
     return { response, finalUrl: currentUrlObj.toString() };
   }
 
-  throw new UnsafeUrlError('重定向次数过多');
+  throw new UnsafeUrlError('Too many redirects', 'UNSAFE_URL');
 }

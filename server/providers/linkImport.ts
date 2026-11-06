@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { LinkImportResult } from '../../src/domain/types.ts';
 import {
   assertSafePublicUrl,
@@ -9,14 +7,14 @@ import {
   UnsafeUrlError,
 } from '../security/ssrf.ts';
 import {
-  mapYtdlpJsonToLinkResult,
   resolveWithYtdlp,
   type YtdlpExecFn,
   YtdlpNotInstalledError,
 } from './ytdlp.ts';
 
-export const YTDLP_MISSING_WARNING = '未安装 yt-dlp，已使用基础解析';
-const MAX_HTML_BYTES = 512 * 1024; // 512 KB cap
+export type { LinkImportResult };
+
+export const YTDLP_MISSING_WARNING = 'YTDLP_MISSING';
 
 export interface LinkImportDependencies {
   lookupFn?: DnsLookupFn;
@@ -27,228 +25,183 @@ export interface LinkImportDependencies {
 }
 
 /**
- * Extracts the first http(s):// URL from pasted share text such as:
- * "【标题-哔哩哔哩】 https://b23.tv/AbCdEf"
- * If no http(s):// substring is found, returns the trimmed input so URL validation
- * can report an appropriate error (e.g. UnsafeUrlError on ftp://).
+ * Extracts the first http:// or https:// URL from a pasted string,
+ * such as social app share snippets containing text and a short URL.
  */
-export function extractFirstHttpUrl(rawInput: string): string {
-  const trimmed = rawInput.trim();
-  const match = trimmed.match(/https?:\/\/[^\s"'<>【】（）[\]]+/i);
-  if (!match) {
-    return trimmed.slice(0, 2048);
-  }
-  const cleaned = match[0].replace(/[，。！？；：、,.!?;:)+】）\]]+$/u, '');
-  return (cleaned || match[0]).slice(0, 2048);
+export function extractHttpUrlFromText(input: string): string {
+  const trimmed = input.trim();
+  const match = trimmed.match(/https?:\/\/[^\s"'<>]+/i);
+  if (!match) return trimmed;
+  return match[0].replace(/[)\]\u3011\u300b\uff0c\u3002\uff01\uff1f\uff1b,;!?]+$/u, '');
 }
+
+export const extractFirstHttpUrl = extractHttpUrlFromText;
 
 export function decodeHtmlEntities(str: string): string {
   return str
-    .replace(/&#(\d+);/g, (_m, dec: string) => {
-      const code = Number.parseInt(dec, 10);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
-        ? String.fromCodePoint(code)
-        : _m;
-    })
-    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => {
-      const code = Number.parseInt(hex, 16);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
-        ? String.fromCodePoint(code)
-        : _m;
-    })
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .trim();
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)));
 }
 
-export function extractMetaContent(html: string, key: string): string {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const patterns = [
-    new RegExp(
-      `<meta[^>]+(?:property|name)\\s*=\\s*(?:"${escaped}"|'${escaped}')[^>]+content\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
+export function extractMetaContent(html: string, keys: string | string[]): string | null {
+  const keyList = Array.isArray(keys) ? keys : [keys];
+  for (const key of keyList) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex1 = new RegExp(
+      `<meta[^>]+(?:property|name|itemprop)=["']${escaped}["'][^>]+content=(?:"([^"]*)"|'([^']*)')`,
       'i'
-    ),
-    new RegExp(
-      `<meta[^>]+content\\s*=\\s*(?:"([^"]*)"|'([^']*)')[^>]+(?:property|name)\\s*=\\s*(?:"${escaped}"|'${escaped}')`,
+    );
+    const m1 = regex1.exec(html);
+    const val1 = m1?.[1] ?? m1?.[2];
+    if (val1) return decodeHtmlEntities(val1.trim());
+
+    const regex2 = new RegExp(
+      `<meta[^>]+content=(?:"([^"]*)"|'([^']*)')[^>]+(?:property|name|itemprop)=["']${escaped}["']`,
       'i'
-    ),
-  ];
-  for (const re of patterns) {
-    const match = html.match(re);
-    const val = match?.[1] ?? match?.[2];
-    if (val && val.trim()) {
-      return decodeHtmlEntities(val);
-    }
+    );
+    const m2 = regex2.exec(html);
+    const val2 = m2?.[1] ?? m2?.[2];
+    if (val2) return decodeHtmlEntities(val2.trim());
   }
-  return '';
+  return null;
 }
 
-function extractTitleTag(html: string): string {
-  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  return match?.[1] ? decodeHtmlEntities(match[1].replace(/\s+/g, ' ')) : '';
-}
-
-async function readHtmlUpToLimit(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) {
-    const text = await response.text();
-    return text.slice(0, maxBytes);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let totalBytes = 0;
-  let result = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        totalBytes += value.byteLength;
-        if (totalBytes >= maxBytes) {
-          const remaining = maxBytes - (totalBytes - value.byteLength);
-          if (remaining > 0) {
-            result += decoder.decode(value.subarray(0, remaining), { stream: false });
-          }
-          await reader.cancel().catch(() => undefined);
-          break;
-        }
-        result += decoder.decode(value, { stream: true });
-        if (/<\/head>/i.test(result)) {
-          await reader.cancel().catch(() => undefined);
-          break;
-        }
-      }
-    }
-    result += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-
-  return result;
-}
-
-function resolveRelativeUrl(candidate: string, baseUrl: URL): string | null {
-  if (!candidate) return null;
-  try {
-    let resolved = new URL(candidate, baseUrl);
-    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') {
+function normalizeImageUrl(raw: string | null, baseUrl: string): string | null {
+  if (!raw) return null;
+  let url = raw.trim();
+  if (!url) return null;
+  if (url.startsWith('//')) {
+    url = `https:${url}`;
+  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    try {
+      url = new URL(url, baseUrl).toString();
+    } catch {
       return null;
     }
-    if (
-      resolved.protocol === 'http:' &&
-      (resolved.hostname.endsWith('.hdslb.com') || resolved.hostname.endsWith('.biliimg.com'))
-    ) {
-      resolved = new URL(resolved.toString().replace(/^http:\/\//i, 'https://'));
-    }
-    return resolved.toString();
-  } catch {
-    return null;
   }
+  if (
+    url.startsWith('http://') &&
+    (url.includes('.hdslb.com/') || url.includes('.biliimg.com/'))
+  ) {
+    url = `https://${url.slice('http://'.length)}`;
+  }
+  return url.slice(0, 1000);
 }
 
-async function scrapeOpenGraphMetadata(
-  safeUrl: URL,
-  lookupFn: DnsLookupFn | undefined,
-  fetchFn: FetchFn | undefined
-): Promise<Omit<LinkImportResult, 'warning'> | null> {
-  const { response, finalUrl } = await safeFetchFollowingRedirects(
-    safeUrl.toString(),
-    {
-      headers: {
-        'User-Agent':
-          'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php) Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
-        Accept: 'text/html,application/xhtml+xml',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      },
-    },
-    { lookupFn, fetchFn }
-  );
+/**
+ * Generic Open Graph / meta tag scraper used when yt-dlp is unavailable or fails.
+ */
+export async function scrapeOpenGraph(
+  targetUrl: string,
+  deps: Pick<LinkImportDependencies, 'lookupFn' | 'fetchFn'> = {}
+): Promise<LinkImportResult> {
+  const safeInitial = await assertSafePublicUrl(targetUrl, deps.lookupFn);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
 
-  if (!response.ok) {
-    return null;
-  }
-
-  const finalUrlObj = new URL(finalUrl);
-  const html = await readHtmlUpToLimit(response, MAX_HTML_BYTES);
-  const title =
-    extractMetaContent(html, 'og:title') ||
-    extractMetaContent(html, 'twitter:title') ||
-    extractTitleTag(html);
-
-  if (!title) {
-    return null;
-  }
-
-  const rawImage =
-    extractMetaContent(html, 'og:image') || extractMetaContent(html, 'twitter:image');
-  const posterUrl = resolveRelativeUrl(rawImage, finalUrlObj);
-  const overview =
-    extractMetaContent(html, 'og:description') ||
-    extractMetaContent(html, 'twitter:description') ||
-    extractMetaContent(html, 'description') ||
-    '';
-
-  return {
-    kind: 'video',
-    title: title.slice(0, 200),
-    posterUrl: posterUrl ? posterUrl.slice(0, 1000) : null,
-    overview: overview.slice(0, 2000),
-    sourceUrl: finalUrl.slice(0, 2048),
-    episodes: [],
-    fallbackUsed: 'og',
-  };
-}
-
-function tryLoadOfflineDemoFixture(
-  urlStr: string,
-  forceImport?: boolean
-): LinkImportResult | null {
   try {
-    let fixtureFile: string | null = null;
-    if (urlStr.includes('PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab')) {
-      fixtureFile = path.resolve(
-        import.meta.dirname,
-        '../scripts/fixtures/ytdlp-3b1b-youtube.json'
-      );
-    } else if (
-      urlStr.includes('88461692/lists/1528924') ||
-      urlStr.includes('BV1ys411472E')
-    ) {
-      fixtureFile = path.resolve(
-        import.meta.dirname,
-        '../scripts/fixtures/ytdlp-3b1b-bilibili.json'
-      );
+    const { response, finalUrl } = await safeFetchFollowingRedirects(
+      safeInitial.toString(),
+      {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        },
+        signal: controller.signal,
+      },
+      {
+        maxRedirects: 5,
+        lookupFn: deps.lookupFn,
+        fetchFn: deps.fetchFn,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-    if (!fixtureFile || !fs.existsSync(fixtureFile)) return null;
-    const raw = JSON.parse(fs.readFileSync(fixtureFile, 'utf-8'));
-    return mapYtdlpJsonToLinkResult(raw, urlStr, { forceImport });
-  } catch {
-    return null;
+
+    const html = (await response.text()).slice(0, 400_000);
+
+    const ogTitle = extractMetaContent(html, ['og:title', 'twitter:title', 'title']);
+    const titleTagMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+    const fallbackTitle = titleTagMatch?.[1]
+      ? decodeHtmlEntities(titleTagMatch[1].replace(/\s+/g, ' ').trim())
+      : null;
+
+    const rawTitle =
+      ogTitle ||
+      fallbackTitle ||
+      (() => {
+        try {
+          return new URL(finalUrl).hostname;
+        } catch {
+          return finalUrl;
+        }
+      })();
+
+    const cleanTitle = rawTitle
+      .replace(/\s*[-_|]\s*(\u54d4\u54e9\u54d4\u54e9|bilibili|YouTube).*$/i, '')
+      .trim()
+      .slice(0, 200);
+
+    const rawImage = extractMetaContent(html, [
+      'og:image',
+      'og:image:secure_url',
+      'twitter:image',
+      'image',
+    ]);
+    const posterUrl = normalizeImageUrl(rawImage, finalUrl);
+
+    const rawDesc =
+      extractMetaContent(html, ['og:description', 'twitter:description', 'description']) || '';
+    const siteName = extractMetaContent(html, ['og:site_name']) || null;
+    const cleanDesc = rawDesc === '-' ? '' : rawDesc;
+
+    return {
+      kind: 'video',
+      title: cleanTitle || rawTitle.slice(0, 200),
+      posterUrl,
+      overview: cleanDesc.slice(0, 2000),
+      uploader: siteName ? siteName.slice(0, 200) : null,
+      sourceUrl: finalUrl.slice(0, 2048),
+      year: null,
+      runtimeMin: null,
+      episodes: [],
+      fallbackUsed: 'og',
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+/**
+ * Primary link metadata resolver:
+ * 1. Extracts HTTP/HTTPS URL and validates SSRF safety.
+ * 2. Runs yt-dlp with `--dump-single-json --skip-download --flat-playlist`.
+ * 3. If yt-dlp is missing or fails, falls back to generic Open Graph scrape, then manual entry.
+ */
 export async function resolveLinkMetadata(
   rawInput: string,
   deps: LinkImportDependencies = {}
 ): Promise<LinkImportResult> {
-  const { lookupFn, fetchFn } = deps;
-
-  const candidateUrlStr = extractFirstHttpUrl(rawInput);
-  const safeUrl = await assertSafePublicUrl(candidateUrlStr, lookupFn);
+  const extracted = extractHttpUrlFromText(rawInput);
+  const safeUrl = await assertSafePublicUrl(extracted, deps.lookupFn);
+  const normalizedUrl = safeUrl.toString();
 
   let warning: string | undefined;
 
-  // Step 1: Primary resolver — yt-dlp subprocess
   try {
-    return await resolveWithYtdlp(safeUrl.toString(), {
+    return await resolveWithYtdlp(normalizedUrl, {
       binaryPath: deps.ytdlpPath,
-      lookupFn,
+      lookupFn: deps.lookupFn,
       execFn: deps.execFn,
       forceImport: deps.forceImport,
     });
@@ -256,39 +209,34 @@ export async function resolveLinkMetadata(
     if (err instanceof UnsafeUrlError) {
       throw err;
     }
-    if (!deps.execFn) {
-      const fixtureResult = tryLoadOfflineDemoFixture(safeUrl.toString(), deps.forceImport);
-      if (fixtureResult) return fixtureResult;
-    }
     if (err instanceof YtdlpNotInstalledError) {
       warning = YTDLP_MISSING_WARNING;
     }
   }
 
-  // Step 2: Fallback #1 — Generic Open Graph scrape
   try {
-    const ogResult = await scrapeOpenGraphMetadata(safeUrl, lookupFn, fetchFn);
-    if (ogResult) {
-      return {
-        ...ogResult,
-        ...(warning ? { warning } : {}),
-      };
-    }
+    const ogResult = await scrapeOpenGraph(normalizedUrl, {
+      lookupFn: deps.lookupFn,
+      fetchFn: deps.fetchFn,
+    });
+    return warning ? { ...ogResult, warning } : ogResult;
   } catch (err) {
     if (err instanceof UnsafeUrlError) {
       throw err;
     }
+    const hostname = safeUrl.hostname;
+    return {
+      kind: 'video',
+      title: hostname,
+      posterUrl: null,
+      overview: '',
+      uploader: null,
+      sourceUrl: normalizedUrl,
+      year: null,
+      runtimeMin: null,
+      episodes: [],
+      fallbackUsed: 'manual',
+      ...(warning ? { warning } : {}),
+    };
   }
-
-  // Step 3: Fallback #2 — Manual entry seed with URL prefilled
-  return {
-    kind: 'video',
-    title: safeUrl.hostname,
-    posterUrl: null,
-    overview: '',
-    sourceUrl: safeUrl.toString().slice(0, 2048),
-    episodes: [],
-    fallbackUsed: 'manual',
-    ...(warning ? { warning } : {}),
-  };
 }

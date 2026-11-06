@@ -1,325 +1,174 @@
-import React, { useEffect, useState } from 'react';
-import { ListVideo } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import {
-  Button,
-  FieldError,
-  Input,
-  Label,
-  ListBox,
-  NumberField,
-  Select,
-  Spinner,
-  TextArea,
+  Modal,
   TextField,
+  Label,
+  Input,
+  TextArea,
+  ToggleButtonGroup,
+  ToggleButton,
+  Button,
+  toast,
 } from '@heroui/react';
-import { MediaImage } from '../../components/MediaImage';
-import type { CustomTitleInput } from '../../context/TrackerContext';
-import type { LinkImportResult, MediaType } from '../../domain/types';
-import { zh } from '../../i18n/zh';
+import { useTracker } from '../../context/TrackerContext';
+import { MediaType } from '../../domain/types';
+import { ManualSeed } from './LinkImportDialog';
+import { useI18n } from '../../i18n';
 
 interface ManualItemDialogProps {
-  initialSeed?: LinkImportResult | null;
-  onSubmitCustomItem: (input: CustomTitleInput) => Promise<void>;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialSeed: ManualSeed | null;
+  onCreated: (titleId: string) => void;
 }
 
 export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
+  isOpen,
+  onOpenChange,
   initialSeed,
-  onSubmitCustomItem,
+  onCreated,
 }) => {
-  const [manualName, setManualName] = useState(initialSeed?.title || '');
-  const [manualOrigName, setManualOrigName] = useState('');
-  const [manualType, setManualType] = useState<MediaType>(
-    initialSeed ? 'other' : 'movie'
-  );
-  const [manualYear, setManualYear] = useState<number>(
-    initialSeed?.year ?? Number.NaN
-  );
-  const [manualPoster, setManualPoster] = useState(initialSeed?.posterUrl || '');
-  const [manualEpisodes, setManualEpisodes] = useState<number>(
-    initialSeed?.episodes && initialSeed.episodes.length > 0
-      ? initialSeed.episodes.length
-      : Number.NaN
-  );
-  const [manualRuntime, setManualRuntime] = useState<number>(
-    initialSeed?.runtimeMin ?? Number.NaN
-  );
-  const [manualOverview, setManualOverview] = useState(
-    initialSeed?.overview || ''
-  );
-  const [manualSourceUrl, setManualSourceUrl] = useState(
-    initialSeed?.sourceUrl || ''
-  );
-  const [manualError, setManualError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const { createCustomOrLinkTitle } = useTracker();
+  const { t, translateError } = useI18n();
+
+  const [title, setTitle] = useState('');
+  const [mediaType, setMediaType] = useState<MediaType>('movie');
+  const [posterUrl, setPosterUrl] = useState('');
+  const [overview, setOverview] = useState('');
+  const [episodeCount, setEpisodeCount] = useState('0');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (initialSeed) {
-      setManualName(initialSeed.title);
-      setManualOrigName('');
-      setManualPoster(initialSeed.posterUrl || '');
-      setManualOverview(initialSeed.overview || '');
-      setManualSourceUrl(initialSeed.sourceUrl);
-      setManualYear(initialSeed.year ?? Number.NaN);
-      setManualRuntime(initialSeed.runtimeMin ?? Number.NaN);
-      setManualEpisodes(
-        initialSeed.episodes && initialSeed.episodes.length > 0
-          ? initialSeed.episodes.length
-          : Number.NaN
-      );
-      setManualType('other');
-      setManualError(null);
+    if (isOpen) {
+      if (initialSeed) {
+        setTitle(initialSeed.title);
+        setMediaType(initialSeed.mediaType);
+        setPosterUrl(initialSeed.posterUrl);
+        setOverview(initialSeed.overview);
+        setEpisodeCount(String(initialSeed.episodeCount || 0));
+      } else {
+        setTitle('');
+        setMediaType('movie');
+        setPosterUrl('');
+        setOverview('');
+        setEpisodeCount('0');
+      }
     }
-  }, [initialSeed]);
+  }, [isOpen, initialSeed]);
 
-  const seedEpisodes =
-    initialSeed?.episodes && initialSeed.episodes.length > 0
-      ? initialSeed.episodes
-      : undefined;
-
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualName.trim()) {
-      setManualError(zh.search.manual.namePlaceholder);
-      return;
-    }
-
-    const epCount = Number.isFinite(manualEpisodes)
-      ? Math.max(0, Math.floor(manualEpisodes))
-      : seedEpisodes?.length;
-    const yr = Number.isFinite(manualYear) ? manualYear : undefined;
-    const rt = Number.isFinite(manualRuntime) ? manualRuntime : undefined;
-
-    setSubmitting(true);
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
     try {
-      await onSubmitCustomItem({
-        source: manualSourceUrl.trim() ? 'url' : 'custom',
-        name: manualName.trim(),
-        originalName: manualOrigName.trim() || undefined,
-        mediaType: manualType,
-        posterPath: manualPoster.trim() || null,
-        episodeCount: epCount,
-        episodes: seedEpisodes,
-        overview: manualOverview.trim() || undefined,
-        sourceUrl: manualSourceUrl.trim() || undefined,
-        year: yr && Number.isFinite(yr) ? yr : null,
-        runtimeMin: rt && Number.isFinite(rt) ? rt : null,
+      const epCount = Math.max(0, parseInt(episodeCount, 10) || 0);
+      const createdDoc = await createCustomOrLinkTitle({
+        name: title.trim(),
+        mediaType,
+        posterPath: posterUrl.trim() || null,
+        overview: overview.trim(),
+        uploader: initialSeed?.uploader ?? null,
+        episodeCount: mediaType === 'movie' ? 0 : epCount,
+        episodes:
+          initialSeed?.episodes && initialSeed.episodes.length === epCount
+            ? initialSeed.episodes
+            : undefined,
+        source: initialSeed?.source ?? 'custom',
+        sourceUrl: initialSeed?.sourceUrl ?? null,
       });
+      onCreated(createdDoc.id);
+    } catch (err) {
+      toast.danger(translateError(err));
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
   return (
-    <section className="max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-5">
-      <div className="flex items-start gap-4">
-        {manualPoster.trim() && (
-          <div className="w-20 sm:w-24 shrink-0 rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface-secondary)]">
-            <MediaImage
-              src={manualPoster.trim()}
-              alt={manualName || zh.search.manual.ParsedPreviewTitle}
-              aspect="poster"
-              mediaType={manualType}
-            />
-          </div>
-        )}
-        <div className="flex-1 min-w-0 space-y-1">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {manualSourceUrl
-              ? zh.search.manual.ParsedPreviewTitle
-              : zh.search.manual.title}
-          </h2>
-          {seedEpisodes && (
-            <p className="text-xs font-medium text-[var(--accent-text)]">
-              {zh.search.linkImport.playlistPreviewLabel(seedEpisodes.length)}
-            </p>
-          )}
-        </div>
-      </div>
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Container size="md" scroll="inside">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{t.search.manual.title}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="space-y-4">
+            <TextField value={title} onChange={setTitle} isRequired>
+              <Label>{t.search.manual.nameLabel}</Label>
+              <Input placeholder={t.search.manual.namePlaceholder} />
+            </TextField>
 
-      {seedEpisodes && (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)] p-3.5 space-y-2">
-          <div className="flex items-center justify-between text-xs font-medium text-[var(--foreground)]">
-            <span className="inline-flex items-center gap-1.5">
-              <ListVideo className="w-4 h-4 text-[var(--accent-text)]" />
-              <span>
-                {zh.search.linkImport.playlistPreviewLabel(seedEpisodes.length)}
-              </span>
-            </span>
-          </div>
-          <ul className="space-y-1 text-xs text-[var(--muted)]">
-            {seedEpisodes.slice(0, 5).map((ep, idx) => (
-              <li key={ep.sourceVideoId || idx} className="truncate">
-                <span className="font-mono text-[var(--foreground-secondary)] mr-1.5">
-                  E{idx + 1}
-                </span>
-                <span>{ep.name}</span>
-              </li>
-            ))}
-            {seedEpisodes.length > 5 && (
-              <li className="text-[var(--muted)] pt-0.5">
-                {zh.search.linkImport.playlistMoreEpisodes(
-                  seedEpisodes.length - 5
-                )}
-              </li>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-[var(--muted)]">{t.search.manual.typeLabel}</Label>
+              <div>
+                <ToggleButtonGroup
+                  selectionMode="single"
+                  disallowEmptySelection
+                  selectedKeys={new Set([mediaType])}
+                  onSelectionChange={(keys) => {
+                    const k = Array.from(keys)[0] as MediaType;
+                    if (k) {
+                      setMediaType(k);
+                      if (k !== 'movie' && episodeCount === '0') {
+                        setEpisodeCount('12');
+                      }
+                    }
+                  }}
+                  size="sm"
+                >
+                  <ToggleButton id="movie">{t.mediaType.movie}</ToggleButton>
+                  <ToggleButton id="tv">{t.mediaType.tv}</ToggleButton>
+                  <ToggleButton id="other">{t.mediaType.other}</ToggleButton>
+                </ToggleButtonGroup>
+              </div>
+            </div>
+
+            <TextField value={posterUrl} onChange={setPosterUrl}>
+              <Label>{t.search.manual.posterUrlLabel}</Label>
+              <Input placeholder={t.search.manual.posterUrlPlaceholder} type="url" />
+            </TextField>
+
+            {mediaType !== 'movie' && (
+              <TextField value={episodeCount} onChange={setEpisodeCount}>
+                <Label>{t.search.manual.episodeCountLabel}</Label>
+                <Input type="number" min={1} max={2000} />
+              </TextField>
             )}
-          </ul>
-        </div>
-      )}
 
-      <form onSubmit={handleManualSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <TextField
-            value={manualName}
-            onChange={(val) => {
-              setManualName(val);
-              setManualError(null);
-            }}
-            isInvalid={Boolean(manualError)}
-            isRequired
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.nameLabel}</Label>
-            <Input placeholder={zh.search.manual.namePlaceholder} />
-            {manualError && <FieldError>{manualError}</FieldError>}
-          </TextField>
+            <TextField value={overview} onChange={setOverview}>
+              <Label>{t.search.manual.overviewLabel}</Label>
+              <TextArea rows={3} />
+            </TextField>
 
-          <TextField
-            value={manualOrigName}
-            onChange={setManualOrigName}
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.originalNameLabel}</Label>
-            <Input />
-          </TextField>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <Select
-            selectedKey={manualType}
-            onSelectionChange={(key) => {
-              if (key != null) setManualType(key as MediaType);
-            }}
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.typeLabel}</Label>
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox aria-label={zh.search.manual.typeLabel}>
-                {(
-                  [
-                    { id: 'movie', label: zh.mediaType.movie },
-                    { id: 'tv', label: zh.mediaType.tv },
-                    { id: 'other', label: zh.mediaType.other },
-                  ] as const
-                ).map((item) => (
-                  <ListBox.Item
-                    key={item.id}
-                    id={item.id}
-                    textValue={item.label}
-                  >
-                    <Label>{item.label}</Label>
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
+            {initialSeed?.episodes && initialSeed.episodes.length > 0 && mediaType !== 'movie' && (
+              <div className="p-3 rounded-lg bg-[var(--surface-secondary)] text-xs text-[var(--muted)] space-y-1 max-h-36 overflow-y-auto">
+                <div className="font-medium text-[var(--foreground)]">
+                  {t.search.linkImport.playlistPreviewLabel(initialSeed.episodes.length)}
+                </div>
+                {initialSeed.episodes.slice(0, 10).map((ep, idx) => (
+                  <div key={idx} className="truncate">
+                    {idx + 1}. {ep.name || t.detail.seasons.episodeDefaultName(idx + 1)}
+                  </div>
                 ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-
-          <NumberField
-            value={manualYear}
-            onChange={setManualYear}
-            minValue={1888}
-            maxValue={2100}
-            formatOptions={{ useGrouping: false }}
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.yearLabel}</Label>
-            <NumberField.Group>
-              <NumberField.Input placeholder="2025" />
-            </NumberField.Group>
-          </NumberField>
-
-          <NumberField
-            value={manualRuntime}
-            onChange={setManualRuntime}
-            minValue={1}
-            maxValue={10000}
-            formatOptions={{ useGrouping: false }}
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.runtimeLabel}</Label>
-            <NumberField.Group>
-              <NumberField.Input placeholder="45" />
-            </NumberField.Group>
-          </NumberField>
-        </div>
-
-        {!seedEpisodes && (
-          <NumberField
-            value={manualEpisodes}
-            onChange={setManualEpisodes}
-            minValue={1}
-            maxValue={2000}
-            formatOptions={{ useGrouping: false }}
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.episodeCountLabel}</Label>
-            <NumberField.Group>
-              <NumberField.Input
-                placeholder={zh.search.manual.episodeCountPlaceholder}
-              />
-            </NumberField.Group>
-          </NumberField>
-        )}
-
-        <TextField
-          value={manualPoster}
-          onChange={setManualPoster}
-          variant="secondary"
-          fullWidth
-        >
-          <Label>{zh.search.manual.posterUrlLabel}</Label>
-          <Input placeholder={zh.search.manual.posterUrlPlaceholder} />
-        </TextField>
-
-        {manualSourceUrl && (
-          <TextField
-            value={manualSourceUrl}
-            onChange={setManualSourceUrl}
-            variant="secondary"
-            fullWidth
-          >
-            <Label>{zh.search.manual.sourceUrlLabel}</Label>
-            <Input />
-          </TextField>
-        )}
-
-        <TextField
-          value={manualOverview}
-          onChange={setManualOverview}
-          variant="secondary"
-          fullWidth
-        >
-          <Label>{zh.search.manual.overviewLabel}</Label>
-          <TextArea rows={3} />
-        </TextField>
-
-        <div className="pt-2">
-          <Button type="submit" variant="primary" isPending={submitting}>
-            {submitting && <Spinner size="sm" color="current" />}
-            <span>{zh.search.manual.submitButton}</span>
-          </Button>
-        </div>
-      </form>
-    </section>
+                {initialSeed.episodes.length > 10 && (
+                  <div>{t.search.linkImport.playlistMoreEpisodes(initialSeed.episodes.length - 10)}</div>
+                )}
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer className="gap-2">
+            <Button variant="tertiary" onPress={() => onOpenChange(false)}>
+              {t.app.cancel}
+            </Button>
+            <Button
+              variant="primary"
+              onPress={handleSave}
+              isDisabled={!title.trim() || saving}
+            >
+              {saving ? t.app.loading : t.search.manual.submitButton}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 };

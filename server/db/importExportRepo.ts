@@ -1,3 +1,5 @@
+import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
+import { splitUploaderPrefixFromOverview } from '../../src/domain/progress.ts';
 import { DEFAULT_APP_SETTINGS, importPayloadSchema } from '../../src/domain/schemas.ts';
 import type {
   AppSettingsDoc,
@@ -177,6 +179,25 @@ export function importData(
     const titles: Record<string, TitleDoc> = {};
     for (const [id, title] of Object.entries(parsed.titles)) {
       const titleDoc: TitleDoc = { ...title, id };
+      if (parsed.version === 1) {
+        if ((titleDoc.source === 'url' || titleDoc.source === 'custom') && titleDoc.overview?.zh) {
+          const split = splitUploaderPrefixFromOverview(titleDoc.overview.zh);
+          if (split.uploader) {
+            titleDoc.uploader = titleDoc.uploader || split.uploader;
+            titleDoc.overview = { ...titleDoc.overview, zh: split.overview };
+          }
+        }
+        if (
+          (!titleDoc.genreIds || titleDoc.genreIds.length === 0) &&
+          Array.isArray(titleDoc.genres) &&
+          titleDoc.genres.length > 0
+        ) {
+          const ids = extractGenreIdsFromNames(titleDoc.genres);
+          if (ids.length > 0) {
+            titleDoc.genreIds = ids;
+          }
+        }
+      }
       titles[id] = titleDoc;
       insertTitle.run(id, serializeTitleData(titleDoc), titleDoc.addedAt, titleDoc.updatedAt);
     }

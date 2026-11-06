@@ -191,6 +191,30 @@
   .toast__action {
     @apply col-start-3;
   }
+
+  /* 5. ToggleButtonGroup: never wrap pill segments across multiple rows; keep labels on one line. */
+  .toggle-button-group {
+    @apply flex-nowrap shrink-0;
+  }
+
+  .toggle-button {
+    @apply shrink-0 whitespace-nowrap;
+  }
+}
+
+.filter-scroll-fade-right {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+
+.filter-scroll-fade-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28px);
+  mask-image: linear-gradient(to right, transparent 0%, #000 28px);
+}
+
+.filter-scroll-fade-both {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 calc(100% - 28px), transparent 100%);
 }
 
 .tabular-nums {

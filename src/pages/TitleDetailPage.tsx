@@ -1,207 +1,164 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@heroui/react';
-import { PlaythroughHistory } from '../features/title/PlaythroughHistory';
-import { PrimaryAction } from '../features/title/PrimaryAction';
-import { RatingsRow } from '../features/title/RatingsRow';
-import { ResumeDialog } from '../features/title/ResumeDialog';
-import { SeasonPanel } from '../features/title/SeasonPanel';
-import { TitleHero } from '../features/title/TitleHero';
-import { TitleMenu } from '../features/title/TitleMenu';
 import { useTitleDetail } from '../features/title/useTitleDetail';
-import { zh } from '../i18n/zh';
+import { TitleHero } from '../features/title/TitleHero';
+import { RatingsRow } from '../features/title/RatingsRow';
+import { PrimaryAction } from '../features/title/PrimaryAction';
+import { SeasonPanel } from '../features/title/SeasonPanel';
+import { PlaythroughHistory } from '../features/title/PlaythroughHistory';
+import { ResumeDialog } from '../features/title/ResumeDialog';
+import { TitleModals } from '../features/title/TitleModals';
+import { useI18n } from '../i18n';
 
 export const TitleDetailPage: React.FC = () => {
-  const { titleId } = useParams<{ titleId: string }>();
-  const navigate = useNavigate();
+  const detail = useTitleDetail();
+  const { t } = useI18n();
 
-  const {
-    tracker,
-    title,
-    regularSeasons,
-    specialsSeason,
-    airedKeySet,
-    progress,
-    state,
-    selectedSeasonNum,
-    setSelectedSeasonNum,
-    currentSeason,
-    currentSeasonState,
-    specialsSeasonState,
-    primary,
-    secondary,
-    overviewText,
-    overviewExpanded,
-    setOverviewExpanded,
-    metaParts,
-    menuOpen,
-    setMenuOpen,
-    resumeOpen,
-    setResumeOpen,
-    resumeEpisodeKey,
-    openResumeModal,
-    langModalOpen,
-    setLangModalOpen,
-    editModalOpen,
-    setEditModalOpen,
-    addToListModalOpen,
-    setAddToListModalOpen,
-    handlePrimaryAction,
-    primaryActionLabel,
-    hasMovieResume,
-    movieResumePct,
-    markEpisodeUpTo,
-  } = useTitleDetail(titleId);
-
-  if (!title || !state) {
+  if (!detail.title || !detail.titleState) {
     return (
-      <div className="px-6 py-16 text-center space-y-4">
-        <p className="text-base text-[var(--muted)]">{zh.detail.notFound}</p>
-        <Button
-          variant="secondary"
-          size="sm"
-          onPress={() => navigate('/library')}
-        >
-          {zh.detail.backToLibrary}
+      <div className="p-8 text-center">
+        <p className="text-[var(--muted)] mb-4">{t.detail.notFound}</p>
+        <Button variant="secondary" onPress={() => detail.navigate('/library')}>
+          {t.detail.backToLibrary}
         </Button>
       </div>
     );
   }
 
+  const { title, titleState, activeProgress, seasons, regularSeasons, specialSeason } = detail;
+
   return (
     <div className="pb-12">
       <TitleHero
         title={title}
-        state={state}
-        primary={primary}
-        secondary={secondary}
-        metaParts={metaParts}
-        onBack={() => navigate(-1)}
-      />
+        titleState={titleState}
+        displayTitle={detail.displayTitle}
+        showOriginalSub={detail.showOriginalSub}
+        metaParts={detail.metaParts}
+        onBack={() => detail.navigate(-1)}
+      >
+        <RatingsRow title={title} />
 
-      <div className="px-4 sm:px-6 lg:px-10 mt-3 space-y-6">
-        <div className="sm:pl-[11.25rem] md:pl-[12.75rem] lg:pl-[13.75rem] space-y-3">
-          <RatingsRow title={title} primary={primary} />
-
+        <div className="flex items-center gap-3 flex-wrap pt-1">
           <PrimaryAction
             title={title}
-            state={state}
-            label={primaryActionLabel}
-            hasMovieResume={hasMovieResume}
-            movieResumePct={movieResumePct}
-            onPrimaryAction={handlePrimaryAction}
-            onOpenMenu={() => setMenuOpen(true)}
+            titleState={titleState}
+            onMarkMovieWatched={() => void detail.markWholeTitle(title.id, true)}
+            onStartRewatch={() => void detail.startTitleRewatch(title.id)}
+            onToggleEpisode={(epKey) => void detail.toggleEpisode(title.id, epKey)}
           />
+          {detail.menuNode}
         </div>
+      </TitleHero>
 
-        {/* Overview Clamped to 3 lines with Expand */}
-        <div className="max-w-3xl">
-          <p
-            className={`text-sm sm:text-base text-[var(--foreground-secondary)] leading-relaxed ${
-              overviewExpanded ? '' : 'line-clamp-3'
-            }`}
-          >
-            {overviewText}
-          </p>
-          {overviewText.length > 110 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setOverviewExpanded((v) => !v)}
-              className="mt-1.5"
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 mt-5">
+        {(title.uploader || detail.overviewText) && (
+          <div className="max-w-3xl space-y-1.5">
+            {title.uploader && (
+              <p className="text-xs font-medium text-[var(--muted)]">
+                {t.detail.uploaderPrefix(title.uploader)}
+              </p>
+            )}
+            <p
+              className={`text-sm text-[var(--foreground)]/90 leading-relaxed ${
+                !detail.overviewExpanded ? 'line-clamp-3' : ''
+              }`}
             >
-              {overviewExpanded
-                ? zh.detail.overview.collapse
-                : zh.detail.overview.expand}
-            </Button>
-          )}
-        </div>
+              {detail.overviewText}
+            </p>
+            {detail.overviewText.length > 140 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => detail.setOverviewExpanded(!detail.overviewExpanded)}
+                className="mt-1 -ml-2"
+              >
+                {detail.overviewExpanded ? t.detail.overview.collapse : t.detail.overview.expand}
+              </Button>
+            )}
+          </div>
+        )}
 
-        {/* Seasons & Episodes */}
-        <SeasonPanel
-          title={title}
-          state={state}
-          regularSeasons={regularSeasons}
-          specialsSeason={specialsSeason}
-          specialsSeasonState={specialsSeasonState}
-          currentSeason={currentSeason}
-          currentSeasonState={currentSeasonState}
-          airedKeySet={airedKeySet}
-          selectedSeasonNum={selectedSeasonNum}
-          onSelectSeason={setSelectedSeasonNum}
-          progress={progress}
-          onToggleSeasonWatched={(sNum, markWatched) =>
-            tracker.toggleSeason(title.id, sNum, markWatched)
-          }
-          onToggleEpisodeWatched={(epKey) =>
-            tracker.toggleEpisode(title.id, epKey)
-          }
-          onMarkEpisodeUpTo={(epKey) => markEpisodeUpTo(title.id, epKey)}
-          onRecordResume={(epKey) => openResumeModal(epKey)}
-        />
+        {(title.mediaType === 'tv' || seasons.length > 0) && (
+          <SeasonPanel
+            title={title}
+            seasons={regularSeasons}
+            specialSeason={specialSeason}
+            activeProgress={activeProgress}
+            today={detail.today}
+            highlightEpKey={detail.highlightEpKey}
+            onToggleEpisode={(epKey) => void detail.toggleEpisode(title.id, epKey)}
+            onMarkSeason={(seasonNum, mark) => void detail.toggleSeason(title.id, seasonNum, mark)}
+            onMarkUpTo={(epKey) => void detail.markUpTo(title.id, epKey)}
+            onOpenResumeForEpisode={(epKey) => {
+              detail.setResumeDefaultEpKey(epKey);
+              detail.setResumeDialogOpen(true);
+            }}
+          />
+        )}
 
-        {/* Playthrough History */}
         <PlaythroughHistory
-          title={title}
-          state={state}
-          onCancelRewatch={() => tracker.cancelTitleRewatch(title.id)}
-          onDeletePlaythrough={(playthroughId) =>
-            tracker.deleteTitlePlaythrough(title.id, playthroughId)
-          }
+          playthroughs={title.playthroughs}
+          activePlaythroughId={title.activePlaythroughId}
+          hasAnyProgress={Boolean(
+            title.playthroughs.length > 1 ||
+              title.resume ||
+              (activeProgress &&
+                (Object.keys(activeProgress.watched).length > 0 ||
+                  Boolean(activeProgress.movieWatchedAt)))
+          )}
+          onUndoLatest={() => detail.setUndoPlaythroughOpen(true)}
+          onDeletePlaythrough={(ptId) => detail.setDeletePlaythroughId(ptId)}
         />
       </div>
 
-      {/* Secondary Actions Drawer + Modals */}
-      <TitleMenu
+      <ResumeDialog
+        isOpen={detail.resumeDialogOpen}
+        onOpenChange={detail.setResumeDialogOpen}
         title={title}
-        state={state}
-        menuOpen={menuOpen}
-        onMenuOpenChange={setMenuOpen}
-        langModalOpen={langModalOpen}
-        onLangModalOpenChange={setLangModalOpen}
-        editModalOpen={editModalOpen}
-        onEditModalOpenChange={setEditModalOpen}
-        addToListModalOpen={addToListModalOpen}
-        onAddToListModalOpenChange={setAddToListModalOpen}
-        lists={tracker.lists}
-        entriesByList={tracker.entriesByList}
-        onOpenResumeModal={() => openResumeModal()}
-        onMarkWholeTitleWatched={() => tracker.markWholeTitle(title.id, true)}
-        onCancelRewatch={() => tracker.cancelTitleRewatch(title.id)}
-        onSetManualState={(manualState) =>
-          tracker.setTitleManualState(title.id, manualState)
+        seasons={seasons}
+        defaultEpisodeKey={detail.resumeDefaultEpKey}
+        onSave={(seconds, epKey) =>
+          void detail.saveResume(title.id, { seconds, episodeKey: epKey })
         }
-        onRefreshMetadata={async () => {
-          await tracker.refreshTitleMetadata(title.id);
-          await tracker.fetchAndCacheTitleRatings(title.id);
-        }}
-        onRefreshPlaylist={async () => {
-          await tracker.refreshLinkTitlePlaylist(title.id);
-        }}
-        onUpdateTitleLanguage={(displayLang) =>
-          tracker.updateTitleLanguage(title.id, displayLang)
-        }
-        onUpdateTitleDetails={(input) =>
-          tracker.updateTitleDetails(title.id, input)
-        }
-        onAddTitleToList={(listId, tId) => tracker.addTitleToList(listId, tId)}
-        onRemoveEntryFromList={(listId, entryId) =>
-          tracker.removeEntryFromList(listId, entryId)
-        }
-        onDeleteTitle={async () => {
-          await tracker.removeTitle(title.id);
-          navigate('/library', { replace: true });
-        }}
+        onClear={() => void detail.saveResume(title.id, null)}
       />
 
-      {/* Resume Time Dialog */}
-      <ResumeDialog
-        isOpen={resumeOpen}
-        onOpenChange={setResumeOpen}
+      <TitleModals
         title={title}
-        regularSeasons={regularSeasons}
-        initialEpisodeKey={resumeEpisodeKey}
-        onSaveResume={(resume) => tracker.saveResume(title.id, resume)}
+        lists={detail.lists}
+        entriesByList={detail.entriesByList}
+        addToListOpen={detail.addToListOpen}
+        onAddToListOpenChange={detail.setAddToListOpen}
+        onAddListEntry={(listId, titleId) => void detail.addTitleToList(listId, titleId)}
+        onRemoveListEntry={(listId, entryId) => void detail.removeEntryFromList(listId, entryId)}
+        langModalOpen={detail.langModalOpen}
+        onLangModalOpenChange={detail.setLangModalOpen}
+        onUpdateDisplayLang={(displayLang) =>
+          void detail.updateTitleLanguage(title.id, displayLang)
+        }
+        editModalOpen={detail.editModalOpen}
+        onEditModalOpenChange={detail.setEditModalOpen}
+        onUpdateTitle={(patch) => void detail.updateTitleDetails(title.id, patch)}
+        deleteConfirmOpen={detail.deleteConfirmOpen}
+        onDeleteConfirmOpenChange={detail.setDeleteConfirmOpen}
+        onConfirmDelete={async () => {
+          await detail.removeTitle(title.id);
+          detail.setDeleteConfirmOpen(false);
+          detail.navigate('/library');
+        }}
+        undoPlaythroughOpen={detail.undoPlaythroughOpen}
+        onUndoPlaythroughOpenChange={detail.setUndoPlaythroughOpen}
+        onConfirmUndoPlaythrough={async () => {
+          await detail.cancelTitleRewatch(title.id);
+          detail.setUndoPlaythroughOpen(false);
+        }}
+        deletePlaythroughId={detail.deletePlaythroughId}
+        onDeletePlaythroughIdChange={detail.setDeletePlaythroughId}
+        onConfirmDeletePlaythrough={async (ptId) => {
+          await detail.deleteTitlePlaythrough(title.id, ptId);
+          detail.setDeletePlaythroughId(null);
+        }}
       />
     </div>
   );

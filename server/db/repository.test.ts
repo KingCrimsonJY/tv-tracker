@@ -52,12 +52,12 @@ function makeSampleSeasons(): SeasonDoc[] {
   return [
     {
       seasonNumber: 1,
-      name: '第 1 季',
+      name: null,
       episodes: [
         {
           number: 1,
           key: 's1e1',
-          name: '好消息关于地狱',
+          name: { zh: '好消息关于地狱' },
           airDate: '2022-02-18',
           runtime: 57,
           stillPath: null,
@@ -66,7 +66,7 @@ function makeSampleSeasons(): SeasonDoc[] {
         {
           number: 2,
           key: 's1e2',
-          name: '半环路',
+          name: { zh: '半环路' },
           airDate: '2022-02-18',
           runtime: 47,
           stillPath: null,
@@ -75,7 +75,7 @@ function makeSampleSeasons(): SeasonDoc[] {
         {
           number: 3,
           key: 's1e3',
-          name: '永恒之中',
+          name: { zh: '永恒之中' },
           airDate: '2022-02-25',
           runtime: 52,
           stillPath: null,

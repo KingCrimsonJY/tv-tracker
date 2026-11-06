@@ -3,23 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>帧迹 · 私人观影进度追踪</title>
-    <meta name="description" content="个人电影与剧集观看进度、剧集分集打卡与片单管理应用。" />
-    <meta property="og:title" content="帧迹 · 私人观影进度追踪" />
-    <meta property="og:description" content="个人电影与剧集观看进度、剧集分集打卡与片单管理应用。" />
+    <title>帧迹 Zhenji</title>
+    <meta name="description" content="Personal Movie &amp; TV Watch Tracker · 个人影视进度追踪" />
+    <meta property="og:title" content="帧迹 Zhenji" />
+    <meta property="og:description" content="Personal Movie &amp; TV Watch Tracker · 个人影视进度追踪" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#121215" id="meta-theme-color" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="帧迹" />
+    <meta name="apple-mobile-web-app-title" content="帧迹 Zhenji" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <script>
       (function () {
         var mode = 'dark';
+        var locale = 'zh-CN';
         try {
           var saved = localStorage.getItem('zhenji_resolved_theme');
           if (saved === 'light' || saved === 'dark') {
@@ -30,8 +31,18 @@
           ) {
             mode = 'light';
           }
+          var savedLocale = localStorage.getItem('zhenji_resolved_locale');
+          if (savedLocale === 'en' || savedLocale === 'zh-CN') {
+            locale = savedLocale;
+          } else if (
+            navigator.language &&
+            navigator.language.toLowerCase().indexOf('en') === 0
+          ) {
+            locale = 'en';
+          }
         } catch (e) {}
         var root = document.documentElement;
+        root.lang = locale;
         root.classList.remove('dark', 'light');
         root.classList.add(mode);
         root.setAttribute('data-theme', mode);

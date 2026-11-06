@@ -1,60 +1,61 @@
 import React from 'react';
-import { GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Description, Label, Switch } from '@heroui/react';
-import type { HomeSectionConfig } from '../../domain/types.ts';
-import { zh } from '../../i18n/zh.ts';
+import { Switch, Label } from '@heroui/react';
+import { GripVertical } from 'lucide-react';
+import { HomeSectionConfig } from '../../domain/types';
+import { useI18n } from '../../i18n';
 
 export const SortableSectionRow: React.FC<{
   section: HomeSectionConfig;
   onToggle: (enabled: boolean) => void;
 }> = ({ section, onToggle }) => {
+  const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: section.id,
   });
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 20 : undefined,
+    opacity: isDragging ? 0.8 : 1,
   };
-  const label = zh.home.sections[section.id];
-  const desc = zh.home.sectionDescriptions[section.id];
+
+  const sectionLabel = t.home.sections[section.id];
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between gap-3 p-3.5 rounded-xl border transition-colors ${
-        isDragging
-          ? 'bg-[var(--surface-tertiary)] border-[var(--accent)] shadow-xl'
-          : 'bg-[var(--surface-secondary)] border-[var(--border)]'
-      }`}
+      className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)]"
     >
-      <Switch
-        isSelected={section.enabled}
-        onChange={onToggle}
-        className="min-w-0 flex-1"
-      >
-        <Switch.Content className="w-full justify-between">
-          <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-            <Label>{label}</Label>
-            <Description className="truncate">{desc}</Description>
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={t.settings.homeSections.dragHandleAria(sectionLabel)}
+          className="w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] touch-none cursor-grab active:cursor-grabbing shrink-0"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-[var(--foreground)] truncate">{sectionLabel}</div>
+          <div className="text-xs text-[var(--muted)] truncate">
+            {t.home.sectionDescriptions[section.id]}
           </div>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
+        </div>
+      </div>
+
+      <Switch isSelected={section.enabled} onChange={onToggle} size="sm">
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        <Switch.Content>
+          <Label className="sr-only">{sectionLabel}</Label>
         </Switch.Content>
       </Switch>
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        aria-label={zh.settings.homeSections.dragHandleAria(label)}
-        className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] cursor-grab active:cursor-grabbing touch-none shrink-0"
-      >
-        <GripVertical className="w-4 h-4" />
-      </button>
     </div>
   );
 };

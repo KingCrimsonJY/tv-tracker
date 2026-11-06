@@ -6,15 +6,15 @@ import {
   getTitleContinueProgressRatio,
   resolveDisplayTitle,
 } from '../domain/progress';
-import type { ProgressDoc, SeasonDoc, TitleDoc } from '../domain/types';
-import { zh } from '../i18n/zh';
+import type { DefaultTitleLang, ProgressDoc, SeasonDoc, TitleDoc } from '../domain/types';
+import { useI18n } from '../i18n';
 import { MediaImage } from './MediaImage';
 
 interface PosterCardProps {
   title: TitleDoc;
   seasons: SeasonDoc[];
   progress: ProgressDoc | undefined;
-  defaultLang?: 'zh' | 'original' | 'en';
+  defaultLang?: DefaultTitleLang;
   includeSpecials?: boolean;
 }
 
@@ -27,10 +27,11 @@ export const PosterCard: React.FC<PosterCardProps> = ({
   title,
   seasons,
   progress,
-  defaultLang = 'zh',
+  defaultLang = 'auto',
   includeSpecials = false,
 }) => {
-  const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang);
+  const { locale, t } = useI18n();
+  const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
   const state = computeTitleState(title, seasons, progress, { includeSpecials });
 
   const isWatching = state.status === 'watching';
@@ -55,7 +56,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
         {isWatching && (
           <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-[var(--scrim-strong)] via-[var(--scrim-mid)] to-transparent">
             <ProgressBar
-              aria-label={`${primary} ${zh.app.watchProgressAriaSuffix}`}
+              aria-label={`${primary} ${t.app.watchProgressAriaSuffix}`}
               value={pct}
               size="sm"
               className="w-full"
@@ -72,18 +73,18 @@ export const PosterCard: React.FC<PosterCardProps> = ({
         <h3 className="text-sm font-medium text-[var(--foreground)] line-clamp-2 leading-snug group-hover:text-[var(--accent-text)] transition-colors">
           {primary}
         </h3>
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted)] tabular-nums">
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted)] tabular-nums whitespace-nowrap overflow-hidden">
           {state.hasNewEpisodes ? (
-            <span className="text-[var(--accent-text)] font-medium">
-              {zh.detail.newEpisodeBadge}
+            <span className="text-[var(--accent-text)] font-medium truncate">
+              {t.detail.newEpisodeBadge}
             </span>
           ) : (
-            <span>{state.label}</span>
+            <span className="truncate">{t.status[state.status]}</span>
           )}
           {isWatching && state.countableCount > 1 && (
             <>
               <span aria-hidden="true">·</span>
-              <span>
+              <span className="shrink-0">
                 {state.watchedCount}/{state.countableCount}
               </span>
             </>

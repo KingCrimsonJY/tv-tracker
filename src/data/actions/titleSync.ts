@@ -3,7 +3,7 @@ import type {
   Ratings,
   TitleDoc,
 } from '../../domain/types.ts';
-import { zh } from '../../i18n/zh.ts';
+import { getActiveCatalog, translateErrorObject } from '../../i18n/index.ts';
 import {
   deleteTitleApi,
   fetchRatingsApi,
@@ -89,7 +89,7 @@ export function createTitleSyncActions(
               }
             : curr
         );
-        showToast(zh.app.writeRollbackToast, 'danger');
+        showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
         await triggerRefetch();
       }
     } catch {
@@ -117,7 +117,7 @@ export function createTitleSyncActions(
         ...latest.names,
         original: data.title.names.original,
         zh: nextZh,
-        en: data.title.names.en,
+        en: data.title.names.en || latest.names.en,
       };
       const nextRatings: Ratings = {
         ...latest.ratings,
@@ -131,6 +131,9 @@ export function createTitleSyncActions(
         year: data.title.year ?? latest.year,
         runtimeMin: data.title.runtimeMin ?? latest.runtimeMin,
         genres: data.title.genres.length > 0 ? data.title.genres : latest.genres,
+        ...(data.title.genreIds && data.title.genreIds.length > 0
+          ? { genreIds: data.title.genreIds }
+          : {}),
         posterPath: data.title.posterPath || latest.posterPath,
         backdropPath: data.title.backdropPath || latest.backdropPath,
         overview: {
@@ -177,6 +180,7 @@ export function createTitleSyncActions(
                     year: latest.year,
                     runtimeMin: latest.runtimeMin,
                     genres: latest.genres,
+                    genreIds: latest.genreIds,
                     posterPath: latest.posterPath,
                     backdropPath: latest.backdropPath,
                     overview: latest.overview,
@@ -192,12 +196,53 @@ export function createTitleSyncActions(
               }
             : curr
         );
-        showToast(zh.app.writeRollbackToast, 'danger');
+        showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
         await triggerRefetch();
       }
     } catch {
       // Ignore silent background metadata refresh failure
     }
+  }
+
+  async function refreshAllTmdbMetadata(
+    onProgress?: (done: number, total: number) => void
+  ): Promise<number> {
+    const tmdbTitles = Object.values(getState().titles).filter(
+      (t) =>
+        t.source === 'tmdb' &&
+        Boolean(t.sourceId) &&
+        (t.mediaType === 'movie' || t.mediaType === 'tv')
+    );
+    const total = tmdbTitles.length;
+    const cat = getActiveCatalog();
+    if (total === 0) {
+      showToast(cat.settings.dataManagement.refreshAllEmptyToast, 'default');
+      return 0;
+    }
+
+    showToast(cat.settings.dataManagement.refreshingAllToast(String(0), String(total)), 'accent');
+    onProgress?.(0, total);
+
+    const CONCURRENCY = 4;
+    let index = 0;
+    let doneCount = 0;
+
+    const worker = async (): Promise<void> => {
+      while (index < total) {
+        const target = tmdbTitles[index];
+        index += 1;
+        if (!target) continue;
+        await refreshTitleMetadata(target.id);
+        doneCount += 1;
+        onProgress?.(doneCount, total);
+      }
+    };
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, total) }, () => worker());
+    await Promise.all(workers);
+
+    showToast(getActiveCatalog().settings.dataManagement.refreshAllSuccessToast(String(doneCount)), 'success');
+    return doneCount;
   }
 
   async function refreshLinkTitlePlaylist(titleId: string): Promise<number> {
@@ -207,18 +252,17 @@ export function createTitleSyncActions(
     try {
       const res = await refreshLinkPlaylistApi(titleId);
       applyServerMutation(res);
+      const cat = getActiveCatalog();
       showToast(
         res.addedCount > 0
-          ? zh.detail.menu.refreshPlaylistAddedToast(res.addedCount)
-          : zh.detail.menu.refreshPlaylistNoNewToast,
+          ? cat.detail.menu.refreshPlaylistAddedToast(String(res.addedCount))
+          : cat.detail.menu.refreshPlaylistNoNewToast,
         res.addedCount > 0 ? 'success' : 'default'
       );
       return res.addedCount;
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : zh.detail.menu.refreshPlaylistFailedToast,
-        'danger'
-      );
+      const cat = getActiveCatalog();
+      showToast(translateErrorObject(err, cat), 'danger');
       throw err;
     }
   }
@@ -283,7 +327,7 @@ export function createTitleSyncActions(
           entriesByList: nextEntries,
         };
       });
-      showToast(zh.app.writeRollbackToast, 'danger');
+      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }
@@ -291,6 +335,7 @@ export function createTitleSyncActions(
   return {
     fetchAndCacheTitleRatings,
     refreshTitleMetadata,
+    refreshAllTmdbMetadata,
     refreshLinkTitlePlaylist,
     removeTitle,
   };

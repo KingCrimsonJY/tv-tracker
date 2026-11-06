@@ -49,12 +49,12 @@ function makeFixtureState(): {
   const seasons: SeasonDoc[] = [
     {
       seasonNumber: 1,
-      name: '第 1 季',
+      name: null,
       episodes: [
         {
           number: 1,
           key: 's1e1',
-          name: '第 1 集',
+          name: null,
           airDate: '2022-02-18',
           runtime: 50,
           stillPath: null,
@@ -63,7 +63,7 @@ function makeFixtureState(): {
         {
           number: 2,
           key: 's1e2',
-          name: '第 2 集',
+          name: null,
           airDate: '2022-02-18',
           runtime: 50,
           stillPath: null,
@@ -72,7 +72,7 @@ function makeFixtureState(): {
         {
           number: 3,
           key: 's1e3',
-          name: '第 3 集',
+          name: null,
           airDate: '2022-02-25',
           runtime: 50,
           stillPath: null,

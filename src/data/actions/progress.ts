@@ -11,7 +11,7 @@ import {
   undoLatestPlaythrough,
 } from '../../domain/progress.ts';
 import type { Playthrough, ProgressDoc, TitleDoc } from '../../domain/types.ts';
-import { zh } from '../../i18n/zh.ts';
+import { getActiveCatalog } from '../../i18n/index.ts';
 import { postTitleActionApi } from '../api.ts';
 import {
   applyInFlightOpsToState,
@@ -183,7 +183,7 @@ export function createProgressActions(
         };
       });
 
-      showToast(zh.app.writeRollbackToast, 'danger');
+      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
     }
   }

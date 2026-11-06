@@ -1,17 +1,26 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { ListEntryDoc, TitleDoc, WatchListDoc } from '../../src/domain/types.ts';
+import type {
+  ListEntryDoc,
+  ServerErrorCode,
+  TitleDoc,
+  WatchListDoc,
+} from '../../src/domain/types.ts';
 
 export class NotFoundError extends Error {
-  constructor(message: string) {
+  public readonly code: ServerErrorCode;
+  constructor(message: string, code: ServerErrorCode = 'TITLE_NOT_FOUND') {
     super(message);
     this.name = 'NotFoundError';
+    this.code = code;
   }
 }
 
 export class ConflictError extends Error {
-  constructor(message: string) {
+  public readonly code: ServerErrorCode;
+  constructor(message: string, code: ServerErrorCode = 'CONFLICT_ERROR') {
     super(message);
     this.name = 'ConflictError';
+    this.code = code;
   }
 }
 

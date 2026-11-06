@@ -1,335 +1,264 @@
 import React, { useState } from 'react';
+import { Dropdown, Drawer, Button, Label } from '@heroui/react';
 import {
-  Ban,
-  CheckCheck,
+  MoreHorizontal,
+  ListPlus,
   Clock,
-  Edit3,
-  FolderPlus,
-  Globe,
   PauseCircle,
-  Play,
-  RefreshCw,
-  RotateCcw,
+  XCircle,
+  PlayCircle,
+  Languages,
+  Edit3,
   Trash2,
+  CheckCheck,
+  Undo2,
+  RefreshCw,
 } from 'lucide-react';
-import { AlertDialog, Button, Drawer } from '@heroui/react';
-import type { UpdateTitleDetailsInput } from '../../context/TrackerContext';
-import type { ComputedTitleState } from '../../domain/progress';
-import type {
-  DisplayLang,
-  ListEntryDoc,
-  ManualState,
-  TitleDoc,
-  WatchListDoc,
-} from '../../domain/types';
-import { zh } from '../../i18n/zh';
-import { TitleModals } from './TitleModals';
+import { TitleDoc } from '../../domain/types';
+import { ComputedTitleState } from '../../domain/status';
+import { useI18n } from '../../i18n';
 
 interface TitleMenuProps {
   title: TitleDoc;
-  state: ComputedTitleState;
-  menuOpen: boolean;
-  onMenuOpenChange: (open: boolean) => void;
-  langModalOpen: boolean;
-  onLangModalOpenChange: (open: boolean) => void;
-  editModalOpen: boolean;
-  onEditModalOpenChange: (open: boolean) => void;
-  addToListModalOpen: boolean;
-  onAddToListModalOpenChange: (open: boolean) => void;
-  lists: Record<string, WatchListDoc>;
-  entriesByList: Record<string, ListEntryDoc[]>;
-  onOpenResumeModal: () => void;
-  onMarkWholeTitleWatched: () => Promise<void>;
-  onCancelRewatch: () => Promise<void>;
-  onSetManualState: (state: ManualState) => Promise<void>;
-  onRefreshMetadata: () => Promise<void>;
-  onRefreshPlaylist?: () => Promise<void>;
-  onUpdateTitleLanguage: (displayLang: DisplayLang | null) => Promise<void>;
-  onUpdateTitleDetails: (input: UpdateTitleDetailsInput) => Promise<void>;
-  onAddTitleToList: (listId: string, titleId: string) => Promise<void>;
-  onRemoveEntryFromList: (listId: string, entryId: string) => Promise<void>;
-  onDeleteTitle: () => Promise<void>;
+  titleState: ComputedTitleState;
+  hasAnyProgress: boolean;
+  onAddToList: () => void;
+  onOpenResume: () => void;
+  onMarkWholeWatched: () => void;
+  onUndoPlaythrough: () => void;
+  onSetManualState: (state: 'paused' | 'dropped' | null) => void;
+  onOpenLangSelect: () => void;
+  onOpenEdit: () => void;
+  onRefreshMetadata: () => void;
+  onRefreshPlaylist?: () => void;
+  onDelete: () => void;
 }
 
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
-  state,
-  menuOpen,
-  onMenuOpenChange,
-  langModalOpen,
-  onLangModalOpenChange,
-  editModalOpen,
-  onEditModalOpenChange,
-  addToListModalOpen,
-  onAddToListModalOpenChange,
-  lists,
-  entriesByList,
-  onOpenResumeModal,
-  onMarkWholeTitleWatched,
-  onCancelRewatch,
+  titleState,
+  hasAnyProgress,
+  onAddToList,
+  onOpenResume,
+  onMarkWholeWatched,
+  onUndoPlaythrough,
   onSetManualState,
+  onOpenLangSelect,
+  onOpenEdit,
   onRefreshMetadata,
   onRefreshPlaylist,
-  onUpdateTitleLanguage,
-  onUpdateTitleDetails,
-  onAddTitleToList,
-  onRemoveEntryFromList,
-  onDeleteTitle,
+  onDelete,
 }) => {
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
+  const { t } = useI18n();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const canUndoPlaythrough =
-    title.playthroughs.length > 1 ||
-    state.watchedCount > 0 ||
-    Boolean(title.resume) ||
-    Boolean(title.playthroughs[0]?.completedAt);
-  const isSinglePlaythrough = title.playthroughs.length <= 1;
+  const handleAction = (key: string) => {
+    setDrawerOpen(false);
+    switch (key) {
+      case 'addToList':
+        onAddToList();
+        break;
+      case 'resume':
+        onOpenResume();
+        break;
+      case 'markAll':
+        onMarkWholeWatched();
+        break;
+      case 'undoPlaythrough':
+        onUndoPlaythrough();
+        break;
+      case 'pause':
+        onSetManualState('paused');
+        break;
+      case 'drop':
+        onSetManualState('dropped');
+        break;
+      case 'clearManual':
+        onSetManualState(null);
+        break;
+      case 'lang':
+        onOpenLangSelect();
+        break;
+      case 'edit':
+        onOpenEdit();
+        break;
+      case 'refresh':
+        onRefreshMetadata();
+        break;
+      case 'refreshPlaylist':
+        onRefreshPlaylist?.();
+        break;
+      case 'delete':
+        onDelete();
+        break;
+    }
+  };
 
   return (
     <>
-      <Drawer.Backdrop
-        isOpen={menuOpen}
-        onOpenChange={onMenuOpenChange}
-        isDismissable
-      >
-        <Drawer.Content placement="bottom" className="sm:max-w-md sm:mx-auto">
-          <Drawer.Dialog>
-            <Drawer.Handle />
-            <Drawer.Header>
-              <Drawer.Heading>{zh.detail.menu.title}</Drawer.Heading>
-            </Drawer.Header>
-            <Drawer.Body className="space-y-1">
-              <Button
-                variant="ghost"
-                fullWidth
-                onPress={() => {
-                  onMenuOpenChange(false);
-                  onAddToListModalOpenChange(true);
-                }}
-                className="justify-start gap-3"
-              >
-                <FolderPlus className="w-4 h-4 text-[var(--muted)]" />
-                <span>{zh.detail.menu.addToList}</span>
-              </Button>
+      <div className="sm:hidden">
+        <Button
+          variant="secondary"
+          size="lg"
+          isIconOnly
+          aria-label={t.detail.moreActionsAria}
+          onPress={() => setDrawerOpen(true)}
+        >
+          <MoreHorizontal className="w-5 h-5" />
+        </Button>
 
-              <Button
-                variant="ghost"
-                fullWidth
-                onPress={onOpenResumeModal}
-                className="justify-start gap-3"
-              >
-                <Clock className="w-4 h-4 text-[var(--muted)]" />
-                <span>{zh.detail.menu.recordResumeTime}</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                fullWidth
-                onPress={async () => {
-                  onMenuOpenChange(false);
-                  await onMarkWholeTitleWatched();
-                }}
-                className="justify-start gap-3"
-              >
-                <CheckCheck className="w-4 h-4 text-[var(--muted)]" />
-                <span>{zh.detail.menu.markAllWatched}</span>
-              </Button>
-
-              {canUndoPlaythrough && (
-                <Button
-                  variant="ghost"
-                  fullWidth
-                  onPress={() => {
-                    onMenuOpenChange(false);
-                    setUndoConfirmOpen(true);
-                  }}
-                  className="justify-start gap-3"
-                >
-                  <RotateCcw className="w-4 h-4 text-[var(--muted)]" />
-                  <span>{zh.detail.menu.undoPlaythrough}</span>
+        <Drawer.Backdrop isOpen={drawerOpen} onOpenChange={setDrawerOpen}>
+          <Drawer.Content placement="bottom">
+            <Drawer.Dialog>
+              <Drawer.Handle />
+              <Drawer.Header>
+                <Drawer.Heading>{t.detail.menu.title}</Drawer.Heading>
+              </Drawer.Header>
+              <Drawer.Body className="space-y-1 pb-6">
+                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('addToList')}>
+                  <ListPlus className="w-4 h-4 mr-3" />
+                  {t.detail.menu.addToList}
                 </Button>
-              )}
-
-              {title.manualState !== 'paused' && (
-                <Button
-                  variant="ghost"
-                  fullWidth
-                  onPress={async () => {
-                    onMenuOpenChange(false);
-                    await onSetManualState('paused');
-                  }}
-                  className="justify-start gap-3"
-                >
-                  <PauseCircle className="w-4 h-4 text-[var(--muted)]" />
-                  <span>{zh.detail.menu.pause}</span>
+                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('resume')}>
+                  <Clock className="w-4 h-4 mr-3" />
+                  {t.detail.menu.recordResumeTime}
                 </Button>
-              )}
-
-              {title.manualState !== 'dropped' && (
-                <Button
-                  variant="ghost"
-                  fullWidth
-                  onPress={async () => {
-                    onMenuOpenChange(false);
-                    await onSetManualState('dropped');
-                  }}
-                  className="justify-start gap-3"
-                >
-                  <Ban className="w-4 h-4 text-[var(--muted)]" />
-                  <span>{zh.detail.menu.drop}</span>
+                {titleState.status !== 'completed' && titleState.status !== 'caught_up' && (
+                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('markAll')}>
+                    <CheckCheck className="w-4 h-4 mr-3" />
+                    {t.detail.menu.markAllWatched}
+                  </Button>
+                )}
+                {hasAnyProgress && (
+                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('undoPlaythrough')}>
+                    <Undo2 className="w-4 h-4 mr-3" />
+                    {t.detail.menu.undoPlaythrough}
+                  </Button>
+                )}
+                {title.manualState !== null ? (
+                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('clearManual')}>
+                    <PlayCircle className="w-4 h-4 mr-3" />
+                    {t.detail.menu.clearManualState}
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('pause')}>
+                      <PauseCircle className="w-4 h-4 mr-3" />
+                      {t.detail.menu.pause}
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('drop')}>
+                      <XCircle className="w-4 h-4 mr-3" />
+                      {t.detail.menu.drop}
+                    </Button>
+                  </>
+                )}
+                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('lang')}>
+                  <Languages className="w-4 h-4 mr-3" />
+                  {t.detail.menu.titleLanguage}
                 </Button>
-              )}
-
-              {title.manualState && (
-                <Button
-                  variant="ghost"
-                  fullWidth
-                  onPress={async () => {
-                    onMenuOpenChange(false);
-                    await onSetManualState(null);
-                  }}
-                  className="justify-start gap-3"
-                >
-                  <Play className="w-4 h-4 text-[var(--muted)]" />
-                  <span>{zh.detail.menu.clearManualState}</span>
+                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('edit')}>
+                  <Edit3 className="w-4 h-4 mr-3" />
+                  {t.detail.menu.editMetadata}
                 </Button>
+                {title.source === 'tmdb' && (
+                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('refresh')}>
+                    <RefreshCw className="w-4 h-4 mr-3" />
+                    {t.detail.menu.refreshMetadata}
+                  </Button>
+                )}
+                {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
+                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('refreshPlaylist')}>
+                    <RefreshCw className="w-4 h-4 mr-3" />
+                    {t.detail.menu.refreshPlaylist}
+                  </Button>
+                )}
+                <Button variant="danger-soft" className="w-full justify-start" onPress={() => handleAction('delete')}>
+                  <Trash2 className="w-4 h-4 mr-3" />
+                  {t.detail.menu.deleteTitle}
+                </Button>
+              </Drawer.Body>
+            </Drawer.Dialog>
+          </Drawer.Content>
+        </Drawer.Backdrop>
+      </div>
+
+      <div className="hidden sm:block">
+        <Dropdown>
+          <Button
+            variant="secondary"
+            size="lg"
+            isIconOnly
+            aria-label={t.detail.moreActionsAria}
+          >
+            <MoreHorizontal className="w-5 h-5" />
+          </Button>
+          <Dropdown.Popover>
+            <Dropdown.Menu onAction={(k) => handleAction(String(k))}>
+              <Dropdown.Item id="addToList">
+                <ListPlus className="w-4 h-4 mr-2" />
+                <Label>{t.detail.menu.addToList}</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id="resume">
+                <Clock className="w-4 h-4 mr-2" />
+                <Label>{t.detail.menu.recordResumeTime}</Label>
+              </Dropdown.Item>
+              {titleState.status !== 'completed' && titleState.status !== 'caught_up' && (
+                <Dropdown.Item id="markAll">
+                  <CheckCheck className="w-4 h-4 mr-2" />
+                  <Label>{t.detail.menu.markAllWatched}</Label>
+                </Dropdown.Item>
               )}
-
-              <Button
-                variant="ghost"
-                fullWidth
-                onPress={() => {
-                  onMenuOpenChange(false);
-                  onLangModalOpenChange(true);
-                }}
-                className="justify-start gap-3"
-              >
-                <Globe className="w-4 h-4 text-[var(--muted)]" />
-                <span>{zh.detail.menu.titleLanguage}</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                fullWidth
-                onPress={() => {
-                  onMenuOpenChange(false);
-                  onEditModalOpenChange(true);
-                }}
-                className="justify-start gap-3"
-              >
-                <Edit3 className="w-4 h-4 text-[var(--muted)]" />
-                <span>{zh.detail.menu.editMetadata}</span>
-              </Button>
-
+              {hasAnyProgress && (
+                <Dropdown.Item id="undoPlaythrough">
+                  <Undo2 className="w-4 h-4 mr-2" />
+                  <Label>{t.detail.menu.undoPlaythrough}</Label>
+                </Dropdown.Item>
+              )}
+              {title.manualState !== null ? (
+                <Dropdown.Item id="clearManual">
+                  <PlayCircle className="w-4 h-4 mr-2" />
+                  <Label>{t.detail.menu.clearManualState}</Label>
+                </Dropdown.Item>
+              ) : (
+                <>
+                  <Dropdown.Item id="pause">
+                    <PauseCircle className="w-4 h-4 mr-2" />
+                    <Label>{t.detail.menu.pause}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="drop">
+                    <XCircle className="w-4 h-4 mr-2" />
+                    <Label>{t.detail.menu.drop}</Label>
+                  </Dropdown.Item>
+                </>
+              )}
+              <Dropdown.Item id="lang">
+                <Languages className="w-4 h-4 mr-2" />
+                <Label>{t.detail.menu.titleLanguage}</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id="edit">
+                <Edit3 className="w-4 h-4 mr-2" />
+                <Label>{t.detail.menu.editMetadata}</Label>
+              </Dropdown.Item>
               {title.source === 'tmdb' && (
-                <Button
-                  variant="ghost"
-                  fullWidth
-                  onPress={async () => {
-                    onMenuOpenChange(false);
-                    await onRefreshMetadata();
-                  }}
-                  className="justify-start gap-3"
-                >
-                  <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
-                  <span>{zh.detail.menu.refreshMetadata}</span>
-                </Button>
+                <Dropdown.Item id="refresh">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <Label>{t.detail.menu.refreshMetadata}</Label>
+                </Dropdown.Item>
               )}
-
               {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
-                <Button
-                  variant="ghost"
-                  fullWidth
-                  onPress={async () => {
-                    onMenuOpenChange(false);
-                    await onRefreshPlaylist();
-                  }}
-                  className="justify-start gap-3"
-                >
-                  <RefreshCw className="w-4 h-4 text-[var(--muted)]" />
-                  <span>{zh.detail.menu.refreshPlaylist}</span>
-                </Button>
+                <Dropdown.Item id="refreshPlaylist">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <Label>{t.detail.menu.refreshPlaylist}</Label>
+                </Dropdown.Item>
               )}
-
-              <Button
-                variant="danger-soft"
-                fullWidth
-                onPress={() => {
-                  onMenuOpenChange(false);
-                  setDeleteConfirmOpen(true);
-                }}
-                className="justify-start gap-3"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{zh.detail.menu.deleteTitle}</span>
-              </Button>
-            </Drawer.Body>
-          </Drawer.Dialog>
-        </Drawer.Content>
-      </Drawer.Backdrop>
-
-      <AlertDialog.Backdrop
-        isOpen={undoConfirmOpen}
-        onOpenChange={setUndoConfirmOpen}
-        isDismissable
-      >
-        <AlertDialog.Container size="sm" placement="center">
-          <AlertDialog.Dialog>
-            <AlertDialog.Header>
-              <AlertDialog.Icon status="danger" />
-              <AlertDialog.Heading>
-                {zh.detail.playthroughs.cancelRewatch}
-              </AlertDialog.Heading>
-            </AlertDialog.Header>
-            <AlertDialog.Body>
-              <p>
-                {isSinglePlaythrough
-                  ? zh.detail.playthroughs.undoResetFirstConfirm
-                  : zh.detail.playthroughs.cancelRewatchConfirm}
-              </p>
-            </AlertDialog.Body>
-            <AlertDialog.Footer>
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={() => setUndoConfirmOpen(false)}
-              >
-                {zh.app.cancel}
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onPress={async () => {
-                  setUndoConfirmOpen(false);
-                  await onCancelRewatch();
-                }}
-              >
-                {zh.app.confirm}
-              </Button>
-            </AlertDialog.Footer>
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-
-      <TitleModals
-        title={title}
-        lists={lists}
-        entriesByList={entriesByList}
-        langModalOpen={langModalOpen}
-        onLangModalOpenChange={onLangModalOpenChange}
-        editModalOpen={editModalOpen}
-        onEditModalOpenChange={onEditModalOpenChange}
-        addToListModalOpen={addToListModalOpen}
-        onAddToListModalOpenChange={onAddToListModalOpenChange}
-        deleteConfirmOpen={deleteConfirmOpen}
-        onDeleteConfirmOpenChange={setDeleteConfirmOpen}
-        onUpdateTitleLanguage={onUpdateTitleLanguage}
-        onUpdateTitleDetails={onUpdateTitleDetails}
-        onAddTitleToList={onAddTitleToList}
-        onRemoveEntryFromList={onRemoveEntryFromList}
-        onConfirmDeleteTitle={onDeleteTitle}
-      />
+              <Dropdown.Item id="delete" variant="danger">
+                <Trash2 className="w-4 h-4 mr-2" />
+                <Label>{t.detail.menu.deleteTitle}</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      </div>
     </>
   );
 };

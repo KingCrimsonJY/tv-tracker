@@ -1,67 +1,76 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
-import { fetchSystemInfoApi } from '../../data/api.ts';
-import { zh } from '../../i18n/zh.ts';
+import { Card } from '@heroui/react';
+import { Clapperboard, ExternalLink } from 'lucide-react';
+import { fetchSystemInfoApi } from '../../data/api';
+import { useI18n } from '../../i18n';
 
 export const AboutSection: React.FC = () => {
+  const { t } = useI18n();
   const [ytdlpVersion, setYtdlpVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
+    let mounted = true;
     fetchSystemInfoApi()
       .then((info) => {
-        if (active) setYtdlpVersion(info.ytdlpVersion);
+        if (mounted) setYtdlpVersion(info.ytdlpVersion);
       })
-      .catch(() => {
-        if (active) setYtdlpVersion(null);
-      });
+      .catch(() => {});
     return () => {
-      active = false;
+      mounted = false;
     };
   }, []);
 
   return (
-    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--foreground)]">
-            {zh.settings.about.label} · {zh.app.name}
-          </h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5 tabular-nums">
-            {zh.app.tagline} · {zh.settings.about.versionLabel} ·{' '}
-            {zh.settings.about.ytdlpLabel}:{' '}
-            {ytdlpVersion || zh.settings.about.ytdlpNotInstalled}
-          </p>
+    <Card>
+      <Card.Header className="pb-2">
+        <Card.Title className="text-base">{t.settings.about.label}</Card.Title>
+      </Card.Header>
+      <Card.Content className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-accent-foreground shrink-0">
+              <Clapperboard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[var(--foreground)]">{t.app.name}</div>
+              <div className="text-xs text-[var(--muted)]">{t.app.tagline}</div>
+            </div>
+          </div>
+          <a
+            href="https://github.com/KingCrimsonJY/tv-tracker"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1 transition-colors"
+          >
+            {t.settings.about.githubLabel}
+            <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
-        <a
-          href={zh.settings.about.githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] rounded-xl text-xs font-medium border border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--foreground)] hover:border-[var(--accent)] transition-colors"
-        >
-          <span>{zh.settings.about.githubLabel}</span>
-          <ExternalLink className="w-3.5 h-3.5 text-[var(--muted)]" />
-        </a>
-      </div>
 
-      <div className="pt-3 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-3">
-        <a
-          href="https://www.themoviedb.org/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="The Movie Database (TMDB)"
-          className="shrink-0 inline-flex items-center"
-        >
+        <div className="grid grid-cols-2 gap-2 text-xs text-[var(--muted)] pt-2 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between">
+            <span>{t.settings.about.versionLabel}</span>
+            <span className="font-mono text-[var(--foreground)]">v2.0</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>{t.settings.about.ytdlpLabel}</span>
+            <span className="font-mono text-[var(--foreground)]">
+              {ytdlpVersion || t.settings.about.ytdlpNotInstalled}
+            </span>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-3">
           <img
             src="/tmdb-logo.svg"
-            alt="TMDB Logo"
-            className="h-3.5 w-auto"
+            alt="TMDB"
+            className="h-3.5 w-auto shrink-0 self-start sm:self-center opacity-90"
           />
-        </a>
-        <p className="text-xs text-[var(--muted)] leading-relaxed">
-          {zh.settings.about.tmdbNotice}
-        </p>
-      </div>
-    </section>
+          <p className="text-xs text-[var(--muted)] leading-relaxed">
+            {t.settings.about.tmdbNotice}
+          </p>
+        </div>
+      </Card.Content>
+    </Card>
   );
 };
