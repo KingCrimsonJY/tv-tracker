@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Tabs, Select, ListBox, Button, ProgressBar, Disclosure, Label } from '@heroui/react';
 import { CheckCheck, RotateCcw } from 'lucide-react';
 import { ProgressDoc, SeasonDoc, TitleDoc } from '../../domain/types';
-import { makeEpisodeKey, parseEpisodeKey } from '../../domain/airing';
+import { buildAiredEpisodeKeySet, isShowEnded, makeEpisodeKey } from '../../domain/airing';
 import { computeSeasonState } from '../../domain/status';
 import { resolveLocalizedText } from '../../domain/ordering';
 import { EpisodeRow } from './EpisodeRow';
+import { resolveSeasonSelection } from './seasonSelection';
+import { useRestoringScroll } from '../../components/NavigationScroll';
 import { useI18n } from '../../i18n';
 
 interface SeasonPanelProps {
@@ -34,36 +36,45 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
   onOpenResumeForEpisode,
 }) => {
   const { t, locale } = useI18n();
-  const [selectedSeasonNum, setSelectedSeasonNum] = useState<number>(
-    seasons[0]?.seasonNumber ?? 1
-  );
+  const restoringScroll = useRestoringScroll();
+  const [selection, setSelection] = useState(() => resolveSeasonSelection(
+    { seasonNumber: seasons[0]?.seasonNumber ?? 1, appliedLink: null },
+    seasons.map(season => season.seasonNumber), highlightEpKey,
+  ));
+  const setSelectedSeasonNum = (seasonNumber: number) => {
+    setSelection(previous => ({ ...previous, seasonNumber }));
+  };
 
   useEffect(() => {
-    if (highlightEpKey) {
-      const parsed = parseEpisodeKey(highlightEpKey);
-      if (parsed && parsed.seasonNumber > 0) {
-        setSelectedSeasonNum(parsed.seasonNumber);
-      }
-      const timeout = setTimeout(() => {
-        const el = document.getElementById(`episode-${highlightEpKey}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 150);
-      return () => clearTimeout(timeout);
-    } else if (seasons.length > 0 && !seasons.some((s) => s.seasonNumber === selectedSeasonNum)) {
-      setSelectedSeasonNum(seasons[0].seasonNumber);
-    }
-  }, [highlightEpKey, seasons, selectedSeasonNum]);
+    setSelection(previous => resolveSeasonSelection(
+      previous, seasons.map(season => season.seasonNumber), highlightEpKey,
+    ));
+  }, [highlightEpKey, seasons]);
+
+  useEffect(() => {
+    if (!selection.appliedLink || restoringScroll) return;
+    const timeout = setTimeout(() => {
+      document.getElementById(`episode-${selection.appliedLink}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    return () => clearTimeout(timeout);
+  }, [selection.appliedLink, restoringScroll]);
 
   if (seasons.length === 0 && !specialSeason) {
     return null;
   }
 
   const allSeasons = specialSeason ? [...seasons, specialSeason] : seasons;
+  const showEnded = isShowEnded(title.showStatus, title.source);
+  const airedKeys = buildAiredEpisodeKeySet(allSeasons, {
+    todayStr: today, treatAllAsAired: title.source !== 'tmdb', showEnded,
+  });
 
   const renderSeasonBlock = (season: SeasonDoc) => {
     const sState = computeSeasonState(season, activeProgress, {
       todayStr: today,
       treatAllAsAired: title.source !== 'tmdb',
+      showEnded,
       allSeasons,
     });
     const pct =
@@ -132,8 +143,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
                   episode={ep}
                   isWatched={isWatched}
                   resumeSeconds={resumeSeconds}
-                  today={today}
-                  treatAllAsAired={title.source !== 'tmdb'}
+                  aired={airedKeys.has(epKey)}
                   isHighlighted={highlightEpKey === epKey}
                   onToggle={() => onToggleEpisode(epKey)}
                   onMarkUpToHere={() => onMarkUpTo(epKey)}
@@ -146,12 +156,13 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
     );
   };
 
-  const currentSeason = seasons.find((s) => s.seasonNumber === selectedSeasonNum) ?? seasons[0];
+  const currentSeason = seasons.find((s) => s.seasonNumber === selection.seasonNumber) ?? seasons[0];
   const specialState = specialSeason
     ? computeSeasonState(specialSeason, activeProgress, {
         todayStr: today,
         treatAllAsAired: title.source !== 'tmdb',
-        allSeasons,
+        showEnded,
+      allSeasons,
       })
     : null;
 

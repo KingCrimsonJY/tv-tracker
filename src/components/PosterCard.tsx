@@ -75,13 +75,13 @@ export const PosterCard: React.FC<PosterCardProps> = ({
         <h3 className="text-sm font-medium text-[var(--foreground)] line-clamp-2 leading-snug group-hover:text-[var(--accent-text)] transition-colors">
           {primary}
         </h3>
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted)] tabular-nums whitespace-nowrap overflow-hidden">
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[var(--muted)] tabular-nums">
           {state.hasNewEpisodes ? (
-            <span className="text-[var(--accent-text)] font-medium truncate">
+            <span className="text-[var(--accent-text)] font-medium">
               {t.detail.newEpisodeBadge}
             </span>
           ) : (
-            <span className="truncate">{t.status[state.status]}</span>
+            <span>{t.status[state.status]}</span>
           )}
           {isWatching && state.isEpisodic && state.countableCount > 0 && (
             <>

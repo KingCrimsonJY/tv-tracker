@@ -3,6 +3,7 @@ import {
   Modal,
   Alert,
   TextField,
+  NumberField,
   Label,
   Input,
   TextArea,
@@ -104,7 +105,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
         <Modal.Dialog>
           <Modal.CloseTrigger aria-label={t.app.close} />
           <Modal.Header>
-            <Modal.Heading>{initialSeed?.source === 'url' ? t.search.manual.ParsedPreviewTitle : t.search.manual.title}</Modal.Heading>
+            <Modal.Heading>{initialSeed?.source === 'url' ? t.search.manual.parsedPreviewTitle : t.search.manual.title}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
             {initialSeed?.warning && (
@@ -146,17 +147,35 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 items-end gap-3">
-              <TextField value={year} onChange={setYear} isInvalid={invalidYear}>
+            <div className="grid grid-cols-1 min-[390px]:grid-cols-2 items-end gap-3">
+              <NumberField
+                value={year === '' ? NaN : Number(year)}
+                onChange={value => setYear(value == null || Number.isNaN(value) ? '' : String(value))}
+                minValue={1800} maxValue={2200}
+                formatOptions={{ useGrouping: false }} isInvalid={invalidYear}
+              >
                 <Label>{t.search.manual.yearLabel}</Label>
-                <Input type="number" min={1800} max={2200} />
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
                 <FieldError>{t.search.manual.invalidYear}</FieldError>
-              </TextField>
-              <TextField value={runtime} onChange={setRuntime} isInvalid={invalidRuntime}>
+              </NumberField>
+              <NumberField
+                value={runtime === '' ? NaN : Number(runtime)}
+                onChange={value => setRuntime(value == null || Number.isNaN(value) ? '' : String(value))}
+                minValue={0} maxValue={100000}
+                formatOptions={{ useGrouping: false }} isInvalid={invalidRuntime}
+              >
                 <Label>{t.search.manual.runtimeLabel}</Label>
-                <Input type="number" min={0} max={100000} />
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
                 <FieldError>{t.search.manual.invalidRuntime}</FieldError>
-              </TextField>
+              </NumberField>
             </div>
 
             <TextField value={posterUrl} onChange={setPosterUrl}>
@@ -165,11 +184,20 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             </TextField>
 
             {mediaType !== 'movie' && (
-              <TextField value={episodeCount} onChange={setEpisodeCount} isInvalid={invalidCount}>
+              <NumberField
+                value={episodeCount === '' ? NaN : Number(episodeCount)}
+                onChange={value => setEpisodeCount(value == null || Number.isNaN(value) ? '' : String(value))}
+                minValue={0} maxValue={2000}
+                formatOptions={{ useGrouping: false }} isInvalid={invalidCount}
+              >
                 <Label>{t.search.manual.episodeCountLabel}</Label>
-                <Input type="number" min={0} max={2000} />
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
                 <FieldError>{t.search.manual.invalidCount}</FieldError>
-              </TextField>
+              </NumberField>
             )}
 
             <TextField value={overview} onChange={setOverview}>

@@ -96,7 +96,7 @@ export const HomePage: React.FC = () => {
             </Link>
           )}
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 sm:gap-5">
+        <div className="poster-grid">
           {items.map(({ title, seasons, progress }) => (
             <PosterCard
               key={title.id}

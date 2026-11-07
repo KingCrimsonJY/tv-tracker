@@ -323,7 +323,7 @@ export const en: MessageCatalog = {
       invalidCount: 'Enter a whole number from 0 to 2000',
 
       title: 'Add Custom Title',
-      ParsedPreviewTitle: 'Review & Save Imported Item',
+      parsedPreviewTitle: 'Review & Save Imported Item',
       nameLabel: 'Title',
       namePlaceholder: 'Enter movie, series, or video title',
       originalNameLabel: 'Original Title (optional)',

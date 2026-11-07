@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
+import { toLocalDateString } from '../../domain/airing';
 import { computeTitleState } from '../../domain/status';
 import { resolveDisplayTitle, resolveOverviewText } from '../../domain/ordering';
 import { resolveTitleGenres } from '../../domain/genres';
@@ -40,7 +41,7 @@ export function useTitleDetail() {
   const title = id ? titles[id] : undefined;
   const seasons = useMemo(() => (id ? seasonsByTitle[id] ?? [] : []), [id, seasonsByTitle]);
   const activeProgress = title ? getActiveProgress(title) : undefined;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateString();
 
   const titleState = useMemo(() => {
     if (!title) return null;

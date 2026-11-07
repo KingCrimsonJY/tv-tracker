@@ -45,6 +45,8 @@ export const TitleDetailPage: React.FC = () => {
             title={title}
             seasons={seasons}
             titleState={titleState}
+            activeProgress={activeProgress}
+            today={detail.today}
             onMarkMovieWatched={() => void detail.markWholeTitle(title.id, true)}
             onStartRewatch={() => void detail.startTitleRewatch(title.id)}
             onToggleEpisode={(epKey) => void detail.toggleEpisode(title.id, epKey)}
@@ -87,6 +89,7 @@ export const TitleDetailPage: React.FC = () => {
 
         {titleState.isEpisodic && (
           <SeasonPanel
+            key={title.id}
             title={title}
             seasons={regularSeasons}
             specialSeason={specialSeason}

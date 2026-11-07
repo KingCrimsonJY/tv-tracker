@@ -306,7 +306,7 @@ export const zhCN = {
       invalidCount: '集数须为 0–2000 的整数',
 
       title: '手动添加条目',
-      ParsedPreviewTitle: '确认并保存解析结果',
+      parsedPreviewTitle: '确认并保存解析结果',
       nameLabel: '作品标题',
       namePlaceholder: '输入影视或视频名称',
       originalNameLabel: '原始标题（可选）',

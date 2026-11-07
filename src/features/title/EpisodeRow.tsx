@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Checkbox, Dropdown, Label } from '@heroui/react';
 import { MoreHorizontal, CheckCheck, Clock } from 'lucide-react';
 import { EpisodeMeta } from '../../domain/types';
-import { isEpisodeAired, resolveLocalizedText } from '../../domain/progress';
+import { resolveLocalizedText } from '../../domain/progress';
 import { formatSeconds } from '../../domain/time';
 import { useI18n } from '../../i18n';
 
@@ -11,8 +11,7 @@ interface EpisodeRowProps {
   episode: EpisodeMeta;
   isWatched: boolean;
   resumeSeconds: number | null;
-  today: string;
-  treatAllAsAired: boolean;
+  aired: boolean;
   isHighlighted: boolean;
   onToggle: () => void;
   onMarkUpToHere: () => void;
@@ -24,15 +23,13 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
   episode,
   isWatched,
   resumeSeconds,
-  today,
-  treatAllAsAired,
+  aired,
   isHighlighted,
   onToggle,
   onMarkUpToHere,
   onRecordTime,
 }) => {
   const { t, locale, formatDate } = useI18n();
-  const aired = isEpisodeAired(episode, today, treatAllAsAired);
   const resolvedEpTitle =
     resolveLocalizedText(episode.name, locale) ||
     t.detail.seasons.episodeDefaultName(episode.number);
@@ -48,13 +45,13 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
     >
       <Checkbox
         isSelected={isWatched}
-        isDisabled={!aired}
+        isDisabled={!aired && !isWatched}
         onChange={onToggle}
         aria-label={t.detail.seasons.checkEpisodeAria(seasonNumber, episode.number, isWatched)}
         className="m-0 shrink-0"
       >
         <Checkbox.Content className="size-11 justify-center">
-          <Checkbox.Control className="size-6 rounded-full">
+          <Checkbox.Control className="size-6">
             <Checkbox.Indicator />
           </Checkbox.Control>
         </Checkbox.Content>

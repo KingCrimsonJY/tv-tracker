@@ -1,16 +1,19 @@
 import React from 'react';
 import { Button } from '@heroui/react';
 import { Check, RotateCcw } from 'lucide-react';
-import { SeasonDoc, TitleDoc } from '../../domain/types';
+import { ProgressDoc, SeasonDoc, TitleDoc } from '../../domain/types';
 import { ComputedTitleState, isEpisodic } from '../../domain/status';
 import { parseEpisodeKey } from '../../domain/progress';
 import { formatSeconds } from '../../domain/time';
+import { selectPrimaryEpisode } from './primaryEpisode';
 import { useI18n } from '../../i18n';
 
 interface PrimaryActionProps {
   title: TitleDoc;
   seasons: SeasonDoc[];
   titleState: ComputedTitleState;
+  activeProgress?: ProgressDoc;
+  today: string;
   onMarkMovieWatched: () => void;
   onStartRewatch: () => void;
   onToggleEpisode: (epKey: string) => void;
@@ -21,6 +24,8 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
   title,
   seasons,
   titleState,
+  activeProgress,
+  today,
   onMarkMovieWatched,
   onStartRewatch,
   onToggleEpisode,
@@ -72,7 +77,7 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
         variant="ghost"
         size="sm"
         onPress={() => onOpenResume(resume.episodeKey ?? undefined)}
-        className="text-xs sm:text-sm text-muted hover:text-foreground transition-colors tabular-nums cursor-pointer px-1 py-1"
+        className="px-1 py-1"
       >
         {t.detail.primaryAction.stoppedAt(formatSeconds(resume.seconds))}
       </Button>
@@ -91,7 +96,7 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
   }
 
   // Episodic TV / custom series
-  const targetEpKey = (hasResume && resume?.episodeKey) || titleState.nextUp?.key;
+  const targetEpKey = selectPrimaryEpisode(title, seasons, activeProgress, titleState.nextUp?.key, today);
   if (targetEpKey) {
     const parsed = parseEpisodeKey(targetEpKey);
     const label = parsed
