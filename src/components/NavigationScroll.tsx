@@ -16,7 +16,9 @@ export function NavigationScroll({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
-    return () => { window.history.scrollRestoration = previous; };
+    return () => {
+      window.history.scrollRestoration = previous;
+    };
   }, []);
 
   useLayoutEffect(() => {

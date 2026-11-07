@@ -106,8 +106,8 @@ export function registerEntityRoutes(
           repo.putProgress(titleId, playthroughId, {
             watched: parsed.watched,
             movieWatchedAt: parsed.movieWatchedAt,
-          })
-        )
+          }),
+        ),
       );
     } catch (err) {
       next(err);

@@ -1,18 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { RefreshCw, WifiOff } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  Input,
-  I18nProvider,
-  Label,
-  Skeleton,
-  Spinner,
-  TextField,
-  Toast,
-} from '@heroui/react';
+import { Alert, Button, Card, Input, I18nProvider, Label, Skeleton, Spinner, TextField, Toast } from '@heroui/react';
 import { NavigationScroll } from './components/NavigationScroll';
 import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
@@ -94,10 +83,7 @@ const AuthScreen: React.FC = () => {
                 variant="secondary"
               >
                 <Label>{t.app.setupCodeLabel}</Label>
-                <Input
-                  placeholder={t.app.setupCodePlaceholder}
-                  autoComplete="off"
-                />
+                <Input placeholder={t.app.setupCodePlaceholder} autoComplete="off" />
               </TextField>
             )}
 
@@ -114,9 +100,7 @@ const AuthScreen: React.FC = () => {
             >
               {needsSetup && <Label>{t.app.setupPasswordTitle}</Label>}
               <Input
-                placeholder={
-                  needsSetup ? t.app.passwordPlaceholder : t.app.loginPasswordPlaceholder
-                }
+                placeholder={needsSetup ? t.app.passwordPlaceholder : t.app.loginPasswordPlaceholder}
                 autoComplete={needsSetup ? 'new-password' : 'current-password'}
               />
             </TextField>
@@ -130,13 +114,7 @@ const AuthScreen: React.FC = () => {
               </Alert>
             )}
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              fullWidth
-              isPending={submitting}
-            >
+            <Button type="submit" variant="primary" size="lg" fullWidth isPending={submitting}>
               {submitting && <Spinner size="sm" color="current" />}
               <span>{needsSetup ? t.app.setupPasswordSubmit : t.app.loginSubmit}</span>
             </Button>
@@ -172,26 +150,12 @@ const OfflineScreen: React.FC = () => {
             <WifiOff className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)]">
-              {t.app.offlineTitle}
-            </h1>
-            <p className="text-sm text-[var(--muted)] leading-relaxed">
-              {t.app.offlineDescription}
-            </p>
+            <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)]">{t.app.offlineTitle}</h1>
+            <p className="text-sm text-[var(--muted)] leading-relaxed">{t.app.offlineDescription}</p>
           </div>
           <div className="w-full pt-2">
-            <Button
-              variant="primary"
-              size="lg"
-              fullWidth
-              isPending={retrying}
-              onPress={handleRetry}
-            >
-              {retrying ? (
-                <Spinner size="sm" color="current" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
+            <Button variant="primary" size="lg" fullWidth isPending={retrying} onPress={handleRetry}>
+              {retrying ? <Spinner size="sm" color="current" /> : <RefreshCw className="w-4 h-4" />}
               <span>{t.app.offlineRetry}</span>
             </Button>
           </div>
@@ -250,7 +214,9 @@ export default function App() {
       <BrowserRouter>
         <TrackerProvider>
           <Toast.Provider placement="bottom" />
-          <NavigationScroll><AppRoutes /></NavigationScroll>
+          <NavigationScroll>
+            <AppRoutes />
+          </NavigationScroll>
         </TrackerProvider>
       </BrowserRouter>
     </I18nProvider>

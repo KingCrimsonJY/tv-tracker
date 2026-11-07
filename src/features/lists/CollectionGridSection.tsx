@@ -9,12 +9,7 @@ import {
   useSensors,
   DragEndEvent,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
+import { SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@heroui/react';
 import { GripVertical, X } from 'lucide-react';
@@ -61,12 +56,7 @@ const SortablePosterItem: React.FC<{
     opacity: isDragging ? 0.8 : 1,
   };
 
-  const { primary: displayTitle } = resolveDisplayTitle(
-    item.title.names,
-    item.title.displayLang,
-    defaultLang,
-    locale
-  );
+  const { primary: displayTitle } = resolveDisplayTitle(item.title.names, item.title.displayLang, defaultLang, locale);
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
@@ -118,7 +108,7 @@ export const CollectionGridSection: React.FC<CollectionGridSectionProps> = ({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {

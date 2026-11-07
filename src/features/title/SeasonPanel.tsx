@@ -37,24 +37,32 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
 }) => {
   const { t, locale } = useI18n();
   const restoringScroll = useRestoringScroll();
-  const [selection, setSelection] = useState(() => resolveSeasonSelection(
-    { seasonNumber: seasons[0]?.seasonNumber ?? 1, appliedLink: null },
-    seasons.map(season => season.seasonNumber), highlightEpKey,
-  ));
+  const [selection, setSelection] = useState(() =>
+    resolveSeasonSelection(
+      { seasonNumber: seasons[0]?.seasonNumber ?? 1, appliedLink: null },
+      seasons.map((season) => season.seasonNumber),
+      highlightEpKey,
+    ),
+  );
   const setSelectedSeasonNum = (seasonNumber: number) => {
-    setSelection(previous => ({ ...previous, seasonNumber }));
+    setSelection((previous) => ({ ...previous, seasonNumber }));
   };
 
   useEffect(() => {
-    setSelection(previous => resolveSeasonSelection(
-      previous, seasons.map(season => season.seasonNumber), highlightEpKey,
-    ));
+    setSelection((previous) =>
+      resolveSeasonSelection(
+        previous,
+        seasons.map((season) => season.seasonNumber),
+        highlightEpKey,
+      ),
+    );
   }, [highlightEpKey, seasons]);
 
   useEffect(() => {
     if (!selection.appliedLink || restoringScroll) return;
     const timeout = setTimeout(() => {
-      document.getElementById(`episode-${selection.appliedLink}`)
+      document
+        .getElementById(`episode-${selection.appliedLink}`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 150);
     return () => clearTimeout(timeout);
@@ -67,7 +75,9 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
   const allSeasons = specialSeason ? [...seasons, specialSeason] : seasons;
   const showEnded = isShowEnded(title.showStatus, title.source);
   const airedKeys = buildAiredEpisodeKeySet(allSeasons, {
-    todayStr: today, treatAllAsAired: title.source !== 'tmdb', showEnded,
+    todayStr: today,
+    treatAllAsAired: title.source !== 'tmdb',
+    showEnded,
   });
 
   const renderSeasonBlock = (season: SeasonDoc) => {
@@ -77,12 +87,10 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
       showEnded,
       allSeasons,
     });
-    const pct =
-      sState.airedCount > 0 ? Math.round((sState.watchedCount / sState.airedCount) * 100) : 0;
+    const pct = sState.airedCount > 0 ? Math.round((sState.watchedCount / sState.airedCount) * 100) : 0;
     const allAiredWatched = sState.airedCount > 0 && sState.watchedCount >= sState.airedCount;
     const resolvedSeasonName =
-      resolveLocalizedText(season.name, locale) ||
-      t.detail.seasons.tabLabel(season.seasonNumber);
+      resolveLocalizedText(season.name, locale) || t.detail.seasons.tabLabel(season.seasonNumber);
 
     return (
       <div className="space-y-4">
@@ -90,8 +98,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
           <div className="space-y-1.5 flex-1 max-w-md">
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-[var(--foreground)]">
-                {resolvedSeasonName} ·{' '}
-                {t.detail.seasons.progressText(sState.watchedCount, sState.airedCount)}
+                {resolvedSeasonName} · {t.detail.seasons.progressText(sState.watchedCount, sState.airedCount)}
               </span>
               <span className="text-[var(--muted)]">{pct}%</span>
             </div>
@@ -134,8 +141,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             .map((ep) => {
               const epKey = makeEpisodeKey(season.seasonNumber, ep.number);
               const isWatched = Boolean(activeProgress?.watched[epKey]);
-              const resumeSeconds =
-                title.resume && title.resume.episodeKey === epKey ? title.resume.seconds : null;
+              const resumeSeconds = title.resume && title.resume.episodeKey === epKey ? title.resume.seconds : null;
               return (
                 <EpisodeRow
                   key={epKey}
@@ -162,7 +168,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
         todayStr: today,
         treatAllAsAired: title.source !== 'tmdb',
         showEnded,
-      allSeasons,
+        allSeasons,
       })
     : null;
 
@@ -209,14 +215,10 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
                   {seasons.map((s) => {
                     const optionLabel = t.detail.seasons.selectOptionWithCount(
                       t.detail.seasons.tabLabel(s.seasonNumber),
-                      s.episodes.length
+                      s.episodes.length,
                     );
                     return (
-                      <ListBox.Item
-                        key={s.seasonNumber}
-                        id={String(s.seasonNumber)}
-                        textValue={optionLabel}
-                      >
+                      <ListBox.Item key={s.seasonNumber} id={String(s.seasonNumber)} textValue={optionLabel}>
                         {optionLabel}
                       </ListBox.Item>
                     );
@@ -232,18 +234,11 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
         <Disclosure className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
           <Disclosure.Heading>
             <Disclosure.Trigger className="w-full justify-between">
-              <span>
-                {t.detail.seasons.specialsCollapsedTitle(
-                  specialState.watchedCount,
-                  specialState.airedCount
-                )}
-              </span>
+              <span>{t.detail.seasons.specialsCollapsedTitle(specialState.watchedCount, specialState.airedCount)}</span>
               <Disclosure.Indicator />
             </Disclosure.Trigger>
           </Disclosure.Heading>
-          <Disclosure.Content className="pt-3">
-            {renderSeasonBlock(specialSeason)}
-          </Disclosure.Content>
+          <Disclosure.Content className="pt-3">{renderSeasonBlock(specialSeason)}</Disclosure.Content>
         </Disclosure>
       )}
     </div>

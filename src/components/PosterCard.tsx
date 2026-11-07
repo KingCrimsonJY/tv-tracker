@@ -1,12 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ProgressBar } from '@heroui/react';
-import {
-  computeTitleState,
-  getTitleContinueProgressRatio,
-  pickPoster,
-  resolveDisplayTitle,
-} from '../domain/progress';
+import { computeTitleState, getTitleContinueProgressRatio, pickPoster, resolveDisplayTitle } from '../domain/progress';
 import type { DefaultTitleLang, ProgressDoc, SeasonDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
 import { MediaImage } from './MediaImage';
@@ -46,13 +41,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
       className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded-xl"
     >
       <div className="relative rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 group-hover:scale-[1.02]">
-        <MediaImage
-          src={posterSrc}
-          alt={primary}
-          aspect="poster"
-          mediaType={title.mediaType}
-          className="w-full"
-        />
+        <MediaImage src={posterSrc} alt={primary} aspect="poster" mediaType={title.mediaType} className="w-full" />
 
         {/* Thin progress bar at bottom of poster while watching */}
         {isWatching && (
@@ -77,9 +66,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
         </h3>
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[var(--muted)] tabular-nums">
           {state.hasNewEpisodes ? (
-            <span className="text-[var(--accent-text)] font-medium">
-              {t.detail.newEpisodeBadge}
-            </span>
+            <span className="text-[var(--accent-text)] font-medium">{t.detail.newEpisodeBadge}</span>
           ) : (
             <span>{t.status[state.status]}</span>
           )}

@@ -18,7 +18,7 @@ export function selectBestTmdbImages(
     zhPosterPath?: string | null;
     enPosterPath?: string | null;
     backdropPath?: string | null;
-  }
+  },
 ): {
   posters: NonNullable<TitleDoc['posters']>;
   defaultPosterPath: string | null;
@@ -29,13 +29,10 @@ export function selectBestTmdbImages(
 
   // Best zh poster: prefer CN/SG when present, then by vote_average desc
   const zhCandidates = postersList.filter((p) => p.iso_639_1 === 'zh');
-  const zhCnSg = zhCandidates.filter(
-    (p) => p.iso_3166_1 === 'CN' || p.iso_3166_1 === 'SG'
-  );
+  const zhCnSg = zhCandidates.filter((p) => p.iso_3166_1 === 'CN' || p.iso_3166_1 === 'SG');
   const bestZhItem =
-    (zhCnSg.length > 0
-      ? [...zhCnSg].sort(compareByVotesDesc)[0]
-      : [...zhCandidates].sort(compareByVotesDesc)[0]) ?? null;
+    (zhCnSg.length > 0 ? [...zhCnSg].sort(compareByVotesDesc)[0] : [...zhCandidates].sort(compareByVotesDesc)[0]) ??
+    null;
 
   // Best en poster: by vote_average desc
   const enCandidates = postersList.filter((p) => p.iso_639_1 === 'en');
@@ -43,7 +40,7 @@ export function selectBestTmdbImages(
 
   // Best textless (iso_639_1: null) poster: by vote_average desc
   const textlessCandidates = postersList.filter(
-    (p) => p.iso_639_1 === null || p.iso_639_1 === undefined || p.iso_639_1 === 'xx'
+    (p) => p.iso_639_1 === null || p.iso_639_1 === undefined || p.iso_639_1 === 'xx',
   );
   const bestTextlessItem = [...textlessCandidates].sort(compareByVotesDesc)[0] ?? null;
 
@@ -58,24 +55,18 @@ export function selectBestTmdbImages(
   };
 
   const defaultPosterPath =
-    zhPoster ||
-    textlessPoster ||
-    enPoster ||
-    tmdbImageUrl(fallbacks.zhPosterPath || fallbacks.enPosterPath, 'w500');
+    zhPoster || textlessPoster || enPoster || tmdbImageUrl(fallbacks.zhPosterPath || fallbacks.enPosterPath, 'w500');
 
   // Backdrops: prefer textless (iso_639_1: null), then highest voted, then fallback
   const textlessBackdrops = backdropsList.filter(
-    (b) => b.iso_639_1 === null || b.iso_639_1 === undefined || b.iso_639_1 === 'xx'
+    (b) => b.iso_639_1 === null || b.iso_639_1 === undefined || b.iso_639_1 === 'xx',
   );
   const bestBackdropItem =
     (textlessBackdrops.length > 0
       ? [...textlessBackdrops].sort(compareByVotesDesc)[0]
       : [...backdropsList].sort(compareByVotesDesc)[0]) ?? null;
 
-  const backdropPath = tmdbImageUrl(
-    bestBackdropItem?.file_path ?? fallbacks.backdropPath ?? null,
-    'w1280'
-  );
+  const backdropPath = tmdbImageUrl(bestBackdropItem?.file_path ?? fallbacks.backdropPath ?? null, 'w1280');
 
   return {
     posters,

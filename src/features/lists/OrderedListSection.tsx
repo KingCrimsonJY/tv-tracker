@@ -61,12 +61,7 @@ const SortableOrderedRow: React.FC<{
     opacity: isDragging ? 0.8 : 1,
   };
 
-  const { primary: displayTitle } = resolveDisplayTitle(
-    item.title.names,
-    item.title.displayLang,
-    defaultLang,
-    locale
-  );
+  const { primary: displayTitle } = resolveDisplayTitle(item.title.names, item.title.displayLang, defaultLang, locale);
 
   return (
     <div
@@ -93,9 +88,7 @@ const SortableOrderedRow: React.FC<{
         </Button>
       )}
 
-      <div className="w-7 text-center font-mono text-sm font-semibold text-[var(--muted)] shrink-0">
-        {index + 1}
-      </div>
+      <div className="w-7 text-center font-mono text-sm font-semibold text-[var(--muted)] shrink-0">{index + 1}</div>
 
       <Link to={`/title/${item.title.id}`} className="flex items-center gap-3 flex-1 min-w-0">
         <div className="w-11 h-16 rounded-lg overflow-hidden bg-[var(--surface-secondary)] shrink-0">
@@ -117,9 +110,7 @@ const SortableOrderedRow: React.FC<{
               </Chip>
             )}
           </div>
-          <div className="text-xs text-[var(--muted)] mt-0.5">
-            {item.title.year ?? ''}
-          </div>
+          <div className="text-xs text-[var(--muted)] mt-0.5">{item.title.year ?? ''}</div>
         </div>
       </Link>
 
@@ -131,8 +122,8 @@ const SortableOrderedRow: React.FC<{
             item.state.status === 'completed' || item.state.status === 'caught_up'
               ? 'success'
               : item.state.status === 'watching'
-              ? 'accent'
-              : 'default'
+                ? 'accent'
+                : 'default'
           }
         >
           {t.status[item.state.status]}
@@ -165,7 +156,7 @@ export const OrderedListSection: React.FC<OrderedListSectionProps> = ({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {

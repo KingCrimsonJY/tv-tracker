@@ -54,9 +54,7 @@ export function getState(ctx: DbContext): AppStateSnapshot {
   }
 
   const progressByTitle: Record<string, Record<string, ProgressDoc>> = {};
-  const progressRows = ctx.db
-    .prepare('SELECT title_id, playthrough_id, data FROM progress')
-    .all() as Array<{
+  const progressRows = ctx.db.prepare('SELECT title_id, playthrough_id, data FROM progress').all() as Array<{
     title_id: string;
     playthrough_id: string;
     data: string;
@@ -75,9 +73,7 @@ export function getState(ctx: DbContext): AppStateSnapshot {
   }
 
   const lists: Record<string, WatchListDoc> = {};
-  const listRows = ctx.db
-    .prepare('SELECT id, data, rank FROM lists ORDER BY rank ASC')
-    .all() as Array<{
+  const listRows = ctx.db.prepare('SELECT id, data, rank FROM lists ORDER BY rank ASC').all() as Array<{
     id: string;
     data: string;
     rank: string;
@@ -121,10 +117,7 @@ export function getState(ctx: DbContext): AppStateSnapshot {
   };
 }
 
-export function exportData(
-  ctx: DbContext,
-  exportedAt = new Date().toISOString()
-): ZhenjiExportV2 {
+export function exportData(ctx: DbContext, exportedAt = new Date().toISOString()): ZhenjiExportV2 {
   const state = getState(ctx);
   return {
     format: 'zhenji-export',
@@ -142,7 +135,7 @@ export function exportData(
 export function importData(
   ctx: DbContext,
   rawInput: unknown,
-  options: { skipBackup?: boolean; now?: Date } = {}
+  options: { skipBackup?: boolean; now?: Date } = {},
 ): StateMutationResult {
   const parsed = importPayloadSchema.parse(rawInput);
 
@@ -151,12 +144,8 @@ export function importData(
   }
 
   return ctx.runInTransaction(() => {
-    const oldTitleIds = (
-      ctx.db.prepare('SELECT id FROM titles').all() as Array<{ id: string }>
-    ).map((r) => r.id);
-    const oldListIds = (
-      ctx.db.prepare('SELECT id FROM lists').all() as Array<{ id: string }>
-    ).map((r) => r.id);
+    const oldTitleIds = (ctx.db.prepare('SELECT id FROM titles').all() as Array<{ id: string }>).map((r) => r.id);
+    const oldListIds = (ctx.db.prepare('SELECT id FROM lists').all() as Array<{ id: string }>).map((r) => r.id);
 
     ctx.db.prepare('DELETE FROM list_entries').run();
     ctx.db.prepare('DELETE FROM lists').run();
@@ -171,13 +160,11 @@ export function importData(
     ctx.db
       .prepare(
         `INSERT INTO settings (key, data) VALUES ('app', ?)
-         ON CONFLICT(key) DO UPDATE SET data = excluded.data`
+         ON CONFLICT(key) DO UPDATE SET data = excluded.data`,
       )
       .run(JSON.stringify(settings));
 
-    const insertTitle = ctx.db.prepare(
-      'INSERT INTO titles (id, data, added_at, updated_at) VALUES (?, ?, ?, ?)'
-    );
+    const insertTitle = ctx.db.prepare('INSERT INTO titles (id, data, added_at, updated_at) VALUES (?, ?, ?, ?)');
     const titles: Record<string, TitleDoc> = {};
     for (const [id, title] of Object.entries(parsed.titles)) {
       const titleDoc: TitleDoc = { ...title, id };
@@ -204,22 +191,20 @@ export function importData(
       insertTitle.run(id, serializeTitleData(titleDoc), titleDoc.addedAt, titleDoc.updatedAt);
     }
 
-    const insertSeason = ctx.db.prepare(
-      'INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)'
-    );
+    const insertSeason = ctx.db.prepare('INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)');
     const seasonsByTitle: Record<string, SeasonDoc[]> = {};
     for (const [titleId, seasons] of Object.entries(parsed.seasonsByTitle)) {
       if (!titles[titleId]) continue;
-      const sorted = cleanLegacySeasons(titles[titleId].source, seasons).sort((a, b) => a.seasonNumber - b.seasonNumber);
+      const sorted = cleanLegacySeasons(titles[titleId].source, seasons).sort(
+        (a, b) => a.seasonNumber - b.seasonNumber,
+      );
       seasonsByTitle[titleId] = sorted;
       for (const s of sorted) {
         insertSeason.run(titleId, s.seasonNumber, JSON.stringify(s));
       }
     }
 
-    const insertProgress = ctx.db.prepare(
-      'INSERT INTO progress (title_id, playthrough_id, data) VALUES (?, ?, ?)'
-    );
+    const insertProgress = ctx.db.prepare('INSERT INTO progress (title_id, playthrough_id, data) VALUES (?, ?, ?)');
     const progressByTitle: Record<string, Record<string, ProgressDoc>> = {};
     for (const [titleId, progMap] of Object.entries(parsed.progressByTitle)) {
       if (!titles[titleId]) continue;
@@ -236,9 +221,7 @@ export function importData(
           playthroughId: ptId,
           watched: payload.watched,
           archivedWatched: payload.archivedWatched,
-          ...(payload.movieWatchedAt !== undefined
-            ? { movieWatchedAt: payload.movieWatchedAt }
-            : {}),
+          ...(payload.movieWatchedAt !== undefined ? { movieWatchedAt: payload.movieWatchedAt } : {}),
         };
       }
     }
@@ -252,7 +235,7 @@ export function importData(
     }
 
     const insertEntry = ctx.db.prepare(
-      'INSERT INTO list_entries (id, list_id, title_id, rank, data) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO list_entries (id, list_id, title_id, rank, data) VALUES (?, ?, ?, ?, ?)',
     );
     const entriesByList: Record<string, ListEntryDoc[]> = {};
     for (const [listId, entries] of Object.entries(parsed.entriesByList)) {
@@ -262,13 +245,7 @@ export function importData(
         if (!titles[entry.titleId]) continue;
         const entryDoc: ListEntryDoc = { ...entry };
         validEntries.push(entryDoc);
-        insertEntry.run(
-          entryDoc.id,
-          listId,
-          entryDoc.titleId,
-          entryDoc.rank,
-          serializeEntryData(entryDoc)
-        );
+        insertEntry.run(entryDoc.id, listId, entryDoc.titleId, entryDoc.rank, serializeEntryData(entryDoc));
       }
       validEntries.sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
       entriesByList[listId] = validEntries;

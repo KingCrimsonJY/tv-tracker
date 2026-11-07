@@ -1,10 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type {
-  ListEntryDoc,
-  ServerErrorCode,
-  TitleDoc,
-  WatchListDoc,
-} from '../../src/domain/types.ts';
+import type { ListEntryDoc, ServerErrorCode, TitleDoc, WatchListDoc } from '../../src/domain/types.ts';
 
 export class NotFoundError extends Error {
   public readonly code: ServerErrorCode;

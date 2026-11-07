@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  AlertDialog,
-  RadioGroup,
-  Radio,
-  TextField,
-  Label,
-  Input,
-  TextArea,
-  Button,
-} from '@heroui/react';
+import { Modal, AlertDialog, RadioGroup, Radio, TextField, Label, Input, TextArea, Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { DisplayLang, WatchListDoc, ListEntryDoc, TitleDoc } from '../../domain/types';
 import { UpdateTitleDetailsInput } from '../../data/actions/types';
@@ -86,8 +76,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
     { value: 'en', label: t.detail.languageOptions.en, name: title.names.en || '-' },
   ];
   const listArray = Object.values(lists);
-  const deletingPtNum =
-    title.playthroughs.find((p) => p.id === deletePlaythroughId)?.number ?? 1;
+  const deletingPtNum = title.playthroughs.find((p) => p.id === deletePlaythroughId)?.number ?? 1;
 
   return (
     <>
@@ -100,14 +89,10 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
             </Modal.Header>
             <Modal.Body className="space-y-2">
               {listArray.length === 0 ? (
-                <p className="text-sm text-[var(--muted)] py-4 text-center">
-                  {t.search.emptyListsInModal}
-                </p>
+                <p className="text-sm text-[var(--muted)] py-4 text-center">{t.search.emptyListsInModal}</p>
               ) : (
                 listArray.map((list) => {
-                  const existingEntry = (entriesByList[list.id] ?? []).find(
-                    (e) => e.titleId === title.id
-                  );
+                  const existingEntry = (entriesByList[list.id] ?? []).find((e) => e.titleId === title.id);
                   return (
                     <div
                       key={list.id}
@@ -124,11 +109,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                           {t.app.delete}
                         </Button>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onPress={() => onAddListEntry(list.id, title.id)}
-                        >
+                        <Button size="sm" variant="secondary" onPress={() => onAddListEntry(list.id, title.id)}>
                           <Plus className="w-4 h-4 mr-1" />
                           {t.lists.addActionShort}
                         </Button>
@@ -285,9 +266,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
-              <AlertDialog.Heading>
-                {t.detail.playthroughs.deletePlaythroughTitle(deletingPtNum)}
-              </AlertDialog.Heading>
+              <AlertDialog.Heading>{t.detail.playthroughs.deletePlaythroughTitle(deletingPtNum)}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
               <p className="text-sm text-[var(--muted)]">

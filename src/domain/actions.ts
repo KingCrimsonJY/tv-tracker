@@ -6,14 +6,7 @@ import {
   toLocalDateString,
 } from './airing.ts';
 import { computeTitleState } from './status.ts';
-import type {
-  ManualState,
-  Playthrough,
-  ProgressDoc,
-  ResumePoint,
-  SeasonDoc,
-  TitleDoc,
-} from './types.ts';
+import type { ManualState, Playthrough, ProgressDoc, ResumePoint, SeasonDoc, TitleDoc } from './types.ts';
 
 export * from './playthroughs.ts';
 
@@ -27,13 +20,7 @@ export interface MutationResult {
 
 export type ActionTitleInput = Pick<
   TitleDoc,
-  | 'source'
-  | 'mediaType'
-  | 'showStatus'
-  | 'manualState'
-  | 'resume'
-  | 'playthroughs'
-  | 'activePlaythroughId'
+  'source' | 'mediaType' | 'showStatus' | 'manualState' | 'resume' | 'playthroughs' | 'activePlaythroughId'
 > & { runtimeMin?: number | null };
 
 export interface ActionOptions {
@@ -50,7 +37,7 @@ function syncPlaythroughCompletion(
   playthroughs: Playthrough[],
   activePlaythroughId: string,
   progress: ProgressDoc,
-  options: ActionOptions
+  options: ActionOptions,
 ): Playthrough[] {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const computed = computeTitleState(
@@ -66,7 +53,7 @@ function syncPlaythroughCompletion(
     },
     seasons,
     progress,
-    { includeSpecials, todayStr }
+    { includeSpecials, todayStr },
   );
 
   return playthroughs.map((p) => {
@@ -84,7 +71,7 @@ export function toggleEpisodeWatched(
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   episodeKey: string,
-  options: ActionOptions = {}
+  options: ActionOptions = {},
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
@@ -105,7 +92,7 @@ export function toggleEpisodeWatched(
         title.playthroughs,
         title.activePlaythroughId,
         nextProgress,
-        { includeSpecials, todayStr, now }
+        { includeSpecials, todayStr, now },
       ),
       activePlaythroughId: title.activePlaythroughId,
       progress: nextProgress,
@@ -128,8 +115,7 @@ export function toggleEpisodeWatched(
     watched: { ...progress.watched, [episodeKey]: now },
   };
   const nextManualState: ManualState = null;
-  const nextResume: ResumePoint | null =
-    title.resume && title.resume.episodeKey === episodeKey ? null : title.resume;
+  const nextResume: ResumePoint | null = title.resume && title.resume.episodeKey === episodeKey ? null : title.resume;
 
   return {
     manualState: nextManualState,
@@ -142,7 +128,7 @@ export function toggleEpisodeWatched(
       title.playthroughs,
       title.activePlaythroughId,
       nextProgress,
-      { includeSpecials, todayStr, now }
+      { includeSpecials, todayStr, now },
     ),
     activePlaythroughId: title.activePlaythroughId,
     progress: nextProgress,
@@ -155,7 +141,7 @@ export function setSeasonWatched(
   progress: ProgressDoc,
   seasonNumber: number,
   markWatched: boolean,
-  options: ActionOptions = {}
+  options: ActionOptions = {},
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
@@ -192,12 +178,9 @@ export function setSeasonWatched(
   }
 
   const nextProgress: ProgressDoc = { ...progress, watched: nextWatched };
-  const nextManualState: ManualState =
-    markWatched && checkedKeys.size > 0 ? null : title.manualState;
+  const nextManualState: ManualState = markWatched && checkedKeys.size > 0 ? null : title.manualState;
   const nextResume: ResumePoint | null =
-    markWatched && title.resume?.episodeKey && checkedKeys.has(title.resume.episodeKey)
-      ? null
-      : title.resume;
+    markWatched && title.resume?.episodeKey && checkedKeys.has(title.resume.episodeKey) ? null : title.resume;
 
   return {
     manualState: nextManualState,
@@ -210,7 +193,7 @@ export function setSeasonWatched(
       title.playthroughs,
       title.activePlaythroughId,
       nextProgress,
-      { includeSpecials, todayStr, now }
+      { includeSpecials, todayStr, now },
     ),
     activePlaythroughId: title.activePlaythroughId,
     progress: nextProgress,
@@ -222,7 +205,7 @@ export function markUpToEpisode(
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   targetEpisodeKey: string,
-  options: ActionOptions = {}
+  options: ActionOptions = {},
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
@@ -257,9 +240,7 @@ export function markUpToEpisode(
   const nextProgress: ProgressDoc = { ...progress, watched: nextWatched };
   const nextManualState: ManualState = null;
   const nextResume: ResumePoint | null =
-    title.resume?.episodeKey && newlyCheckedKeys.has(title.resume.episodeKey)
-      ? null
-      : title.resume;
+    title.resume?.episodeKey && newlyCheckedKeys.has(title.resume.episodeKey) ? null : title.resume;
 
   return {
     manualState: nextManualState,
@@ -272,7 +253,7 @@ export function markUpToEpisode(
       title.playthroughs,
       title.activePlaythroughId,
       nextProgress,
-      { includeSpecials, todayStr, now }
+      { includeSpecials, todayStr, now },
     ),
     activePlaythroughId: title.activePlaythroughId,
     progress: nextProgress,
@@ -284,14 +265,13 @@ export function markWholeTitleWatched(
   seasons: SeasonDoc[],
   progress: ProgressDoc,
   markWatched: boolean = true,
-  options: ActionOptions = {}
+  options: ActionOptions = {},
 ): MutationResult {
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
   const showEnded = isShowEnded(title.showStatus, title.source);
   const hasSeasons =
-    title.mediaType === 'tv' ||
-    (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
+    title.mediaType === 'tv' || (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
 
   if (!hasSeasons) {
     const nextProgress: ProgressDoc = {
@@ -312,7 +292,7 @@ export function markWholeTitleWatched(
         title.playthroughs,
         title.activePlaythroughId,
         nextProgress,
-        { includeSpecials, todayStr, now }
+        { includeSpecials, todayStr, now },
       ),
       activePlaythroughId: title.activePlaythroughId,
       progress: nextProgress,
@@ -348,7 +328,7 @@ export function markWholeTitleWatched(
       title.playthroughs,
       title.activePlaythroughId,
       nextProgress,
-      { includeSpecials, todayStr, now }
+      { includeSpecials, todayStr, now },
     ),
     activePlaythroughId: title.activePlaythroughId,
     progress: nextProgress,
@@ -358,7 +338,7 @@ export function markWholeTitleWatched(
 export function setResumePoint(
   title: Pick<TitleDoc, 'manualState' | 'resume'>,
   resume: { episodeKey: string | null; seconds: number } | null,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): { manualState: ManualState; resume: ResumePoint | null } {
   if (!resume || resume.seconds <= 0) {
     return { manualState: title.manualState, resume: null };

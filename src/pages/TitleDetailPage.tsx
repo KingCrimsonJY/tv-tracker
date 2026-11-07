@@ -62,9 +62,7 @@ export const TitleDetailPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 mt-5">
         <div className="max-w-3xl space-y-1.5">
           {title.uploader && (
-            <p className="text-xs font-medium text-[var(--muted)]">
-              {t.detail.uploaderPrefix(title.uploader)}
-            </p>
+            <p className="text-xs font-medium text-[var(--muted)]">{t.detail.uploaderPrefix(title.uploader)}</p>
           )}
           <p
             className={`text-sm ${
@@ -119,9 +117,7 @@ export const TitleDetailPage: React.FC = () => {
         title={title}
         seasons={seasons}
         defaultEpisodeKey={detail.resumeDefaultEpKey}
-        onSave={(seconds, epKey) =>
-          void detail.saveResume(title.id, { seconds, episodeKey: epKey })
-        }
+        onSave={(seconds, epKey) => void detail.saveResume(title.id, { seconds, episodeKey: epKey })}
         onClear={() => void detail.saveResume(title.id, null)}
       />
 
@@ -135,9 +131,7 @@ export const TitleDetailPage: React.FC = () => {
         onRemoveListEntry={(listId, entryId) => void detail.removeEntryFromList(listId, entryId)}
         langModalOpen={detail.langModalOpen}
         onLangModalOpenChange={detail.setLangModalOpen}
-        onUpdateDisplayLang={(displayLang) =>
-          void detail.updateTitleLanguage(title.id, displayLang)
-        }
+        onUpdateDisplayLang={(displayLang) => void detail.updateTitleLanguage(title.id, displayLang)}
         editModalOpen={detail.editModalOpen}
         onEditModalOpenChange={detail.setEditModalOpen}
         onUpdateTitle={(patch) => void detail.updateTitleDetails(title.id, patch)}

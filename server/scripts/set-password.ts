@@ -20,7 +20,7 @@ function promptTwoHiddenLines(
   firstPrompt: string,
   secondPrompt: string,
   input: NodeJS.ReadableStream,
-  output: NodeJS.WritableStream
+  output: NodeJS.WritableStream,
 ): Promise<[string, string]> {
   return new Promise<[string, string]>((resolve, reject) => {
     let muted = false;
@@ -86,7 +86,7 @@ export async function runSetPasswordCli(options: SetPasswordCliOptions = {}): Pr
   const argv = options.argv ?? process.argv.slice(2);
   if (argv.length > 0) {
     throw new SetPasswordCliError(
-      'Error: Do not pass the password as a command-line argument (it would be saved in shell history). Run `npm run set-password` without arguments and enter it when prompted.'
+      'Error: Do not pass the password as a command-line argument (it would be saved in shell history). Run `npm run set-password` without arguments and enter it when prompted.',
     );
   }
 
@@ -97,16 +97,14 @@ export async function runSetPasswordCli(options: SetPasswordCliOptions = {}): Pr
     `Enter new password (min ${MIN_PASSWORD_LENGTH} characters): `,
     'Confirm new password: ',
     input,
-    output
+    output,
   );
 
   const password = firstRaw.trim();
   const confirm = secondRaw.trim();
 
   if (password.length < MIN_PASSWORD_LENGTH) {
-    throw new SetPasswordCliError(
-      `Error: Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`
-    );
+    throw new SetPasswordCliError(`Error: Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
   }
 
   if (password !== confirm) {
@@ -117,8 +115,7 @@ export async function runSetPasswordCli(options: SetPasswordCliOptions = {}): Pr
 }
 
 const isDirectRun =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 
 if (isDirectRun) {
   runSetPasswordCli()

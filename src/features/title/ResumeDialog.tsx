@@ -1,15 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Modal,
-  TextField,
-  Label,
-  Description,
-  Input,
-  Select,
-  ListBox,
-  Button,
-  FieldError,
-} from '@heroui/react';
+import { Modal, TextField, Label, Description, Input, Select, ListBox, Button, FieldError } from '@heroui/react';
 import { SeasonDoc, TitleDoc } from '../../domain/types';
 import { makeEpisodeKey } from '../../domain/airing';
 import { formatSeconds, parseTimeInput } from '../../domain/time';
@@ -43,9 +33,7 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
     for (const s of [...seasons].sort((a, b) => a.seasonNumber - b.seasonNumber)) {
       for (const ep of [...s.episodes].sort((a, b) => a.number - b.number)) {
         const key = makeEpisodeKey(s.seasonNumber, ep.number);
-        const epName =
-          resolveLocalizedText(ep.name, locale) ||
-          t.detail.seasons.episodeDefaultName(ep.number);
+        const epName = resolveLocalizedText(ep.name, locale) || t.detail.seasons.episodeDefaultName(ep.number);
         list.push({
           key,
           label: t.detail.resumeModal.episodeSelectOption(s.seasonNumber, ep.number, epName),

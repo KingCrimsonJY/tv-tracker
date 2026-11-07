@@ -11,7 +11,10 @@ export function createReconciler(read: () => Promise<void>): () => Promise<void>
           dirty = false;
           await read();
         }
-      })().finally(() => { running = null; if (dirty) void request(); });
+      })().finally(() => {
+        running = null;
+        if (dirty) void request();
+      });
     }
     return running;
   };

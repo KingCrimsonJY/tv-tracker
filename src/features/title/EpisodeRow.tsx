@@ -31,16 +31,13 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
 }) => {
   const { t, locale, formatDate } = useI18n();
   const resolvedEpTitle =
-    resolveLocalizedText(episode.name, locale) ||
-    t.detail.seasons.episodeDefaultName(episode.number);
+    resolveLocalizedText(episode.name, locale) || t.detail.seasons.episodeDefaultName(episode.number);
 
   return (
     <div
       id={`episode-${episode.key}`}
       className={`flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border transition-colors ${
-        isHighlighted
-          ? 'border-accent bg-accent/10'
-          : 'border-border bg-surface hover:border-muted/50'
+        isHighlighted ? 'border-accent bg-accent/10' : 'border-border bg-surface hover:border-muted/50'
       } ${!aired ? 'opacity-55' : ''}`}
     >
       <Checkbox
@@ -85,9 +82,7 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
         <div className="text-xs text-muted flex items-center gap-2 mt-0.5">
           {episode.airDate ? (
             <span>
-              {aired
-                ? formatDate(episode.airDate)
-                : t.detail.seasons.unairedWithDate(formatDate(episode.airDate))}
+              {aired ? formatDate(episode.airDate) : t.detail.seasons.unairedWithDate(formatDate(episode.airDate))}
             </span>
           ) : (
             !aired && <span>{t.detail.seasons.unairedNoDate}</span>

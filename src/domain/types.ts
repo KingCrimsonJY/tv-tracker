@@ -4,25 +4,11 @@ export type DisplayLang = 'zh' | 'original' | 'en' | 'custom';
 export type UiLocale = 'zh-CN' | 'en';
 export type UiLangSetting = 'system' | 'zh-CN' | 'en';
 export type DefaultTitleLang = 'auto' | 'zh' | 'original' | 'en' | null;
-export type ShowStatus =
-  | 'Returning Series'
-  | 'Ended'
-  | 'Canceled'
-  | 'In Production'
-  | 'Planned'
-  | 'Released'
-  | null;
+export type ShowStatus = 'Returning Series' | 'Ended' | 'Canceled' | 'In Production' | 'Planned' | 'Released' | null;
 export type ManualState = 'paused' | 'dropped' | null;
 
 export type TitleStatusCode =
-  | 'unwatched'
-  | 'watching'
-  | 'caught_up'
-  | 'completed'
-  | 'unaired'
-  | 'unreleased'
-  | 'paused'
-  | 'dropped';
+  'unwatched' | 'watching' | 'caught_up' | 'completed' | 'unaired' | 'unreleased' | 'paused' | 'dropped';
 
 export type SeasonStateCode = 'none' | 'partial' | 'complete';
 
@@ -228,12 +214,7 @@ export interface ListEntryDoc {
   addedAt: number;
 }
 
-export type HomeSectionId =
-  | 'continue_watching'
-  | 'new_episodes'
-  | 'pinned_lists'
-  | 'recently_added'
-  | 'watchlist';
+export type HomeSectionId = 'continue_watching' | 'new_episodes' | 'pinned_lists' | 'recently_added' | 'watchlist';
 
 export interface HomeSectionConfig {
   id: HomeSectionId;

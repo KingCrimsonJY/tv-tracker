@@ -1,16 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Film, Plus } from 'lucide-react';
-import {
-  Button,
-  ScrollShadow,
-  Label,
-  ListBox,
-  Select,
-  Skeleton,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@heroui/react';
+import { Button, ScrollShadow, Label, ListBox, Select, Skeleton, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
 import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
@@ -47,11 +38,7 @@ export const LibraryPage: React.FC = () => {
         return state.status === 'watching' || state.status === 'caught_up';
       }
       if (statusFilter === 'unwatched') {
-        return (
-          state.status === 'unwatched' ||
-          state.status === 'unaired' ||
-          state.status === 'unreleased'
-        );
+        return state.status === 'unwatched' || state.status === 'unaired' || state.status === 'unreleased';
       }
       if (statusFilter === 'completed') {
         return state.status === 'completed';
@@ -72,18 +59,8 @@ export const LibraryPage: React.FC = () => {
       if (sortMode === 'year') {
         return (b.title.year ?? 0) - (a.title.year ?? 0);
       }
-      const nameA = resolveDisplayTitle(
-        a.title.names,
-        a.title.displayLang,
-        settings.defaultTitleLang,
-        locale
-      ).primary;
-      const nameB = resolveDisplayTitle(
-        b.title.names,
-        b.title.displayLang,
-        settings.defaultTitleLang,
-        locale
-      ).primary;
+      const nameA = resolveDisplayTitle(a.title.names, a.title.displayLang, settings.defaultTitleLang, locale).primary;
+      const nameB = resolveDisplayTitle(b.title.names, b.title.displayLang, settings.defaultTitleLang, locale).primary;
       return nameA.localeCompare(nameB, locale);
     });
   }, [
@@ -117,19 +94,13 @@ export const LibraryPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-            {t.library.title}
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">{t.library.title}</h1>
           <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
             {t.library.countLabel(items.length)}
           </span>
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          onPress={() => navigate('/search')}
-        >
+        <Button variant="primary" size="sm" onPress={() => navigate('/search')}>
           <Plus className="w-4 h-4" />
           <span>{t.library.addMediaButton}</span>
         </Button>
@@ -233,10 +204,7 @@ export const LibraryPage: React.FC = () => {
 
       {/* Poster Grid: 3 columns on phone, 4-5 on tablet, 6-8 on desktop */}
       {loadingData ? (
-        <div
-          className="poster-grid"
-          aria-label={t.library.loadingAria}
-        >
+        <div className="poster-grid" aria-label={t.library.loadingAria}>
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="space-y-2">
               <Skeleton className="aspect-[2/3] rounded-xl" />

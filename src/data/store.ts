@@ -10,9 +10,7 @@ import type {
   ZhenjiExportV2,
 } from '../domain/types.ts';
 
-export type StateUpdater =
-  | AppStateSnapshot
-  | ((prev: AppStateSnapshot) => AppStateSnapshot);
+export type StateUpdater = AppStateSnapshot | ((prev: AppStateSnapshot) => AppStateSnapshot);
 
 export type StoreListener = () => void;
 
@@ -23,7 +21,7 @@ export interface TrackerStore {
   applySnapshot: (snapshot: AppStateSnapshot) => { state: AppStateSnapshot; epochChanged: boolean };
   applyMutation: (
     mutation: StateMutationResult,
-    options?: { allowSameOrLowerVersion?: boolean }
+    options?: { allowSameOrLowerVersion?: boolean },
   ) => { state: AppStateSnapshot; epochChanged: boolean };
   reset: () => AppStateSnapshot;
 }
@@ -40,16 +38,13 @@ export function createInitialAppState(): AppStateSnapshot {
   };
 }
 
-export function hasEpochChanged(
-  currentEpoch: string | undefined,
-  incomingEpoch: string | undefined
-): boolean {
+export function hasEpochChanged(currentEpoch: string | undefined, incomingEpoch: string | undefined): boolean {
   return Boolean(currentEpoch && incomingEpoch && currentEpoch !== incomingEpoch);
 }
 
 export function applyStateSnapshot(
   currentState: AppStateSnapshot,
-  incomingSnapshot: AppStateSnapshot
+  incomingSnapshot: AppStateSnapshot,
 ): AppStateSnapshot {
   if (hasEpochChanged(currentState.epoch, incomingSnapshot.epoch)) {
     return incomingSnapshot;
@@ -66,7 +61,7 @@ export function applyStateSnapshot(
 export function applyMutationResult(
   currentState: AppStateSnapshot,
   mutation: StateMutationResult,
-  options: { allowSameOrLowerVersion?: boolean } = {}
+  options: { allowSameOrLowerVersion?: boolean } = {},
 ): AppStateSnapshot {
   if (!options.allowSameOrLowerVersion && mutation.version < currentState.version) {
     return currentState;
@@ -174,9 +169,7 @@ export function applyMutationResult(
   };
 }
 
-export function createTrackerStore(
-  initialState: AppStateSnapshot = createInitialAppState()
-): TrackerStore {
+export function createTrackerStore(initialState: AppStateSnapshot = createInitialAppState()): TrackerStore {
   let state: AppStateSnapshot = initialState;
   const listeners = new Set<StoreListener>();
 
@@ -211,10 +204,7 @@ export function createTrackerStore(
       }
       return { state, epochChanged };
     },
-    applyMutation: (
-      mutation: StateMutationResult,
-      options: { allowSameOrLowerVersion?: boolean } = {}
-    ) => {
+    applyMutation: (mutation: StateMutationResult, options: { allowSameOrLowerVersion?: boolean } = {}) => {
       const epochChanged = hasEpochChanged(state.epoch, mutation.epoch);
       const next = applyMutationResult(state, mutation, options);
       if (next !== state) {

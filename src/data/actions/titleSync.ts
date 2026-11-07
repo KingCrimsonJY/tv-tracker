@@ -1,9 +1,4 @@
-import type {
-  ListEntryDoc,
-  Ratings,
-  MetadataRefreshStatus,
-  MetadataRefreshCounts,
-} from '../../domain/types.ts';
+import type { ListEntryDoc, Ratings, MetadataRefreshStatus, MetadataRefreshCounts } from '../../domain/types.ts';
 import { getActiveCatalog, translateErrorObject } from '../../i18n/index.ts';
 import {
   changeTitleSourceApi,
@@ -19,7 +14,7 @@ import type { TrackerActionDeps } from './types.ts';
 export function createTitleSyncActions(
   deps: TrackerActionDeps & {
     triggerRefetch: () => Promise<void>;
-  }
+  },
 ) {
   const { getState, setState, applyServerMutation, showToast, triggerRefetch } = deps;
 
@@ -66,7 +61,7 @@ export function createTitleSyncActions(
                 },
               },
             }
-          : prev
+          : prev,
       );
 
       try {
@@ -89,7 +84,7 @@ export function createTitleSyncActions(
                   },
                 },
               }
-            : curr
+            : curr,
         );
         showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
         await triggerRefetch();
@@ -101,7 +96,14 @@ export function createTitleSyncActions(
 
   async function refreshTitleMetadata(titleId: string): Promise<MetadataRefreshStatus> {
     const current = getState().titles[titleId];
-    if (!current || current.source !== 'tmdb' || !current.sourceId || current.mediaType === 'other' || current.sourceUnavailable) return 'skipped';
+    if (
+      !current ||
+      current.source !== 'tmdb' ||
+      !current.sourceId ||
+      current.mediaType === 'other' ||
+      current.sourceUnavailable
+    )
+      return 'skipped';
     try {
       const result = await refreshMetadataApi(titleId);
       applyServerMutation(result);
@@ -112,7 +114,7 @@ export function createTitleSyncActions(
   }
 
   async function refreshAllTmdbMetadata(
-    onProgress?: (done: number, total: number) => void
+    onProgress?: (done: number, total: number) => void,
   ): Promise<MetadataRefreshCounts> {
     const targets = Object.values(getState().titles);
     const counts: MetadataRefreshCounts = { updated: 0, partial: 0, failed: 0, skipped: 0 };
@@ -128,8 +130,15 @@ export function createTitleSyncActions(
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, targets.length) }, worker));
-    showToast(getActiveCatalog().settings.dataManagement.refreshAllSummary(counts.updated, counts.partial, counts.failed, counts.skipped),
-      counts.failed || counts.partial ? 'warning' : counts.updated ? 'success' : 'default');
+    showToast(
+      getActiveCatalog().settings.dataManagement.refreshAllSummary(
+        counts.updated,
+        counts.partial,
+        counts.failed,
+        counts.skipped,
+      ),
+      counts.failed || counts.partial ? 'warning' : counts.updated ? 'success' : 'default',
+    );
     return counts;
   }
 
@@ -146,7 +155,7 @@ export function createTitleSyncActions(
         res.addedCount > 0
           ? cat.detail.menu.refreshPlaylistAddedToast(String(res.addedCount))
           : cat.detail.menu.refreshPlaylistNoNewToast,
-        res.addedCount > 0 ? 'success' : 'default'
+        res.addedCount > 0 ? 'success' : 'default',
       );
       return res.addedCount;
     } catch (err) {
@@ -199,10 +208,7 @@ export function createTitleSyncActions(
         for (const [listId, entriesToRestore] of Object.entries(removedEntriesByList)) {
           const existing = nextEntries[listId] || [];
           const existingIds = new Set(existing.map((e) => e.id));
-          nextEntries[listId] = [
-            ...existing,
-            ...entriesToRestore.filter((e) => !existingIds.has(e.id)),
-          ];
+          nextEntries[listId] = [...existing, ...entriesToRestore.filter((e) => !existingIds.has(e.id))];
         }
         return {
           ...curr,
@@ -232,7 +238,9 @@ export function createTitleSyncActions(
   }
 
   return {
-    setStructureLock, resolveStructure, changeTitleSource,
+    setStructureLock,
+    resolveStructure,
+    changeTitleSource,
     fetchAndCacheTitleRatings,
     refreshTitleMetadata,
     refreshAllTmdbMetadata,

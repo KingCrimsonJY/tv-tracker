@@ -61,10 +61,7 @@ export interface TrackerActionDeps {
   inFlightOps?: Map<string, InFlightProgressOp>;
 }
 
-export function getActiveProgressFromState(
-  state: AppStateSnapshot,
-  title: TitleDoc
-): ProgressDoc {
+export function getActiveProgressFromState(state: AppStateSnapshot, title: TitleDoc): ProgressDoc {
   const pMap = state.progressByTitle[title.id] || {};
   return (
     pMap[title.activePlaythroughId] || {
@@ -76,7 +73,7 @@ export function getActiveProgressFromState(
 
 export function computeProgressDiff(
   prevProgress: ProgressDoc,
-  nextProgress: ProgressDoc
+  nextProgress: ProgressDoc,
 ): {
   set?: Record<string, number>;
   unset?: string[];
@@ -86,10 +83,7 @@ export function computeProgressDiff(
   const setMap: Record<string, number> = {};
   const unsetList: string[] = [];
 
-  const allKeys = new Set([
-    ...Object.keys(prevProgress.watched),
-    ...Object.keys(nextProgress.watched),
-  ]);
+  const allKeys = new Set([...Object.keys(prevProgress.watched), ...Object.keys(nextProgress.watched)]);
 
   for (const key of allKeys) {
     const beforeVal = prevProgress.watched[key];
@@ -122,7 +116,7 @@ export function computeProgressDiff(
 
 export function applyInFlightOpsToState(
   state: AppStateSnapshot,
-  inFlightOps: Map<string, InFlightProgressOp>
+  inFlightOps: Map<string, InFlightProgressOp>,
 ): AppStateSnapshot {
   if (inFlightOps.size === 0) return state;
 
@@ -156,10 +150,7 @@ export function applyInFlightOpsToState(
     if (op.playthroughId) {
       const ptId = op.playthroughId;
       const existingProg = titleProgMap[ptId] || { playthroughId: ptId, watched: {} };
-      const watched =
-        op.replaceWatched !== undefined
-          ? { ...op.replaceWatched }
-          : { ...existingProg.watched };
+      const watched = op.replaceWatched !== undefined ? { ...op.replaceWatched } : { ...existingProg.watched };
 
       if (op.set) {
         for (const [k, v] of Object.entries(op.set)) {

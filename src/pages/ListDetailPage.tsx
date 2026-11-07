@@ -35,25 +35,19 @@ export const ListDetailPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const list = id ? lists[id] : undefined;
-  const rawEntries = useMemo(() => (id ? entriesByList[id] ?? [] : []), [id, entriesByList]);
+  const rawEntries = useMemo(() => (id ? (entriesByList[id] ?? []) : []), [id, entriesByList]);
 
   const hydratedEntries = useMemo(
     () =>
       rawEntries
         .map((entry) => ({ entry, title: titles[entry.titleId] }))
         .filter((x): x is { entry: ListEntryDoc; title: TitleDoc } => Boolean(x.title)),
-    [rawEntries, titles]
+    [rawEntries, titles],
   );
 
   const sortedEntries = useMemo(() => {
     if (!list) return [];
-    return sortListEntries(
-      hydratedEntries,
-      list.kind,
-      list.collectionSort,
-      settings.defaultTitleLang,
-      locale
-    );
+    return sortListEntries(hydratedEntries, list.kind, list.collectionSort, settings.defaultTitleLang, locale);
   }, [list, hydratedEntries, settings.defaultTitleLang, locale]);
 
   const progressByTitleMap = useMemo(() => {
@@ -110,9 +104,7 @@ export const ListDetailPage: React.FC = () => {
               {stats.completedCount}/{stats.totalCount}
             </Chip>
           </div>
-          {list.description && (
-            <p className="text-sm text-[var(--muted)] max-w-2xl">{list.description}</p>
-          )}
+          {list.description && <p className="text-sm text-[var(--muted)] max-w-2xl">{list.description}</p>}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -134,11 +126,7 @@ export const ListDetailPage: React.FC = () => {
 
       <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-[var(--border)]">
         <div className="flex items-center gap-4">
-          <Switch
-            isSelected={list.pinned}
-            onChange={() => void togglePinList(list.id)}
-            size="sm"
-          >
+          <Switch isSelected={list.pinned} onChange={() => void togglePinList(list.id)} size="sm">
             <Switch.Content>
               <Switch.Control>
                 <Switch.Thumb />
@@ -171,22 +159,28 @@ export const ListDetailPage: React.FC = () => {
                     }
                   }}
                 >
-                  <Dropdown.Item id="added"><Label>{t.lists.sortBy.added}</Label></Dropdown.Item>
-                  <Dropdown.Item id="name"><Label>{t.lists.sortBy.name}</Label></Dropdown.Item>
-                  <Dropdown.Item id="year"><Label>{t.lists.sortBy.year}</Label></Dropdown.Item>
-                  <Dropdown.Item id="rating"><Label>{t.lists.sortBy.rating}</Label></Dropdown.Item>
-                  <Dropdown.Item id="manual"><Label>{t.lists.sortBy.manual}</Label></Dropdown.Item>
+                  <Dropdown.Item id="added">
+                    <Label>{t.lists.sortBy.added}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="name">
+                    <Label>{t.lists.sortBy.name}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="year">
+                    <Label>{t.lists.sortBy.year}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="rating">
+                    <Label>{t.lists.sortBy.rating}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="manual">
+                    <Label>{t.lists.sortBy.manual}</Label>
+                  </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown.Popover>
             </Dropdown>
           )}
 
           {(list.kind === 'ordered' || list.collectionSort === 'manual') && (
-            <Button
-              variant={isSorting ? 'primary' : 'secondary'}
-              size="sm"
-              onPress={() => setIsSorting(!isSorting)}
-            >
+            <Button variant={isSorting ? 'primary' : 'secondary'} size="sm" onPress={() => setIsSorting(!isSorting)}>
               <GripVertical className="w-3.5 h-3.5 mr-1" />
               {isSorting ? t.lists.reorderDone : t.lists.reorderToggle}
             </Button>

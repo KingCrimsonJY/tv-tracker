@@ -1,6 +1,9 @@
 export class TmdbRequestError extends Error {
   readonly status: number;
-  constructor(status: number) { super('TMDB_UNAVAILABLE'); this.status = status; }
+  constructor(status: number) {
+    super('TMDB_UNAVAILABLE');
+    this.status = status;
+  }
 }
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -12,14 +15,11 @@ export interface TmdbFetchOptions {
 }
 
 export function getOmdbKey(): string {
-  const raw = (process.env.OMDB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '').trim();
-  if (
-    !raw ||
-    raw.startsWith('MY_') ||
-    raw.startsWith('YOUR_') ||
-    raw === 'undefined' ||
-    raw === 'null'
-  ) {
+  const raw = (process.env.OMDB_API_KEY || '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+  if (!raw || raw.startsWith('MY_') || raw.startsWith('YOUR_') || raw === 'undefined' || raw === 'null') {
     return '';
   }
   return raw;
@@ -50,7 +50,7 @@ export function isTmdbConfigured(): boolean {
 
 export function tmdbImageUrl(
   filePath: string | null | undefined,
-  size: 'w300' | 'w342' | 'w500' | 'w1280'
+  size: 'w300' | 'w342' | 'w500' | 'w1280',
 ): string | null {
   if (!filePath) return null;
   if (filePath.startsWith('http') || filePath.startsWith('data:')) return filePath;
@@ -60,7 +60,7 @@ export function tmdbImageUrl(
 export async function fetchTmdbRawJson(
   endpoint: string,
   params: Record<string, string> = {},
-  fetchFn: typeof fetch = fetch
+  fetchFn: typeof fetch = fetch,
 ): Promise<unknown> {
   const token = getTmdbToken();
   if (!token) throw new Error('TMDB_READ_TOKEN_NOT_CONFIGURED');

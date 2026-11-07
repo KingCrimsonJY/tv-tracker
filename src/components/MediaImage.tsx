@@ -25,12 +25,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   const failed = imageState?.src === src && imageState?.status === 'failed';
   const loaded = imageState?.src === src && imageState?.status === 'loaded';
 
-  const aspectClass =
-    aspect === 'poster'
-      ? 'aspect-[2/3]'
-      : aspect === 'backdrop'
-        ? 'aspect-video'
-        : 'aspect-video';
+  const aspectClass = aspect === 'poster' ? 'aspect-[2/3]' : aspect === 'backdrop' ? 'aspect-video' : 'aspect-video';
 
   if (!src || failed) {
     return (
@@ -64,9 +59,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   }
 
   return (
-    <div
-      className={`relative overflow-hidden bg-[var(--surface)] ${aspectClass} ${className}`}
-    >
+    <div className={`relative overflow-hidden bg-[var(--surface)] ${aspectClass} ${className}`}>
       <img
         src={src}
         alt={alt}

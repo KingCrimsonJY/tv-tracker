@@ -55,7 +55,7 @@ export const SettingsPage: React.FC = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -94,9 +94,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleRefreshAllMeta = async () => {
-    const tmdbCount = Object.values(titles).filter(
-      (item) => item.source === 'tmdb' && Boolean(item.sourceId)
-    ).length;
+    const tmdbCount = Object.values(titles).filter((item) => item.source === 'tmdb' && Boolean(item.sourceId)).length;
     setRefreshingMeta({ done: 0, total: tmdbCount });
     try {
       await refreshAllTmdbMetadata((done, total) => {
@@ -276,10 +274,7 @@ export const SettingsPage: React.FC = () => {
         </Card.Header>
         <Card.Content className="space-y-2">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext
-              items={settings.homeSections.map((s) => s.id)}
-              strategy={verticalListSortingStrategy}
-            >
+            <SortableContext items={settings.homeSections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               {settings.homeSections.map((section) => (
                 <SortableSectionRow
                   key={section.id}
@@ -306,12 +301,7 @@ export const SettingsPage: React.FC = () => {
             <Upload className="w-4 h-4 mr-1.5" />
             {t.settings.dataManagement.importJson}
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            isDisabled={refreshingMeta !== null}
-            onPress={handleRefreshAllMeta}
-          >
+          <Button variant="secondary" size="sm" isDisabled={refreshingMeta !== null} onPress={handleRefreshAllMeta}>
             <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshingMeta ? 'animate-spin' : ''}`} />
             {refreshingMeta
               ? t.settings.dataManagement.refreshingAllToast(refreshingMeta.done, refreshingMeta.total)
@@ -332,19 +322,13 @@ export const SettingsPage: React.FC = () => {
           <Card.Title className="text-base">{t.settings.account.label}</Card.Title>
         </Card.Header>
         <Card.Content className="flex flex-wrap items-center justify-between gap-4">
-          <div className="text-xs text-[var(--muted)]">
-            {t.settings.account.description}
-          </div>
+          <div className="text-xs text-[var(--muted)]">{t.settings.account.description}</div>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onPress={() => void signOut()}>
               <LogOut className="w-4 h-4 mr-1.5" />
               {t.settings.account.signOut}
             </Button>
-            <Button
-              variant="danger-soft"
-              size="sm"
-              onPress={() => void signOutAll()}
-            >
+            <Button variant="danger-soft" size="sm" onPress={() => void signOutAll()}>
               <ShieldAlert className="w-4 h-4 mr-1.5" />
               {t.settings.account.signOutAll}
             </Button>
@@ -361,9 +345,7 @@ export const SettingsPage: React.FC = () => {
               <AlertDialog.Heading>{t.settings.dataManagement.importConfirmTitle}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p className="text-sm text-[var(--muted)]">
-                {t.settings.dataManagement.importConfirmDescription}
-              </p>
+              <p className="text-sm text-[var(--muted)]">{t.settings.dataManagement.importConfirmDescription}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer className="gap-2">
               <Button variant="tertiary" onPress={() => setImportDialogOpen(false)}>

@@ -153,7 +153,11 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   </Button>
                 )}
                 {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
-                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('refreshPlaylist')}>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onPress={() => handleAction('refreshPlaylist')}
+                  >
                     <RefreshCw className="w-4 h-4 mr-3" />
                     {t.detail.menu.refreshPlaylist}
                   </Button>
@@ -170,12 +174,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
 
       <div className="hidden sm:block">
         <Dropdown>
-          <Button
-            variant="secondary"
-            size="lg"
-            isIconOnly
-            aria-label={t.detail.moreActionsAria}
-          >
+          <Button variant="secondary" size="lg" isIconOnly aria-label={t.detail.moreActionsAria}>
             <MoreHorizontal className="w-5 h-5" />
           </Button>
           <Dropdown.Popover>

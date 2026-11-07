@@ -57,14 +57,10 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
 
   if (!episodic && titleState.status === 'unreleased') {
     const formattedDate =
-      title.releaseDate && title.releaseDate.trim() !== ''
-        ? formatDate(title.releaseDate.trim())
-        : null;
+      title.releaseDate && title.releaseDate.trim() !== '' ? formatDate(title.releaseDate.trim()) : null;
     return (
       <Button variant="secondary" isDisabled>
-        {formattedDate
-          ? t.detail.primaryAction.unreleasedWithDate(formattedDate)
-          : t.detail.primaryAction.unreleased}
+        {formattedDate ? t.detail.primaryAction.unreleasedWithDate(formattedDate) : t.detail.primaryAction.unreleased}
       </Button>
     );
   }

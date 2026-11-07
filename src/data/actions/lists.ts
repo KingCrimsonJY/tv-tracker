@@ -1,12 +1,6 @@
 import { createRandomId } from '../../domain/id.ts';
 import { computeMovedRank, getNextRank, sortListEntries } from '../../domain/ordering.ts';
-import type {
-  CollectionSort,
-  ListEntryDoc,
-  ListKind,
-  TitleDoc,
-  WatchListDoc,
-} from '../../domain/types.ts';
+import type { CollectionSort, ListEntryDoc, ListKind, TitleDoc, WatchListDoc } from '../../domain/types.ts';
 import { getActiveCatalog, resolveActiveLocale } from '../../i18n/index.ts';
 import {
   deleteListApi,
@@ -18,9 +12,7 @@ import {
 } from '../api.ts';
 import type { TrackerActionDeps } from './types.ts';
 
-export function createListActions(
-  deps: TrackerActionDeps & { triggerRefetch: () => Promise<void> }
-) {
+export function createListActions(deps: TrackerActionDeps & { triggerRefetch: () => Promise<void> }) {
   const { getState, setState, applyServerMutation, showToast, triggerRefetch } = deps;
 
   async function addTitleToList(listId: string, titleId: string): Promise<void> {
@@ -160,7 +152,7 @@ export function createListActions(
               [listId]: { ...prev.lists[listId], pinned: nextPinned },
             },
           }
-        : prev
+        : prev,
     );
 
     try {
@@ -176,7 +168,7 @@ export function createListActions(
                 [listId]: { ...curr.lists[listId], pinned: prevPinned },
               },
             }
-          : curr
+          : curr,
       );
       showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
@@ -197,7 +189,7 @@ export function createListActions(
               [listId]: { ...prev.lists[listId], collectionSort: sort },
             },
           }
-        : prev
+        : prev,
     );
 
     try {
@@ -213,7 +205,7 @@ export function createListActions(
                 [listId]: { ...curr.lists[listId], collectionSort: prevSort },
               },
             }
-          : curr
+          : curr,
       );
       showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
@@ -241,7 +233,7 @@ export function createListActions(
         const currentListEntries = curr.entriesByList[listId] || [];
         if (currentListEntries.some((e) => e.id === entryId)) return curr;
         const next = [...currentListEntries, removedEntry].sort((a, b) =>
-          a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0
+          a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0,
         );
         return {
           ...curr,
@@ -253,11 +245,7 @@ export function createListActions(
     }
   }
 
-  async function reorderListEntry(
-    listId: string,
-    activeEntryId: string,
-    overEntryId: string
-  ): Promise<void> {
+  async function reorderListEntry(listId: string, activeEntryId: string, overEntryId: string): Promise<void> {
     if (activeEntryId === overEntryId) return;
     const state = getState();
     const list = state.lists[listId];
@@ -277,7 +265,7 @@ export function createListActions(
       list.kind,
       'manual',
       state.settings.defaultTitleLang,
-      resolveActiveLocale(state.settings.uiLang)
+      resolveActiveLocale(state.settings.uiLang),
     ).map((h) => h.entry);
 
     const activeIdx = sorted.findIndex((e) => e.id === activeEntryId);

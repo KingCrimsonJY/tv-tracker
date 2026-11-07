@@ -1,16 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import {
-  Bookmark,
-  Download,
-  Film,
-  Home,
-  Layers,
-  ListOrdered,
-  LogOut,
-  Search,
-  Settings,
-} from 'lucide-react';
+import { Bookmark, Download, Film, Home, Layers, ListOrdered, LogOut, Search, Settings } from 'lucide-react';
 import { Button, Modal } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext.tsx';
 import { usePWAInstall } from '../hooks/usePWAInstall.ts';
@@ -130,21 +120,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 {t.app.logoChar}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-[var(--foreground)] truncate">
-                  {t.settings.title}
-                </p>
-                <p className="text-[11px] text-[var(--muted)] truncate">
-                  {t.app.syncConnected}
-                </p>
+                <p className="text-xs font-medium text-[var(--foreground)] truncate">{t.settings.title}</p>
+                <p className="text-[11px] text-[var(--muted)] truncate">{t.app.syncConnected}</p>
               </div>
             </NavLink>
-            <Button
-              variant="ghost"
-              size="sm"
-              isIconOnly
-              onPress={() => void signOut()}
-              aria-label={t.app.signOut}
-            >
+            <Button variant="ghost" size="sm" isIconOnly onPress={() => void signOut()} aria-label={t.app.signOut}>
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -188,20 +168,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         </nav>
 
         <div className="mt-auto flex flex-col items-center gap-2">
-          <Button
-            variant="secondary"
-            isIconOnly
-            onPress={() => navigate('/settings')}
-            aria-label={t.settings.title}
-          >
+          <Button variant="secondary" isIconOnly onPress={() => navigate('/settings')} aria-label={t.settings.title}>
             <Settings className="w-4 h-4" />
           </Button>
-          <Button
-            variant="secondary"
-            isIconOnly
-            onPress={() => void signOut()}
-            aria-label={t.app.signOut}
-          >
+          <Button variant="secondary" isIconOnly onPress={() => void signOut()} aria-label={t.app.signOut}>
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
@@ -222,8 +192,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <div className="grid grid-cols-4 items-center h-[64px] w-full">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isDetailActive =
-              item.to === '/library' && location.pathname.startsWith('/title/');
+            const isDetailActive = item.to === '/library' && location.pathname.startsWith('/title/');
             return (
               <NavLink
                 key={item.to}
@@ -238,9 +207,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 }
               >
                 <Icon className="w-5 h-5" />
-                <span className="text-[11px] font-medium mt-0.5 whitespace-nowrap">
-                  {item.label}
-                </span>
+                <span className="text-[11px] font-medium mt-0.5 whitespace-nowrap">{item.label}</span>
               </NavLink>
             );
           })}

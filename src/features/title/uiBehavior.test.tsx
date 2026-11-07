@@ -26,11 +26,20 @@ test('episode deep links select once, allow manual changes, and wait for loaded 
 
 test('watched episodes can be unchecked even when their updated air date is in the future', () => {
   const episode = makeSampleSeasons()[2].episodes[2];
-  const render = (isWatched: boolean) => renderToStaticMarkup(<EpisodeRow
-    episode={episode} seasonNumber={2} isWatched={isWatched} aired={false}
-    resumeSeconds={null} isHighlighted={false} onToggle={() => {}}
-    onMarkUpToHere={() => {}} onRecordTime={() => {}}
-  />);
+  const render = (isWatched: boolean) =>
+    renderToStaticMarkup(
+      <EpisodeRow
+        episode={episode}
+        seasonNumber={2}
+        isWatched={isWatched}
+        aired={false}
+        resumeSeconds={null}
+        isHighlighted={false}
+        onToggle={() => {}}
+        onMarkUpToHere={() => {}}
+        onRecordTime={() => {}}
+      />,
+    );
   expect(render(false)).toMatch(/<input[^>]*disabled=""/);
   expect(render(true)).not.toMatch(/<input[^>]*disabled=""/);
 });
@@ -38,9 +47,18 @@ test('watched episodes can be unchecked even when their updated air date is in t
 test('ended shows use the same inferred aired rule for rows and primary actions', () => {
   const title = makeBaseTvTitle({ showStatus: 'Ended' });
   const season = { ...makeSampleSeasons()[1], episodes: [{ ...makeSampleSeasons()[1].episodes[0], airDate: null }] };
-  const markup = renderToStaticMarkup(<SeasonPanel title={title} seasons={[season]}
-    today={TODAY} highlightEpKey={null} onToggleEpisode={() => {}} onMarkSeason={() => {}}
-    onMarkUpTo={() => {}} onOpenResumeForEpisode={() => {}} />);
+  const markup = renderToStaticMarkup(
+    <SeasonPanel
+      title={title}
+      seasons={[season]}
+      today={TODAY}
+      highlightEpKey={null}
+      onToggleEpisode={() => {}}
+      onMarkSeason={() => {}}
+      onMarkUpTo={() => {}}
+      onOpenResumeForEpisode={() => {}}
+    />,
+  );
   expect(markup).not.toMatch(/<input[^>]*disabled=""/);
   expect(markup).toContain('0/1 watched');
   expect(selectPrimaryEpisode(title, [season], undefined, 's1e1', TODAY)).toBe('s1e1');
@@ -51,16 +69,19 @@ test('a stale resume cannot make the primary action mark an unaired or already w
   const seasons = makeSampleSeasons();
   expect(selectPrimaryEpisode(title, seasons, undefined, 's1e1', TODAY)).toBe('s1e1');
   title.resume = { episodeKey: 's1e2', seconds: 60, updatedAt: 1 };
-  expect(selectPrimaryEpisode(title, seasons, { playthroughId: 'p1', watched: { s1e2: 1 } }, 's1e1', TODAY)).toBe('s1e1');
+  expect(selectPrimaryEpisode(title, seasons, { playthroughId: 'p1', watched: { s1e2: 1 } }, 's1e1', TODAY)).toBe(
+    's1e1',
+  );
   expect(selectPrimaryEpisode(title, seasons, undefined, 's1e1', TODAY)).toBe('s1e2');
 });
 
-test.each([['Asia/Tokyo', '2026-11-02'], ['America/Los_Angeles', '2026-11-01']])(
-  'today follows the local calendar in %s', (zone, expected) => {
-    vi.stubEnv('TZ', zone);
-    expect(toLocalDateString(new Date('2026-11-02T00:30:00Z'))).toBe(expected);
-  },
-);
+test.each([
+  ['Asia/Tokyo', '2026-11-02'],
+  ['America/Los_Angeles', '2026-11-01'],
+])('today follows the local calendar in %s', (zone, expected) => {
+  vi.stubEnv('TZ', zone);
+  expect(toLocalDateString(new Date('2026-11-02T00:30:00Z'))).toBe(expected);
+});
 
 test('new navigation starts at the top and Back restores each history entry independently', () => {
   const positions = createScrollPositions();

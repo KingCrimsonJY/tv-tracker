@@ -17,12 +17,17 @@ export interface ManualSeed {
 
 export function linkResultToManualSeed(result: LinkImportResult): ManualSeed {
   return {
-    title: result.title, mediaType: result.mediaType ?? 'other',
-    posterUrl: result.posterUrl || '', overview: result.overview,
-    uploader: result.uploader, year: result.year, runtimeMin: result.runtimeMin,
-    warning: result.warning ||
-      (result.fallbackUsed === 'og' ? 'LINK_METADATA_INCOMPLETE' : undefined),
-    episodeCount: result.episodes.length, episodes: result.episodes,
-    source: 'url', sourceUrl: result.sourceUrl,
+    title: result.title,
+    mediaType: result.mediaType ?? 'other',
+    posterUrl: result.posterUrl || '',
+    overview: result.overview,
+    uploader: result.uploader,
+    year: result.year,
+    runtimeMin: result.runtimeMin,
+    warning: result.warning || (result.fallbackUsed === 'og' ? 'LINK_METADATA_INCOMPLETE' : undefined),
+    episodeCount: result.episodes.length,
+    episodes: result.episodes,
+    source: 'url',
+    sourceUrl: result.sourceUrl,
   };
 }

@@ -64,7 +64,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                     title.names,
                     title.displayLang,
                     defaultLang,
-                    locale
+                    locale,
                   );
                   return (
                     <div
@@ -88,7 +88,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                         </div>
                       </div>
                       <Button
-                        aria-label={t.lists.addTitlesToList + ": " + displayTitle}
+                        aria-label={t.lists.addTitlesToList + ': ' + displayTitle}
                         isIconOnly
                         size="sm"
                         variant={inList ? 'tertiary' : 'secondary'}

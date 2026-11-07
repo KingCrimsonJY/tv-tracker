@@ -53,9 +53,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       'settings.uiLang.zhCN', // Language selector native name "简体中文"
     ]);
     const values = collectCatalogValues(en);
-    const violations = values.filter(
-      (item) => !allowedCjkKeys.has(item.key) && cjkRegex.test(item.value)
-    );
+    const violations = values.filter((item) => !allowedCjkKeys.has(item.key) && cjkRegex.test(item.value));
     expect(violations).toEqual([]);
   });
 
@@ -84,10 +82,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       return out;
     }
 
-    const files = [
-      ...walkTsFiles(path.join(rootDir, 'src')),
-      ...walkTsFiles(path.join(rootDir, 'server')),
-    ];
+    const files = [...walkTsFiles(path.join(rootDir, 'src')), ...walkTsFiles(path.join(rootDir, 'server'))];
 
     const violations: Array<{ file: string; line: number; text: string }> = [];
     for (const file of files) {
@@ -108,7 +103,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
     const repo = new TrackerRepository({ dbPath: ':memory:' });
     repo.setStoredPasswordHash(
       'scrypt:00112233445566778899aabbccddeeff:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
-      Date.now()
+      Date.now(),
     );
     const app = createApp({ repo, setupCode: 'test-setup-code' });
     const server = app.listen(0);
@@ -166,11 +161,9 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
                 { id: 10765, name: 'Sci-Fi & Fantasy' },
               ],
               external_ids: { imdb_id: 'tt11280740' },
-              seasons: [
-                { season_number: 1, name: '第 1 季', episode_count: 2 },
-              ],
+              seasons: [{ season_number: 1, name: '第 1 季', episode_count: 2 }],
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         if (url.includes('/tv/95396?') && url.includes('language=en-US')) {
@@ -191,11 +184,9 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
                 { id: 18, name: 'Drama' },
                 { id: 10765, name: 'Sci-Fi & Fantasy' },
               ],
-              seasons: [
-                { season_number: 1, name: 'Season 1', episode_count: 2 },
-              ],
+              seasons: [{ season_number: 1, name: 'Season 1', episode_count: 2 }],
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         if (url.includes('/tv/95396/season/1?') && url.includes('language=zh-CN')) {
@@ -222,7 +213,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
                 },
               ],
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         if (url.includes('/tv/95396/season/1?') && url.includes('language=en-US')) {
@@ -249,7 +240,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
                 },
               ],
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         return new Response('Not Found', { status: 404 });
@@ -327,7 +318,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
         'url_1',
         JSON.stringify(legacyTitle),
         1000,
-        1000
+        1000,
       );
 
       const legacySeason = {
@@ -357,7 +348,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       db.prepare('INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)').run(
         'url_1',
         1,
-        JSON.stringify(legacySeason)
+        JSON.stringify(legacySeason),
       );
       db.close();
 
@@ -387,12 +378,9 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
         updatedAt: 1000,
         lastActivityAt: 1000,
       };
-      db2.prepare('INSERT INTO titles (id, data, added_at, updated_at) VALUES (?, ?, ?, ?)').run(
-        'tmdb_movie_438631',
-        JSON.stringify(legacyMovie),
-        1000,
-        1000
-      );
+      db2
+        .prepare('INSERT INTO titles (id, data, added_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run('tmdb_movie_438631', JSON.stringify(legacyMovie), 1000, 1000);
       db2.close();
 
       const repo = new TrackerRepository({ dataDir: tmpDir });
@@ -450,11 +438,17 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
                 ],
                 backdrops: [
                   { file_path: '/en_bd.jpg', iso_639_1: 'en', iso_3166_1: 'US', vote_average: 9.5, vote_count: 20 },
-                  { file_path: '/textless_bd.jpg', iso_639_1: null, iso_3166_1: null, vote_average: 7.0, vote_count: 5 },
+                  {
+                    file_path: '/textless_bd.jpg',
+                    iso_639_1: null,
+                    iso_3166_1: null,
+                    vote_average: 7.0,
+                    vote_count: 5,
+                  },
                 ],
               },
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         if (url.includes('/movie/438631?') && url.includes('language=en-US')) {
@@ -471,7 +465,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
               backdrop_path: '/default_bd.jpg',
               genres: [{ id: 878, name: 'Science Fiction' }],
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         if (url.includes('/movie/999999?') && url.includes('language=zh-CN')) {
@@ -489,7 +483,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
               genres: [],
               images: { posters: [], backdrops: [] },
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         if (url.includes('/movie/999999?') && url.includes('language=en-US')) {
@@ -506,7 +500,7 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
               backdrop_path: null,
               genres: [],
             }),
-            { status: 200 }
+            { status: 200 },
           );
         }
         return new Response('Not Found', { status: 404 });
@@ -536,4 +530,3 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
     }
   });
 });
-

@@ -21,21 +21,9 @@ import type {
   WatchListDoc,
   ZhenjiExportV2,
 } from '../../src/domain/types.ts';
-import {
-  backupDatabase,
-  createSafetyBackup,
-  todayDateStr,
-  writeDailyExport,
-} from './backup.ts';
+import { backupDatabase, createSafetyBackup, todayDateStr, writeDailyExport } from './backup.ts';
 import { exportData, getState, importData } from './importExportRepo.ts';
-import {
-  deleteList,
-  deleteListEntry,
-  patchList,
-  patchListEntry,
-  putList,
-  putListEntry,
-} from './listsRepo.ts';
+import { deleteList, deleteListEntry, patchList, patchListEntry, putList, putListEntry } from './listsRepo.ts';
 import { deleteProgress, patchProgress, putProgress } from './progressRepo.ts';
 import {
   createSession,
@@ -47,14 +35,7 @@ import {
   setStoredPasswordHash,
   verifyAndTouchSession,
 } from './settingsAuthRepo.ts';
-import {
-  applyTitleAtomicAction,
-  deleteTitle,
-  getTitle,
-  patchTitle,
-  putTitle,
-  replaceSeasons,
-} from './titlesRepo.ts';
+import { applyTitleAtomicAction, deleteTitle, getTitle, patchTitle, putTitle, replaceSeasons } from './titlesRepo.ts';
 import { ConflictError, type DbContext, NotFoundError, type RepositoryOptions } from './types.ts';
 
 export { ConflictError, NotFoundError, type RepositoryOptions };
@@ -78,7 +59,7 @@ export class DataDirPermissionError extends Error {
 
 export function assertDataDirWritable(
   dataDir: string,
-  fsImpl: Pick<typeof fs, 'mkdirSync' | 'accessSync' | 'writeFileSync' | 'unlinkSync'> = fs
+  fsImpl: Pick<typeof fs, 'mkdirSync' | 'accessSync' | 'writeFileSync' | 'unlinkSync'> = fs,
 ): void {
   const resolved = path.resolve(dataDir);
   try {
@@ -103,16 +84,12 @@ export class TrackerRepository {
 
   constructor(options: RepositoryOptions = {}) {
     const resolvedDataDir =
-      options.dbPath === ':memory:'
-        ? null
-        : path.resolve(options.dataDir || process.env.DATA_DIR || './data');
+      options.dbPath === ':memory:' ? null : path.resolve(options.dataDir || process.env.DATA_DIR || './data');
     this.dataDir = resolvedDataDir;
 
-    const dbPath =
-      options.dbPath || (resolvedDataDir ? path.join(resolvedDataDir, 'tracker.db') : ':memory:');
+    const dbPath = options.dbPath || (resolvedDataDir ? path.join(resolvedDataDir, 'tracker.db') : ':memory:');
     this.isMemory = dbPath === ':memory:';
-    this.migrationsDir =
-      options.migrationsDir || path.resolve(import.meta.dirname, 'migrations');
+    this.migrationsDir = options.migrationsDir || path.resolve(import.meta.dirname, 'migrations');
 
     if (!this.isMemory && this.dataDir) {
       assertDataDirWritable(this.dataDir);
@@ -143,9 +120,7 @@ export class TrackerRepository {
   }
 
   private getUserVersion(): number {
-    const row = this.db.prepare('PRAGMA user_version;').get() as
-      | { user_version?: number }
-      | undefined;
+    const row = this.db.prepare('PRAGMA user_version;').get() as { user_version?: number } | undefined;
     return Number(row?.user_version ?? 0);
   }
 
@@ -212,23 +187,18 @@ export class TrackerRepository {
     const next = current + 1;
     this.db
       .prepare(
-        "INSERT INTO meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        "INSERT INTO meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       )
       .run(String(next));
     return next;
   }
 
   public getVersion(): number {
-    const row = this.db.prepare("SELECT value FROM meta WHERE key = 'version'").get() as
-      | { value?: string }
-      | undefined;
+    const row = this.db.prepare("SELECT value FROM meta WHERE key = 'version'").get() as { value?: string } | undefined;
     return row?.value ? Number.parseInt(row.value, 10) || 0 : 0;
   }
 
-  public createSafetyBackup(
-    kind: 'pre-migration' | 'pre-import',
-    now = new Date()
-  ): string | null {
+  public createSafetyBackup(kind: 'pre-migration' | 'pre-import', now = new Date()): string | null {
     return createSafetyBackup(this.ctx, kind, now);
   }
 
@@ -253,7 +223,9 @@ export class TrackerRepository {
     return getState(this.ctx);
   }
 
-  public getSeasons(id: string): SeasonDoc[] { return readSeasons(this.ctx, id); }
+  public getSeasons(id: string): SeasonDoc[] {
+    return readSeasons(this.ctx, id);
+  }
 
   public getTitle(id: string): TitleDoc | null {
     return getTitle(this.ctx, id);
@@ -265,7 +237,7 @@ export class TrackerRepository {
       title: TitleDoc;
       seasons?: SeasonDoc[];
       progress?: Record<string, ProgressDoc>;
-    }
+    },
   ): StateMutationResult {
     return putTitle(this.ctx, id, input);
   }
@@ -282,13 +254,22 @@ export class TrackerRepository {
     return fillEpisodeMetadata(this.ctx, id, sourceUrl, videoId, detail);
   }
 
-  public previewStructure(id: string) { return previewStructure(this.ctx, id); }
+  public previewStructure(id: string) {
+    return previewStructure(this.ctx, id);
+  }
   public decideStructure(id: string, decision: 'keep' | 'adopt', version: number, signature: string) {
     return decideStructure(this.ctx, id, decision, version, signature);
   }
-  public convertToManual(id: string) { return convertToManual(this.ctx, id); }
+  public convertToManual(id: string) {
+    return convertToManual(this.ctx, id);
+  }
 
-  public refreshMetadata(id: string, data: import('../../src/domain/types.ts').TmdbDetails, now = Date.now(), relink = false): StateMutationResult {
+  public refreshMetadata(
+    id: string,
+    data: import('../../src/domain/types.ts').TmdbDetails,
+    now = Date.now(),
+    relink = false,
+  ): StateMutationResult {
     return refreshMetadata(this.ctx, id, data, now, relink);
   }
 
@@ -300,22 +281,19 @@ export class TrackerRepository {
     titleId: string,
     incomingEpisodes: LinkImportEpisodeSeed[],
     now = Date.now(),
-    metadata?: LinkImportResult
+    metadata?: LinkImportResult,
   ): PlaylistRefreshResult {
     return appendPlaylistEpisodes(this.ctx, titleId, incomingEpisodes, now, metadata);
   }
 
-  public applyTitleAtomicAction(
-    titleId: string,
-    input: TitleAtomicActionInput
-  ): StateMutationResult {
+  public applyTitleAtomicAction(titleId: string, input: TitleAtomicActionInput): StateMutationResult {
     return applyTitleAtomicAction(this.ctx, titleId, input);
   }
 
   public putProgress(
     titleId: string,
     playthroughId: string,
-    input: { watched: Record<string, number>; movieWatchedAt?: number }
+    input: { watched: Record<string, number>; movieWatchedAt?: number },
   ): StateMutationResult {
     return putProgress(this.ctx, titleId, playthroughId, input);
   }
@@ -327,7 +305,7 @@ export class TrackerRepository {
       set?: Record<string, number>;
       unset?: string[];
       movieWatchedAt?: number | null;
-    }
+    },
   ): StateMutationResult {
     return patchProgress(this.ctx, titleId, playthroughId, patch);
   }
@@ -348,18 +326,14 @@ export class TrackerRepository {
     return deleteList(this.ctx, id);
   }
 
-  public putListEntry(
-    listId: string,
-    entryId: string,
-    entryInput: Omit<ListEntryDoc, 'id'>
-  ): StateMutationResult {
+  public putListEntry(listId: string, entryId: string, entryInput: Omit<ListEntryDoc, 'id'>): StateMutationResult {
     return putListEntry(this.ctx, listId, entryId, entryInput);
   }
 
   public patchListEntry(
     listId: string,
     entryId: string,
-    patch: Partial<Omit<ListEntryDoc, 'id'>>
+    patch: Partial<Omit<ListEntryDoc, 'id'>>,
   ): StateMutationResult {
     return patchListEntry(this.ctx, listId, entryId, patch);
   }
@@ -376,10 +350,7 @@ export class TrackerRepository {
     return exportData(this.ctx, exportedAt);
   }
 
-  public importData(
-    rawInput: unknown,
-    options: { skipBackup?: boolean; now?: Date } = {}
-  ): StateMutationResult {
+  public importData(rawInput: unknown, options: { skipBackup?: boolean; now?: Date } = {}): StateMutationResult {
     return importData(this.ctx, rawInput, options);
   }
 

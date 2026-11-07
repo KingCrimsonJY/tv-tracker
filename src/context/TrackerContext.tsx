@@ -67,22 +67,20 @@ export interface TrackerContextValue {
   signOut: () => Promise<void>;
   signOutAll: () => Promise<void>;
   getActiveProgress: (title: TitleDoc) => ProgressDoc;
-  addTitleFromTmdb: (
-    mediaType: 'movie' | 'tv',
-    sourceId: string,
-    targetListId?: string
-  ) => Promise<TitleDoc>;
+  addTitleFromTmdb: (mediaType: 'movie' | 'tv', sourceId: string, targetListId?: string) => Promise<TitleDoc>;
   createCustomOrLinkTitle: (input: CustomTitleInput) => Promise<TitleDoc>;
   updateTitleDetails: (titleId: string, input: UpdateTitleDetailsInput) => Promise<void>;
-  updateTitleLanguage: (
-    titleId: string,
-    displayLang: DisplayLang | null,
-    customName?: string
-  ) => Promise<void>;
+  updateTitleLanguage: (titleId: string, displayLang: DisplayLang | null, customName?: string) => Promise<void>;
   setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
   setStructureLock: (id: string, locked: boolean) => Promise<void>;
-  resolveStructure: (id: string, input: Parameters<typeof import('../data/api.ts').decideStructureApi>[1]) => Promise<void>;
-  changeTitleSource: (id: string, input: Parameters<typeof import('../data/api.ts').changeTitleSourceApi>[1]) => Promise<void>;
+  resolveStructure: (
+    id: string,
+    input: Parameters<typeof import('../data/api.ts').decideStructureApi>[1],
+  ) => Promise<void>;
+  changeTitleSource: (
+    id: string,
+    input: Parameters<typeof import('../data/api.ts').changeTitleSourceApi>[1],
+  ) => Promise<void>;
   fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
   refreshTitleMetadata: (titleId: string) => Promise<MetadataRefreshStatus>;
   refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<MetadataRefreshCounts>;
@@ -93,10 +91,7 @@ export interface TrackerContextValue {
   toggleSeason: (titleId: string, seasonNumber: number, markWatched: boolean) => Promise<void>;
   markUpTo: (titleId: string, episodeKey: string) => Promise<void>;
   markWholeTitle: (titleId: string, markWatched: boolean) => Promise<void>;
-  saveResume: (
-    titleId: string,
-    resume: { episodeKey: string | null; seconds: number } | null
-  ) => Promise<void>;
+  saveResume: (titleId: string, resume: { episodeKey: string | null; seconds: number } | null) => Promise<void>;
   startTitleRewatch: (titleId: string) => Promise<void>;
   cancelTitleRewatch: (titleId: string) => Promise<void>;
   deleteTitlePlaythrough: (titleId: string, playthroughId: string) => Promise<void>;
@@ -125,7 +120,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [authenticated, setAuthenticated] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [serverUnreachable, setServerUnreachable] = useState(
-    () => typeof navigator !== 'undefined' && navigator.onLine === false
+    () => typeof navigator !== 'undefined' && navigator.onLine === false,
   );
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const [tmdbGenres, setTmdbGenres] = useState<{
@@ -133,11 +128,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     en: Record<number, string>;
   } | null>(null);
 
-  const state = useSyncExternalStore(
-    trackerStore.subscribe,
-    trackerStore.getState,
-    trackerStore.getState
-  );
+  const state = useSyncExternalStore(trackerStore.subscribe, trackerStore.getState, trackerStore.getState);
 
   const showToast = useCallback((message: string, variant: ToastVariant = 'default') => {
     switch (variant) {
@@ -236,7 +227,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       trackerStore.applyMutation(mutation);
       void refreshStateFromServer();
     },
-    [refreshStateFromServer]
+    [refreshStateFromServer],
   );
 
   const checkAuthAndLoad = useCallback(async () => {
@@ -308,7 +299,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLoadingData(true);
       await refreshStateFromServer();
     },
-    [refreshStateFromServer]
+    [refreshStateFromServer],
   );
 
   const loginWithPassword = useCallback(
@@ -319,7 +310,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLoadingData(true);
       await refreshStateFromServer();
     },
-    [refreshStateFromServer]
+    [refreshStateFromServer],
   );
 
   const signOut = useCallback(async () => {
@@ -336,7 +327,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const getActiveProgress = useCallback(
     (title: TitleDoc): ProgressDoc => getActiveProgressFromState(state, title),
-    [state]
+    [state],
   );
 
   const actions = useMemo(
@@ -348,7 +339,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         showToast,
         refetchState: refreshStateFromServer,
       }),
-    [applyServerMutation, showToast, refreshStateFromServer]
+    [applyServerMutation, showToast, refreshStateFromServer],
   );
 
   const value = useMemo<TrackerContextValue>(
@@ -390,7 +381,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       getActiveProgress,
       tmdbGenres,
       actions,
-    ]
+    ],
   );
 
   return <TrackerContext.Provider value={value}>{children}</TrackerContext.Provider>;
