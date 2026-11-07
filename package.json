@@ -6,7 +6,7 @@
   "description": "个人自托管影视进度追踪应用 (Personal self-hosted movie & TV watch progress tracker)",
   "type": "module",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.18"
   },
   "scripts": {
     "dev": "tsx server.ts",

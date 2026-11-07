@@ -1,5 +1,6 @@
 # Stage 1: Build frontend assets and fetch checksum-verified standalone yt-dlp binary
-FROM node:24-slim AS builder
+ARG NODE_IMAGE=node:24-slim
+FROM ${NODE_IMAGE} AS builder
 
 ARG YTDLP_VERSION=latest
 
@@ -43,7 +44,7 @@ COPY server.ts ./
 RUN npm run build && npm prune --omit=dev
 
 # Stage 2: Production runtime
-FROM node:24-slim AS runner
+FROM ${NODE_IMAGE} AS runner
 
 WORKDIR /app
 
@@ -66,6 +67,7 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/server.ts ./server.ts
 COPY --from=builder --chown=node:node /app/server ./server
 COPY --from=builder --chown=node:node /app/src/domain ./src/domain
+COPY --from=builder --chown=node:node /app/src/i18n/messages ./src/i18n/messages
 
 USER node
 
