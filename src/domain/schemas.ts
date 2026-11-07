@@ -236,6 +236,7 @@ export const titleAtomicProgressMutationSchema = z
 
 export const titleAtomicActionRequestSchema: z.ZodType<TitleAtomicActionInput> = z
   .object({
+    expectedActivePlaythroughId: z.string().min(1).optional(),
     progress: titleAtomicProgressMutationSchema.optional(),
     title: patchTitleRequestSchema.optional(),
   })

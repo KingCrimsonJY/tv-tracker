@@ -27,6 +27,7 @@ import {
 import type { ToastVariant } from '../data/actions/types.ts';
 import { runOneTimeLegacyStorageCleanup } from '../data/storageCleanup.ts';
 import { trackerStore } from '../data/store.ts';
+import { createReconciler } from '../data/reconcile.ts';
 import type {
   AppSettingsDoc,
   CollectionSort,
@@ -207,7 +208,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
   }, [authenticated]);
 
-  const refreshStateFromServer = useCallback(async () => {
+  const readStateFromServer = useCallback(async () => {
     try {
       const snapshot = await fetchStateSnapshot();
       trackerStore.applySnapshot(snapshot);
@@ -225,10 +226,12 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  const refreshStateFromServer = useMemo(() => createReconciler(readStateFromServer), [readStateFromServer]);
+
   const applyServerMutation = useCallback(
     (mutation: StateMutationResult) => {
-      const { epochChanged } = trackerStore.applyMutation(mutation);
-      if (epochChanged) void refreshStateFromServer();
+      trackerStore.applyMutation(mutation);
+      void refreshStateFromServer();
     },
     [refreshStateFromServer]
   );

@@ -39,6 +39,7 @@ export type ServerErrorCode =
   | 'LIST_NOT_FOUND'
   | 'ENTRY_NOT_FOUND'
   | 'CONFLICT_ERROR'
+  | 'REWATCH_CONFLICT'
   | 'VALIDATION_ERROR'
   | 'PAYLOAD_TOO_LARGE'
   | 'ROUTE_NOT_FOUND'
@@ -280,6 +281,7 @@ export interface StateDeletes {
 }
 
 export interface StateMutationResult {
+  replace?: boolean;
   version: number;
   epoch?: string;
   upserts: StateUpserts;
@@ -296,6 +298,7 @@ export interface TitleAtomicProgressMutation {
 }
 
 export interface TitleAtomicActionInput {
+  expectedActivePlaythroughId?: string;
   progress?: TitleAtomicProgressMutation;
   title?: Partial<Omit<TitleDoc, 'id'>>;
 }

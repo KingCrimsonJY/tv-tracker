@@ -72,6 +72,8 @@ export function applyMutationResult(
     return currentState;
   }
 
+  if (mutation.replace) currentState = { ...createInitialAppState(), epoch: currentState.epoch };
+
   let titles: Record<string, TitleDoc> = { ...currentState.titles };
   let seasonsByTitle: Record<string, SeasonDoc[]> = { ...currentState.seasonsByTitle };
   const progressByTitle: Record<string, Record<string, ProgressDoc>> = {

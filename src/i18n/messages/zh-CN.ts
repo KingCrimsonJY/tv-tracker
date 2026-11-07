@@ -100,6 +100,7 @@ export const zhCN = {
     TITLE_NOT_FOUND: '未找到该影视作品',
     LIST_NOT_FOUND: '未找到该列表',
     ENTRY_NOT_FOUND: '未找到该列表条目',
+    REWATCH_CONFLICT: "另一台设备已更改当前观看轮次，已重新同步片库，请重试。",
     CONFLICT_ERROR: '数据冲突，请刷新后重试',
     VALIDATION_ERROR: '请求数据格式不正确',
     VALIDATION_FIELD: (field: string) => `字段格式不正确：${field}`,

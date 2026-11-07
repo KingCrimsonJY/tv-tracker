@@ -213,6 +213,15 @@ export function applyTitleAtomicAction(
       throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
+    const currentTitle = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
+    if (input.expectedActivePlaythroughId !== undefined && input.expectedActivePlaythroughId !== currentTitle.activePlaythroughId) {
+      throw new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
+    }
+    const addsPlaythrough = input.title?.playthroughs?.some(p => !currentTitle.playthroughs.some(existing => existing.id === p.id));
+    if (addsPlaythrough && input.expectedActivePlaythroughId === undefined) {
+      throw new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
+    }
+
     const upserts: StateUpserts = {};
     const deletes: StateDeletes = {};
 

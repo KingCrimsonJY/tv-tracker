@@ -275,6 +275,7 @@ export function importData(
     const version = ctx.bumpVersionInTx();
     return {
       version,
+      replace: true,
       upserts: {
         titles,
         seasonsByTitle,

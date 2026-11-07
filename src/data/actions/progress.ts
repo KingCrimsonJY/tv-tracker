@@ -11,7 +11,7 @@ import {
   undoLatestPlaythrough,
 } from '../../domain/progress.ts';
 import type { Playthrough, ProgressDoc, TitleDoc } from '../../domain/types.ts';
-import { getActiveCatalog } from '../../i18n/index.ts';
+import { getActiveCatalog, translateErrorObject } from '../../i18n/index.ts';
 import { postTitleActionApi } from '../api.ts';
 import {
   applyInFlightOpsToState,
@@ -63,6 +63,7 @@ export function createProgressActions(
     hadMovieWatchedAtChange: boolean;
     prevTitleFields: Partial<Omit<TitleDoc, 'id'>>;
     createdPlaythroughId?: string;
+    expectedActivePlaythroughId?: string;
     deletedPlaythroughDoc?: ProgressDoc;
     now: number;
   }): Promise<void> {
@@ -80,6 +81,7 @@ export function createProgressActions(
       hadMovieWatchedAtChange,
       prevTitleFields,
       createdPlaythroughId,
+      expectedActivePlaythroughId,
       deletedPlaythroughDoc,
       now,
     } = params;
@@ -111,6 +113,7 @@ export function createProgressActions(
 
     try {
       const mut = await postTitleActionApi(titleId, {
+        ...(expectedActivePlaythroughId ? { expectedActivePlaythroughId } : {}),
         ...(hasProgressPayload
           ? {
               progress: {
@@ -131,7 +134,7 @@ export function createProgressActions(
       if (inFlightOps.size > 0) {
         setState((curr) => applyInFlightOpsToState(curr, inFlightOps));
       }
-    } catch {
+    } catch (error) {
       inFlightOps.delete(opId);
 
       setState((curr) => {
@@ -183,7 +186,7 @@ export function createProgressActions(
         };
       });
 
-      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
+      showToast(translateErrorObject(error, getActiveCatalog(), getActiveCatalog().app.writeRollbackToast), 'danger');
       await triggerRefetch();
     }
   }
@@ -380,6 +383,7 @@ export function createProgressActions(
         lastActivityAt: prevTitle.lastActivityAt,
       },
       createdPlaythroughId: res.progress.playthroughId,
+      expectedActivePlaythroughId: prevTitle.activePlaythroughId,
       now,
     });
   }

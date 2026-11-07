@@ -117,6 +117,7 @@ export const en: MessageCatalog = {
     TITLE_NOT_FOUND: 'Title not found',
     LIST_NOT_FOUND: 'List not found',
     ENTRY_NOT_FOUND: 'List entry not found',
+    REWATCH_CONFLICT: "Another device changed the active viewing. Your library has been refreshed; try again.",
     CONFLICT_ERROR: 'Data conflict. Please refresh and try again.',
     VALIDATION_ERROR: 'Invalid request payload',
     VALIDATION_FIELD: (field: string) => `Invalid field: ${field}`,
