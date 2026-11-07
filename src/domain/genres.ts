@@ -43,7 +43,10 @@ export function extractGenreIdsFromNames(genres: string[]): number[] {
   const ids: number[] = [];
   const seen = new Set<number>();
   for (const g of genres) {
-    const parts = g.split(/[/,&\u3001]/).map((p) => p.trim()).filter(Boolean);
+    const parts = g
+      .split(/[/,&\u3001]/)
+      .map((p) => p.trim())
+      .filter(Boolean);
     const direct = genreNameToId(g);
     if (direct !== null) {
       if (!seen.has(direct)) {
@@ -66,13 +69,11 @@ export function extractGenreIdsFromNames(genres: string[]): number[] {
 export function resolveTitleGenres(
   title: Pick<TitleDoc, 'genreIds' | 'genres'>,
   locale: UiLocale = 'zh-CN',
-  dynamicGenreMap?: Record<number, string>
+  dynamicGenreMap?: Record<number, string>,
 ): string[] {
   const catalogGenres = locale === 'en' ? en.genres : zhCN.genres;
   const ids =
-    title.genreIds && title.genreIds.length > 0
-      ? title.genreIds
-      : extractGenreIdsFromNames(title.genres || []);
+    title.genreIds && title.genreIds.length > 0 ? title.genreIds : extractGenreIdsFromNames(title.genres || []);
 
   if (ids.length > 0) {
     const resolved: string[] = [];

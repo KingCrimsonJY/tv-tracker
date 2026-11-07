@@ -1,3 +1,4 @@
+import { responsiveImage } from '../../domain/images';
 import React from 'react';
 import { Button, Chip } from '@heroui/react';
 import { ArrowLeft } from 'lucide-react';
@@ -37,7 +38,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
         {backdropUrl ? (
           <img
             referrerPolicy="no-referrer"
-            src={backdropUrl}
+            {...responsiveImage(backdropUrl, 'backdrop')}
             alt=""
             className="w-full h-full object-cover object-top"
             loading="eager"
@@ -56,13 +57,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
 
         {/* Back button */}
         <div className="absolute top-3 left-3 sm:top-5 sm:left-6 z-20">
-          <Button
-            variant="secondary"
-            size="sm"
-            isIconOnly
-            aria-label={t.app.back}
-            onPress={onBack}
-          >
+          <Button variant="secondary" size="sm" isIconOnly aria-label={t.app.back} onPress={onBack}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </div>
@@ -112,7 +107,6 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
                 </Chip>
               )}
 
-
               {titleState.hasNewEpisodes && (
                 <Chip size="sm" color="accent" variant="primary">
                   {t.status.newEpisodesBadge}
@@ -124,9 +118,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
               {displayTitle}
             </h1>
 
-            {showOriginalSub && (
-              <p className="text-xs sm:text-sm text-muted truncate">{title.names.original}</p>
-            )}
+            {showOriginalSub && <p className="text-xs sm:text-sm text-muted truncate">{title.names.original}</p>}
 
             <p className="text-xs sm:text-sm text-muted">{metaParts.join(' · ')}</p>
           </div>

@@ -16,9 +16,24 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Install browser on the GitHub runner
+        run: npx playwright install --with-deps chromium
+      - name: Check responsive UI and synchronization
+        run: npm run qa
+        env:
+          QA_OUTPUT_DIR: ${{ runner.temp }}/zhenji-qa
+      - name: Upload screenshots and browser report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: responsive-ui
+          path: ${{ runner.temp }}/zhenji-qa
+          if-no-files-found: warn
+          retention-days: 14
       - run: docker build -t zhenji:ci .
       - name: Check production container
         run: |

@@ -51,8 +51,7 @@ export const HomePage: React.FC = () => {
   const continueWatchingItems = enriched
     .filter(
       ({ title, state }) =>
-        state.status === 'watching' &&
-        (state.nextUp !== null || Boolean(title.resume && title.resume.seconds > 0))
+        state.status === 'watching' && (state.nextUp !== null || Boolean(title.resume && title.resume.seconds > 0)),
     )
     .sort((a, b) => b.title.lastActivityAt - a.title.lastActivityAt);
 
@@ -60,9 +59,7 @@ export const HomePage: React.FC = () => {
     .filter(({ state }) => state.hasNewEpisodes)
     .sort((a, b) => b.title.lastActivityAt - a.title.lastActivityAt);
 
-  const recentlyAddedItems = [...enriched]
-    .sort((a, b) => b.title.addedAt - a.title.addedAt)
-    .slice(0, 12);
+  const recentlyAddedItems = [...enriched].sort((a, b) => b.title.addedAt - a.title.addedAt).slice(0, 12);
 
   const wantToWatchItems = enriched
     .filter(({ state }) => state.status === 'unwatched')
@@ -77,15 +74,13 @@ export const HomePage: React.FC = () => {
     key: HomeSectionId,
     heading: string,
     items: typeof enriched,
-    moreLink?: { to: string; label: string }
+    moreLink?: { to: string; label: string },
   ) => {
     if (items.length === 0) return null;
     return (
       <section key={key} className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
-            {heading}
-          </h2>
+          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">{heading}</h2>
           {moreLink && (
             <Link
               to={moreLink.to}
@@ -123,12 +118,7 @@ export const HomePage: React.FC = () => {
             </h2>
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory no-scrollbar">
               {continueWatchingItems.map(({ title, seasons, state }) => {
-                const { primary } = resolveDisplayTitle(
-                  title.names,
-                  title.displayLang,
-                  defaultLang,
-                  locale
-                );
+                const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
                 const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
                 const pct = Math.max(3, Math.min(100, Math.round(ratio * 100)));
 
@@ -166,12 +156,8 @@ export const HomePage: React.FC = () => {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                       <div className="absolute inset-x-0 bottom-0 p-3.5 space-y-2">
                         <div className="pr-11">
-                          <h3 className="text-sm sm:text-base font-semibold text-white truncate">
-                            {primary}
-                          </h3>
-                          <p className="text-xs text-white/80 tabular-nums mt-0.5 truncate">
-                            {subtitle}
-                          </p>
+                          <h3 className="text-sm sm:text-base font-semibold text-white truncate">{primary}</h3>
+                          <p className="text-xs text-white/80 tabular-nums mt-0.5 truncate">{subtitle}</p>
                         </div>
                         <ProgressBar
                           aria-label={`${primary} ${t.app.watchProgressAriaSuffix}`}
@@ -195,10 +181,7 @@ export const HomePage: React.FC = () => {
                           onPress={() => {
                             void toggleEpisode(title.id, quickMarkEpisodeKey);
                           }}
-                          aria-label={t.home.markNextWatchedAria(
-                            primary,
-                            quickMarkEpisodeKey.toUpperCase()
-                          )}
+                          aria-label={t.home.markNextWatchedAria(primary, quickMarkEpisodeKey.toUpperCase())}
                         >
                           <Check className="w-4 h-4" />
                         </Button>
@@ -251,16 +234,8 @@ export const HomePage: React.FC = () => {
                 const rawEntries = entriesByList[list.id] || [];
                 const hydrated = rawEntries
                   .map((entry) => ({ entry, title: titles[entry.titleId] }))
-                  .filter(
-                    (item): item is { entry: ListEntryDoc; title: TitleDoc } => Boolean(item.title)
-                  );
-                const sorted = sortListEntries(
-                  hydrated,
-                  list.kind,
-                  list.collectionSort,
-                  defaultLang,
-                  locale
-                );
+                  .filter((item): item is { entry: ListEntryDoc; title: TitleDoc } => Boolean(item.title));
+                const sorted = sortListEntries(hydrated, list.kind, list.collectionSort, defaultLang, locale);
                 const stats = computeListProgress(sorted, seasonsByTitle, progressByTitleMap, {
                   includeSpecials,
                 });
@@ -269,13 +244,10 @@ export const HomePage: React.FC = () => {
                       stats.nextEntry.title.names,
                       stats.nextEntry.title.displayLang,
                       defaultLang,
-                      locale
+                      locale,
                     ).primary
                   : null;
-                const pct =
-                  stats.totalCount > 0
-                    ? Math.round((stats.completedCount / stats.totalCount) * 100)
-                    : 0;
+                const pct = stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0;
 
                 return (
                   <Link
@@ -302,12 +274,7 @@ export const HomePage: React.FC = () => {
                       </span>
                     </div>
 
-                    <ProgressBar
-                      aria-label={t.lists.progressAria(list.name)}
-                      value={pct}
-                      size="sm"
-                      className="w-full"
-                    >
+                    <ProgressBar aria-label={t.lists.progressAria(list.name)} value={pct} size="sm" className="w-full">
                       <ProgressBar.Track>
                         <ProgressBar.Fill />
                       </ProgressBar.Track>
@@ -337,15 +304,9 @@ export const HomePage: React.FC = () => {
   return (
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-8">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-          {t.home.title}
-        </h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">{t.home.title}</h1>
         <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() => navigate('/search')}
-          >
+          <Button variant="secondary" size="sm" onPress={() => navigate('/search')}>
             <Plus className="w-4 h-4" />
             <span>{t.library.addMediaButton}</span>
           </Button>
@@ -366,10 +327,7 @@ export const HomePage: React.FC = () => {
           <Skeleton className="h-6 w-32 rounded-lg" />
           <div className="flex gap-4 overflow-hidden">
             {[0, 1, 2].map((i) => (
-              <Skeleton
-                key={i}
-                className="w-[280px] sm:w-[320px] aspect-video rounded-2xl shrink-0"
-              />
+              <Skeleton key={i} className="w-[280px] sm:w-[320px] aspect-video rounded-2xl shrink-0" />
             ))}
           </div>
         </div>
@@ -378,12 +336,8 @@ export const HomePage: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center mx-auto">
             <Film className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {t.home.emptyLibraryTitle}
-          </h2>
-          <p className="text-sm text-[var(--muted)] leading-relaxed">
-            {t.home.emptyLibraryDescription}
-          </p>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">{t.home.emptyLibraryTitle}</h2>
+          <p className="text-sm text-[var(--muted)] leading-relaxed">{t.home.emptyLibraryDescription}</p>
           <div className="pt-2">
             <Button variant="primary" onPress={() => navigate('/search')}>
               <Plus className="w-4 h-4" />

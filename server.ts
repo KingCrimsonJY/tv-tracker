@@ -5,16 +5,8 @@ import http from 'node:http';
 import path from 'node:path';
 import { createApp } from './server/app.ts';
 import { todayDateStr } from './server/db/backup.ts';
-import {
-  assertDataDirWritable,
-  DataDirPermissionError,
-  TrackerRepository,
-} from './server/db/repository.ts';
-import {
-  getYtdlpBinaryPath,
-  getYtdlpVersion,
-  updateYtdlpBinary,
-} from './server/providers/ytdlp.ts';
+import { assertDataDirWritable, DataDirPermissionError, TrackerRepository } from './server/db/repository.ts';
+import { getYtdlpBinaryPath, getYtdlpVersion, updateYtdlpBinary } from './server/providers/ytdlp.ts';
 
 dotenv.config();
 

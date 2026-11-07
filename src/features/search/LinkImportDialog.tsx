@@ -77,10 +77,16 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             <Modal.Heading>{t.search.linkImport.title}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
-            <p className="text-xs text-[var(--muted)] leading-relaxed">
-              {t.search.linkImport.description}
-            </p>
-            <TextField value={url} onChange={(value) => { setUrl(value); setTmdbSuggestion(null); }} isRequired isDisabled={loading}>
+            <p className="text-xs text-[var(--muted)] leading-relaxed">{t.search.linkImport.description}</p>
+            <TextField
+              value={url}
+              onChange={(value) => {
+                setUrl(value);
+                setTmdbSuggestion(null);
+              }}
+              isRequired
+              isDisabled={loading}
+            >
               <Label>{t.search.linkImport.urlLabel}</Label>
               <Input placeholder={t.search.linkImport.urlPlaceholder} type="text" />
             </TextField>
@@ -90,19 +96,30 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
                 <div className="text-sm font-medium text-[var(--foreground)] break-words">
                   {t.search.linkImport.tmdbSuggestionTitle(tmdbSuggestion.seriesTitle || tmdbSuggestion.title)}
                 </div>
-                <p className="text-xs text-[var(--muted)]">
-                  {t.search.linkImport.tmdbSuggestionDescription}
-                </p>
+                <p className="text-xs text-[var(--muted)]">{t.search.linkImport.tmdbSuggestionDescription}</p>
                 <div className="flex flex-col gap-2">
-                  {tmdbSuggestion.tmdbMatches?.map(hit => <Button key={hit.id} variant="secondary" className="h-auto justify-start whitespace-normal"
-                    isDisabled={loading} onPress={async () => {
-                      setLoading(true);
-                      try { await onSelectTmdb(hit); onOpenChange(false); }
-                      catch (error) { toast.danger(translateError(error)); }
-                      finally { setLoading(false); }
-                    }}>
-                    {(locale === 'en' ? hit.names.en : hit.names.zh) || hit.names.original} · {hit.year || ''} · {t.mediaType[hit.mediaType]}
-                  </Button>)}
+                  {tmdbSuggestion.tmdbMatches?.map((hit) => (
+                    <Button
+                      key={hit.id}
+                      variant="secondary"
+                      className="h-auto justify-start whitespace-normal"
+                      isDisabled={loading}
+                      onPress={async () => {
+                        setLoading(true);
+                        try {
+                          await onSelectTmdb(hit);
+                          onOpenChange(false);
+                        } catch (error) {
+                          toast.danger(translateError(error));
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                    >
+                      {(locale === 'en' ? hit.names.en : hit.names.zh) || hit.names.original} · {hit.year || ''} ·{' '}
+                      {t.mediaType[hit.mediaType]}
+                    </Button>
+                  ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <Button
@@ -118,11 +135,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
                   >
                     {t.search.linkImport.searchTmdbButton(tmdbSuggestion.seriesTitle || tmdbSuggestion.title)}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => finishToManual(tmdbSuggestion)}
-                  >
+                  <Button size="sm" variant="secondary" onPress={() => finishToManual(tmdbSuggestion)}>
                     {t.search.linkImport.addAsLinkAnywayButton}
                   </Button>
                 </div>
@@ -133,11 +146,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             <Button variant="tertiary" onPress={() => onOpenChange(false)}>
               {t.app.cancel}
             </Button>
-            <Button
-              variant="primary"
-              onPress={handleParse}
-              isDisabled={!url.trim() || loading}
-            >
+            <Button variant="primary" onPress={handleParse} isDisabled={!url.trim() || loading}>
               {loading ? t.search.linkImport.parsing : t.search.linkImport.parseButton}
             </Button>
           </Modal.Footer>

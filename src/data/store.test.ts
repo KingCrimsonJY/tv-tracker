@@ -1,19 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRandomId } from '../domain/id.ts';
-import type {
-  AppStateSnapshot,
-  SeasonDoc,
-  StateMutationResult,
-  TitleDoc,
-} from '../domain/types.ts';
+import type { AppStateSnapshot, SeasonDoc, StateMutationResult, TitleDoc } from '../domain/types.ts';
 import * as api from './api.ts';
 import { createTrackerActions } from './actions.ts';
-import {
-  applyMutationResult,
-  applyStateSnapshot,
-  createInitialAppState,
-  createTrackerStore,
-} from './store.ts';
+import { applyMutationResult, applyStateSnapshot, createInitialAppState, createTrackerStore } from './store.ts';
 
 function makeFixtureState(): {
   snapshot: AppStateSnapshot;
@@ -114,7 +104,7 @@ describe('store state versioning & epoch handling', () => {
           },
         },
         deletes: {},
-      }
+      },
     );
     expect(newerState.version).toBe(5);
     expect(newerState.settings.includeSpecials).toBe(true);
@@ -202,41 +192,37 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     store.applySnapshot(snapshot);
 
     let serverVersion = 1;
-    const postSpy = vi
-      .spyOn(api, 'postTitleActionApi')
-      .mockImplementation(async (titleId, payload) => {
-        // Simulate network latency so both taps happen before the first resolves
-        await new Promise((r) => setTimeout(r, 20));
-        serverVersion += 1;
-        const current = store.getState();
-        const currentTitle = current.titles[titleId];
-        const currentProg = current.progressByTitle[titleId]?.p1 || {
-          playthroughId: 'p1',
-          watched: {},
-        };
-        const nextWatched = {
-          ...currentProg.watched,
-          ...(payload.progress?.set || {}),
-        };
-        return {
-          epoch: 'epoch-1',
-          version: serverVersion,
-          upserts: {
-            titles: currentTitle
-              ? { [titleId]: { ...currentTitle, ...(payload.title || {}) } }
-              : undefined,
-            progressByTitle: {
-              [titleId]: {
-                p1: {
-                  ...currentProg,
-                  watched: nextWatched,
-                },
+    const postSpy = vi.spyOn(api, 'postTitleActionApi').mockImplementation(async (titleId, payload) => {
+      // Simulate network latency so both taps happen before the first resolves
+      await new Promise((r) => setTimeout(r, 20));
+      serverVersion += 1;
+      const current = store.getState();
+      const currentTitle = current.titles[titleId];
+      const currentProg = current.progressByTitle[titleId]?.p1 || {
+        playthroughId: 'p1',
+        watched: {},
+      };
+      const nextWatched = {
+        ...currentProg.watched,
+        ...(payload.progress?.set || {}),
+      };
+      return {
+        epoch: 'epoch-1',
+        version: serverVersion,
+        upserts: {
+          titles: currentTitle ? { [titleId]: { ...currentTitle, ...(payload.title || {}) } } : undefined,
+          progressByTitle: {
+            [titleId]: {
+              p1: {
+                ...currentProg,
+                watched: nextWatched,
               },
             },
           },
-          deletes: {},
-        };
-      });
+        },
+        deletes: {},
+      };
+    });
 
     const toasts: string[] = [];
     const actions = createTrackerActions({
@@ -360,47 +346,43 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     });
 
     let serverVersion = 1;
-    const postSpy = vi
-      .spyOn(api, 'postTitleActionApi')
-      .mockImplementation(async (titleId, payload) => {
-        serverVersion += 1;
-        const curr = store.getState();
-        const currTitle = curr.titles[titleId];
-        const upserts: StateMutationResult['upserts'] = {};
-        const deletes: StateMutationResult['deletes'] = {};
+    const postSpy = vi.spyOn(api, 'postTitleActionApi').mockImplementation(async (titleId, payload) => {
+      serverVersion += 1;
+      const curr = store.getState();
+      const currTitle = curr.titles[titleId];
+      const upserts: StateMutationResult['upserts'] = {};
+      const deletes: StateMutationResult['deletes'] = {};
 
-        if (payload.progress?.deletePlaythroughId) {
-          deletes.progress = [
-            { titleId, playthroughId: payload.progress.deletePlaythroughId },
-          ];
-        }
-        if (payload.progress?.playthroughId) {
-          const ptId = payload.progress.playthroughId;
-          upserts.progressByTitle = {
-            [titleId]: {
-              [ptId]: {
-                playthroughId: ptId,
-                watched: payload.progress.replaceWatched ?? {},
-              },
+      if (payload.progress?.deletePlaythroughId) {
+        deletes.progress = [{ titleId, playthroughId: payload.progress.deletePlaythroughId }];
+      }
+      if (payload.progress?.playthroughId) {
+        const ptId = payload.progress.playthroughId;
+        upserts.progressByTitle = {
+          [titleId]: {
+            [ptId]: {
+              playthroughId: ptId,
+              watched: payload.progress.replaceWatched ?? {},
             },
-          };
-        }
-        if (payload.title && currTitle) {
-          upserts.titles = {
-            [titleId]: {
-              ...currTitle,
-              ...payload.title,
-              id: titleId,
-            },
-          };
-        }
-        return {
-          epoch: 'epoch-1',
-          version: serverVersion,
-          upserts,
-          deletes,
+          },
         };
-      });
+      }
+      if (payload.title && currTitle) {
+        upserts.titles = {
+          [titleId]: {
+            ...currTitle,
+            ...payload.title,
+            id: titleId,
+          },
+        };
+      }
+      return {
+        epoch: 'epoch-1',
+        version: serverVersion,
+        upserts,
+        deletes,
+      };
+    });
 
     const actions = createTrackerActions({
       getState: store.getState,
@@ -452,33 +434,36 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     });
 
     const refreshedTitle: TitleDoc = {
-        ...title,
-        source: 'tmdb',
-        sourceId: '1',
-        mediaType: 'tv',
-        names: { original: 'Severance', zh: '人生切割术', en: 'Severance' },
-        year: 2022,
-        releaseDate: '2022-02-18',
-        runtimeMin: 50,
-        genres: ['剧情'],
-        genreIds: [18],
-        posterPath: 'https://image.tmdb.org/t/p/w500/zh.jpg',
-        posters: {
-          zh: 'https://image.tmdb.org/t/p/w500/zh.jpg',
-          en: 'https://image.tmdb.org/t/p/w500/en.jpg',
-          textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
-        },
-        backdropPath: 'https://image.tmdb.org/t/p/w1280/textless_bd.jpg',
-        overview: { zh: '中文简介', en: 'English overview' },
-        showStatus: 'Returning Series',
-        externalIds: { imdb: 'tt11280740' },
-        ratings: { tmdb: '8.4' },
-      };
+      ...title,
+      source: 'tmdb',
+      sourceId: '1',
+      mediaType: 'tv',
+      names: { original: 'Severance', zh: '人生切割术', en: 'Severance' },
+      year: 2022,
+      releaseDate: '2022-02-18',
+      runtimeMin: 50,
+      genres: ['剧情'],
+      genreIds: [18],
+      posterPath: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+      posters: {
+        zh: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+        en: 'https://image.tmdb.org/t/p/w500/en.jpg',
+        textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
+      },
+      backdropPath: 'https://image.tmdb.org/t/p/w1280/textless_bd.jpg',
+      overview: { zh: '中文简介', en: 'English overview' },
+      showStatus: 'Returning Series',
+      externalIds: { imdb: 'tt11280740' },
+      ratings: { tmdb: '8.4' },
+    };
     const refreshSpy = vi.spyOn(api, 'refreshMetadataApi').mockResolvedValue({
-      version: 2, status: 'updated', upserts: {
+      version: 2,
+      status: 'updated',
+      upserts: {
         titles: { [title.id]: refreshedTitle },
         seasonsByTitle: snapshot.seasonsByTitle,
-      }, deletes: {},
+      },
+      deletes: {},
     });
 
     const actions = createTrackerActions({

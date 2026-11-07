@@ -8,10 +8,7 @@ import {
   readResponseText,
   UnsafeUrlError,
 } from '../security/ssrf.ts';
-import {
-  resolveWithYtdlp,
-  type YtdlpExecFn,
-} from './ytdlp.ts';
+import { resolveWithYtdlp, type YtdlpExecFn } from './ytdlp.ts';
 
 import { resolveBilibiliMetadata } from './bilibili.ts';
 import { classifyLinkFailure, LinkImportError } from './linkErrors.ts';
@@ -45,7 +42,8 @@ export const extractFirstHttpUrl = extractHttpUrlFromText;
 export function decodeHtmlEntities(str: string): string {
   const codePoint = (value: number, original: string) =>
     Number.isInteger(value) && value >= 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff)
-      ? String.fromCodePoint(value) : original;
+      ? String.fromCodePoint(value)
+      : original;
   return str
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
@@ -63,7 +61,7 @@ export function extractMetaContent(html: string, keys: string | string[]): strin
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex1 = new RegExp(
       `<meta[^>]+(?:property|name|itemprop)=["']${escaped}["'][^>]+content=(?:"([^"]*)"|'([^']*)')`,
-      'i'
+      'i',
     );
     const m1 = regex1.exec(html);
     const val1 = m1?.[1] ?? m1?.[2];
@@ -71,7 +69,7 @@ export function extractMetaContent(html: string, keys: string | string[]): strin
 
     const regex2 = new RegExp(
       `<meta[^>]+content=(?:"([^"]*)"|'([^']*)')[^>]+(?:property|name|itemprop)=["']${escaped}["']`,
-      'i'
+      'i',
     );
     const m2 = regex2.exec(html);
     const val2 = m2?.[1] ?? m2?.[2];
@@ -93,10 +91,7 @@ function normalizeImageUrl(raw: string | null, baseUrl: string): string | null {
       return null;
     }
   }
-  if (
-    url.startsWith('http://') &&
-    (url.includes('.hdslb.com/') || url.includes('.biliimg.com/'))
-  ) {
+  if (url.startsWith('http://') && (url.includes('.hdslb.com/') || url.includes('.biliimg.com/'))) {
     url = `https://${url.slice('http://'.length)}`;
   }
   return url.slice(0, 1000);
@@ -107,7 +102,7 @@ function normalizeImageUrl(raw: string | null, baseUrl: string): string | null {
  */
 export async function scrapeOpenGraph(
   targetUrl: string,
-  deps: Pick<LinkImportDependencies, 'lookupFn' | 'fetchFn'> = {}
+  deps: Pick<LinkImportDependencies, 'lookupFn' | 'fetchFn'> = {},
 ): Promise<LinkImportResult> {
   const safeInitial = await assertSafePublicUrl(targetUrl, deps.lookupFn);
   const controller = new AbortController();
@@ -129,7 +124,7 @@ export async function scrapeOpenGraph(
         maxRedirects: 5,
         lookupFn: deps.lookupFn,
         fetchFn: deps.fetchFn,
-      }
+      },
     );
 
     if (!response.ok) {
@@ -146,9 +141,7 @@ export async function scrapeOpenGraph(
 
     const ogTitle = extractMetaContent(html, ['og:title', 'twitter:title', 'title']);
     const titleTagMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-    const fallbackTitle = titleTagMatch?.[1]
-      ? decodeHtmlEntities(titleTagMatch[1].replace(/\s+/g, ' ').trim())
-      : null;
+    const fallbackTitle = titleTagMatch?.[1] ? decodeHtmlEntities(titleTagMatch[1].replace(/\s+/g, ' ').trim()) : null;
 
     const rawTitle = ogTitle || fallbackTitle || '';
 
@@ -157,22 +150,21 @@ export async function scrapeOpenGraph(
       .trim()
       .slice(0, 200);
 
-    if (!cleanTitle || cleanTitle === new URL(finalUrl).hostname ||
-        /^(?:YouTube|bilibili|\u54d4\u54e9\u54d4\u54e9|404|not found|access denied|sign in)(?:\s|$)/i.test(cleanTitle) ||
-        /\u89c6\u9891\u53bb\u54ea\u4e86|\u64ad\u5355\u53bb\u54ea\u4e86|\u4e8c\u6b21\u5143\u5f39\u5e55\u76f4\u64ad\u5e73\u53f0/.test(cleanTitle)) {
+    if (
+      !cleanTitle ||
+      cleanTitle === new URL(finalUrl).hostname ||
+      /^(?:YouTube|bilibili|\u54d4\u54e9\u54d4\u54e9|404|not found|access denied|sign in)(?:\s|$)/i.test(cleanTitle) ||
+      /\u89c6\u9891\u53bb\u54ea\u4e86|\u64ad\u5355\u53bb\u54ea\u4e86|\u4e8c\u6b21\u5143\u5f39\u5e55\u76f4\u64ad\u5e73\u53f0/.test(
+        cleanTitle,
+      )
+    ) {
       throw new LinkImportError('LINK_UNAVAILABLE', 'No usable content metadata was found.');
     }
 
-    const rawImage = extractMetaContent(html, [
-      'og:image',
-      'og:image:secure_url',
-      'twitter:image',
-      'image',
-    ]);
+    const rawImage = extractMetaContent(html, ['og:image', 'og:image:secure_url', 'twitter:image', 'image']);
     const posterUrl = normalizeImageUrl(rawImage, finalUrl);
 
-    const rawDesc =
-      extractMetaContent(html, ['og:description', 'twitter:description', 'description']) || '';
+    const rawDesc = extractMetaContent(html, ['og:description', 'twitter:description', 'description']) || '';
     const siteName = extractMetaContent(html, ['og:site_name']) || null;
     const cleanDesc = rawDesc === '-' ? '' : rawDesc;
 
@@ -201,7 +193,7 @@ export async function scrapeOpenGraph(
  */
 async function resolveNormalizedMetadata(
   normalizedUrl: string,
-  deps: LinkImportDependencies = {}
+  deps: LinkImportDependencies = {},
 ): Promise<LinkImportResult> {
   assertSupportedLinkType(normalizedUrl);
   let nativeFailure: LinkImportError | undefined;
@@ -211,29 +203,61 @@ async function resolveNormalizedMetadata(
   } catch (err) {
     if (err instanceof UnsafeUrlError) throw err;
     nativeFailure = classifyLinkFailure(err);
-    if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE', 'LINK_LIVE_UNSUPPORTED', 'LINK_FAVORITES_UNSUPPORTED', 'LINK_WATCH_LATER_UNSUPPORTED', 'LINK_FEED_UNSUPPORTED'].includes(nativeFailure.code)) throw nativeFailure;
+    if (
+      [
+        'LINK_EMPTY_PLAYLIST',
+        'LINK_PLAYLIST_TOO_LARGE',
+        'LINK_LIVE_UNSUPPORTED',
+        'LINK_FAVORITES_UNSUPPORTED',
+        'LINK_WATCH_LATER_UNSUPPORTED',
+        'LINK_FEED_UNSUPPORTED',
+      ].includes(nativeFailure.code)
+    )
+      throw nativeFailure;
   }
 
   let failure: LinkImportError;
   try {
     return await resolveWithYtdlp(normalizedUrl, {
-      binaryPath: deps.ytdlpPath, lookupFn: deps.lookupFn, execFn: deps.execFn,
+      binaryPath: deps.ytdlpPath,
+      lookupFn: deps.lookupFn,
+      execFn: deps.execFn,
       forceImport: deps.forceImport,
     });
   } catch (err) {
     if (err instanceof UnsafeUrlError) throw err;
     failure = classifyLinkFailure(err);
-    if (nativeFailure && (['LINK_UNAVAILABLE', 'LINK_LOGIN_REQUIRED'].includes(nativeFailure.code) || (failure.code === 'LINK_PARSE_FAILED' && nativeFailure.code !== 'LINK_PARSE_FAILED'))) {
+    if (
+      nativeFailure &&
+      (['LINK_UNAVAILABLE', 'LINK_LOGIN_REQUIRED'].includes(nativeFailure.code) ||
+        (failure.code === 'LINK_PARSE_FAILED' && nativeFailure.code !== 'LINK_PARSE_FAILED'))
+    ) {
       failure = nativeFailure;
     }
   }
 
-  if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE', 'LINK_LIVE_UNSUPPORTED', 'LINK_FAVORITES_UNSUPPORTED', 'LINK_WATCH_LATER_UNSUPPORTED', 'LINK_FEED_UNSUPPORTED'].includes(failure.code)) throw failure;
+  if (
+    [
+      'LINK_EMPTY_PLAYLIST',
+      'LINK_PLAYLIST_TOO_LARGE',
+      'LINK_LIVE_UNSUPPORTED',
+      'LINK_FAVORITES_UNSUPPORTED',
+      'LINK_WATCH_LATER_UNSUPPORTED',
+      'LINK_FEED_UNSUPPORTED',
+    ].includes(failure.code)
+  )
+    throw failure;
 
   // Restrictions are actionable failures, not successful generic page imports.
   // Bangumi pages can still supply a title for a clearly labelled TMDB suggestion.
-  const restricted = ['LINK_REGION_RESTRICTED', 'LINK_AGE_RESTRICTED', 'LINK_PAYMENT_REQUIRED',
-    'LINK_LOGIN_REQUIRED', 'LINK_UNAVAILABLE', 'LINK_RATE_LIMITED'];
+  const restricted = [
+    'LINK_REGION_RESTRICTED',
+    'LINK_AGE_RESTRICTED',
+    'LINK_PAYMENT_REQUIRED',
+    'LINK_LOGIN_REQUIRED',
+    'LINK_UNAVAILABLE',
+    'LINK_RATE_LIMITED',
+  ];
   if (restricted.includes(failure.code) && !isBangumiUrl(normalizedUrl)) throw failure;
   try {
     const result = await scrapeOpenGraph(normalizedUrl, deps);
@@ -254,7 +278,10 @@ const metadataCache = new Map<string, { expiresAt: number; result: LinkImportRes
 const pendingMetadata = new Map<string, Promise<LinkImportResult>>();
 const CACHE_ENTRY_BUDGET = 10_000;
 
-export async function resolveLinkMetadata(rawInput: string, deps: LinkImportDependencies = {}): Promise<LinkImportResult> {
+export async function resolveLinkMetadata(
+  rawInput: string,
+  deps: LinkImportDependencies = {},
+): Promise<LinkImportResult> {
   const normalizedUrl = await normalizeLinkUrl(extractHttpUrlFromText(rawInput), deps);
   // Injected dependencies must remain isolated (tests and callers with custom providers).
   if (deps.fetchFn || deps.execFn || deps.lookupFn || deps.ytdlpPath) {
@@ -265,7 +292,8 @@ export async function resolveLinkMetadata(rawInput: string, deps: LinkImportDepe
   if (!deps.forceImport && cached && cached.expiresAt > Date.now()) return structuredClone(cached.result);
   const pending = pendingMetadata.get(key);
   if (pending) return structuredClone(await pending);
-  if (pendingMetadata.size >= 4) throw new LinkImportError('LINK_RATE_LIMITED', 'Too many link requests are in progress.');
+  if (pendingMetadata.size >= 4)
+    throw new LinkImportError('LINK_RATE_LIMITED', 'Too many link requests are in progress.');
   const promise = resolveNormalizedMetadata(normalizedUrl, deps);
   pendingMetadata.set(key, promise);
   try {

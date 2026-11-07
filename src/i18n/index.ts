@@ -10,16 +10,11 @@ export { en, type MessageCatalog, zhCN };
 export const RESOLVED_LOCALE_STORAGE_KEY = 'zhenji_resolved_locale';
 
 export function detectSystemLocale(rawLang?: string): UiLocale {
-  const lang =
-    rawLang ??
-    (typeof navigator !== 'undefined' ? navigator.language || 'zh-CN' : 'zh-CN');
+  const lang = rawLang ?? (typeof navigator !== 'undefined' ? navigator.language || 'zh-CN' : 'zh-CN');
   return lang.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 }
 
-export function resolveUiLocale(
-  uiLang: UiLangSetting | undefined,
-  systemLang?: string
-): UiLocale {
+export function resolveUiLocale(uiLang: UiLangSetting | undefined, systemLang?: string): UiLocale {
   if (uiLang === 'zh-CN' || uiLang === 'en') {
     return uiLang;
   }
@@ -74,7 +69,7 @@ export function getActiveCatalog(locale?: UiLocale): MessageCatalog {
 export function translateErrorByCode(
   code: string | undefined,
   catalog: MessageCatalog,
-  options?: { field?: string; status?: number; fallback?: string }
+  options?: { field?: string; status?: number; fallback?: string },
 ): string {
   if (code === 'VALIDATION_ERROR' && options?.field) {
     return catalog.errors.VALIDATION_FIELD(options.field);
@@ -91,11 +86,7 @@ export function translateErrorByCode(
   return options?.fallback || catalog.app.errorGeneric;
 }
 
-export function translateErrorObject(
-  err: unknown,
-  catalog: MessageCatalog,
-  fallback?: string
-): string {
+export function translateErrorObject(err: unknown, catalog: MessageCatalog, fallback?: string): string {
   if (err && typeof err === 'object') {
     const maybeCode = (err as { code?: unknown }).code;
     const maybeField = (err as { field?: unknown }).field;
@@ -116,7 +107,7 @@ export function translateErrorObject(
 
 export function translateTimeParseError(
   err: { code: TimeParseErrorCode; maxMinutes?: number },
-  catalog: MessageCatalog
+  catalog: MessageCatalog,
 ): string {
   if (err.code === 'EXCEEDS_RUNTIME') {
     return catalog.timeErrors.EXCEEDS_RUNTIME(err.maxMinutes ?? 0);
@@ -124,11 +115,23 @@ export function translateTimeParseError(
   return catalog.timeErrors[err.code];
 }
 
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+function dateFormatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = locale + JSON.stringify(options);
+  let formatter = dateFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    if (dateFormatters.size >= 32) dateFormatters.clear();
+    dateFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function useI18n() {
   const uiLang = useSyncExternalStore(
     trackerStore.subscribe,
     () => trackerStore.getState().settings.uiLang ?? 'system',
-    () => 'system' as UiLangSetting
+    () => 'system' as UiLangSetting,
   );
 
   const locale: UiLocale = useMemo(() => {
@@ -147,7 +150,7 @@ export function useI18n() {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
-      }
+      },
     ): string => {
       const date =
         value instanceof Date
@@ -156,23 +159,20 @@ export function useI18n() {
             ? new Date(`${value.trim()}T00:00:00`)
             : new Date(value);
       if (Number.isNaN(date.getTime())) return String(value);
-      return new Intl.DateTimeFormat(locale, options).format(date);
+      return dateFormatter(locale, options).format(date);
     },
-    [locale]
+    [locale],
   );
 
   const formatNumber = useCallback(
     (value: number, options?: Intl.NumberFormatOptions): string => {
       return new Intl.NumberFormat(locale, options).format(value);
     },
-    [locale]
+    [locale],
   );
 
   const formatPlural = useCallback(
-    (
-      count: number,
-      forms: { zero?: string; one: string; other: string }
-    ): string => {
+    (count: number, forms: { zero?: string; one: string; other: string }): string => {
       if (count === 0 && forms.zero !== undefined) {
         return forms.zero;
       }
@@ -180,19 +180,17 @@ export function useI18n() {
       const template = rule === 'one' ? forms.one : forms.other;
       return template.replace('{count}', formatNumber(count));
     },
-    [locale, formatNumber]
+    [locale, formatNumber],
   );
 
   const translateError = useCallback(
-    (err: unknown, fallback?: string): string =>
-      translateErrorObject(err, t, fallback),
-    [t]
+    (err: unknown, fallback?: string): string => translateErrorObject(err, t, fallback),
+    [t],
   );
 
   const translateTimeError = useCallback(
-    (err: { code: TimeParseErrorCode; maxMinutes?: number }): string =>
-      translateTimeParseError(err, t),
-    [t]
+    (err: { code: TimeParseErrorCode; maxMinutes?: number }): string => translateTimeParseError(err, t),
+    [t],
   );
 
   return {

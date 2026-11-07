@@ -29,9 +29,7 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
     const year = new Date(ts).getFullYear();
     return formatDate(
       ts,
-      year === currentYear
-        ? { month: 'short', day: 'numeric' }
-        : { year: 'numeric', month: 'short', day: 'numeric' }
+      year === currentYear ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' },
     );
   };
 
@@ -51,9 +49,10 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
             const isSinglePlaythrough = sorted.length === 1;
             const isRewatchInProgress = !isCompleted && sorted.length > 1;
 
-            const dateLabel = isCompleted && pt.completedAt != null
-              ? t.detail.playthroughs.finishedOn(formatRowDate(pt.completedAt))
-              : t.detail.playthroughs.startedOn(formatRowDate(pt.startedAt));
+            const dateLabel =
+              isCompleted && pt.completedAt != null
+                ? t.detail.playthroughs.finishedOn(formatRowDate(pt.completedAt))
+                : t.detail.playthroughs.startedOn(formatRowDate(pt.startedAt));
 
             const menuItemLabel = isSinglePlaythrough
               ? t.detail.playthroughs.clearWatchHistory
@@ -70,10 +69,7 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
             };
 
             return (
-              <div
-                key={pt.id}
-                className="flex items-center gap-3 py-3 first:pt-2 last:pb-1"
-              >
+              <div key={pt.id} className="flex items-center gap-3 py-3 first:pt-2 last:pb-1">
                 {isCompleted ? (
                   <span
                     className="w-6 h-6 rounded-full bg-success-subtle text-success flex items-center justify-center shrink-0"
@@ -101,18 +97,12 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
                       </Chip>
                     )}
                   </div>
-                  <p className="text-xs text-[var(--muted)] mt-0.5 truncate">
-                    {dateLabel}
-                  </p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5 truncate">{dateLabel}</p>
                 </div>
 
                 <div className="shrink-0">
                   <Dropdown>
-                    <Button
-                      variant="ghost"
-                      isIconOnly
-                      aria-label={t.detail.playthroughs.moreAria(pt.number)}
-                    >
+                    <Button variant="ghost" isIconOnly aria-label={t.detail.playthroughs.moreAria(pt.number)}>
                       <MoreHorizontal className="w-4 h-4" />
                     </Button>
                     <Dropdown.Popover placement="bottom end">

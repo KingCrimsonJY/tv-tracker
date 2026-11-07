@@ -10,23 +10,14 @@ import type {
   TitleDoc,
 } from '../../domain/types.ts';
 import { getActiveCatalog } from '../../i18n/index.ts';
-import {
-  fetchTmdbDetailsApi,
-  patchTitleApi,
-  putSeasonsApi,
-  putTitleApi,
-} from '../api.ts';
-import type {
-  CustomTitleInput,
-  TrackerActionDeps,
-  UpdateTitleDetailsInput,
-} from './types.ts';
+import { fetchTitleDetailsApi, fetchTmdbDetailsApi, patchTitleApi, putSeasonsApi, putTitleApi } from '../api.ts';
+import type { CustomTitleInput, TrackerActionDeps, UpdateTitleDetailsInput } from './types.ts';
 
 function buildCustomSeasons(
   epCount: number,
   runtimeMin: number | null,
   prevSeasons: SeasonDoc[] = [],
-  episodeSeeds?: LinkImportEpisodeSeed[]
+  episodeSeeds?: LinkImportEpisodeSeed[],
 ): SeasonDoc[] {
   const seedList = episodeSeeds && episodeSeeds.length > 0 ? episodeSeeds : [];
   const totalCount = epCount > 0 ? epCount : seedList.length;
@@ -57,10 +48,9 @@ export function createTitleActions(
   deps: TrackerActionDeps & {
     addTitleToList: (listId: string, titleId: string) => Promise<void>;
     triggerRefetch: () => Promise<void>;
-  }
+  },
 ) {
-  const { getState, setState, applyServerMutation, showToast, addTitleToList, triggerRefetch } =
-    deps;
+  const { getState, setState, applyServerMutation, showToast, addTitleToList, triggerRefetch } = deps;
 
   const removeOptimisticNewTitle = (id: string) => {
     setState((curr) => {
@@ -77,7 +67,7 @@ export function createTitleActions(
   async function addTitleFromTmdb(
     mediaType: 'movie' | 'tv',
     sourceId: string,
-    targetListId?: string
+    targetListId?: string,
   ): Promise<TitleDoc> {
     const existingId = `tmdb_${mediaType}_${sourceId}`;
     let titleDoc = getState().titles[existingId];
@@ -172,7 +162,12 @@ export function createTitleActions(
       lastActivityAt: now,
     };
 
-    const seasons = buildCustomSeasons(input.mediaType === 'movie' ? 0 : epCount, input.runtimeMin || null, [], input.mediaType === 'movie' ? undefined : seedEpisodes);
+    const seasons = buildCustomSeasons(
+      input.mediaType === 'movie' ? 0 : epCount,
+      input.runtimeMin || null,
+      [],
+      input.mediaType === 'movie' ? undefined : seedEpisodes,
+    );
     const initialProgress: ProgressDoc = { playthroughId: 'p1', watched: {} };
 
     setState((prev) => ({
@@ -201,18 +196,14 @@ export function createTitleActions(
     return newTitle;
   }
 
-  async function updateTitleDetails(
-    titleId: string,
-    input: UpdateTitleDetailsInput
-  ): Promise<void> {
+  async function updateTitleDetails(titleId: string, input: UpdateTitleDetailsInput): Promise<void> {
     const state = getState();
     const prevTitle = state.titles[titleId];
     if (!prevTitle) return;
     const prevSeasons = state.seasonsByTitle[titleId] || [];
     const now = Date.now();
 
-    const nextZh =
-      input.name !== undefined ? input.name.trim() || prevTitle.names.zh : prevTitle.names.zh;
+    const nextZh = input.name !== undefined ? input.name.trim() || prevTitle.names.zh : prevTitle.names.zh;
     const nextOrig =
       input.originalName !== undefined
         ? input.originalName.trim() || nextZh || prevTitle.names.original
@@ -231,29 +222,24 @@ export function createTitleActions(
       year: input.year !== undefined ? input.year : prevTitle.year,
       runtimeMin: input.runtimeMin !== undefined ? input.runtimeMin : prevTitle.runtimeMin,
       posterPath: posterUrl,
-      backdropPath:
-        prevTitle.source !== 'tmdb' ? posterUrl || prevTitle.backdropPath : prevTitle.backdropPath,
+      backdropPath: prevTitle.source !== 'tmdb' ? posterUrl || prevTitle.backdropPath : prevTitle.backdropPath,
       overview: {
         ...prevTitle.overview,
         ...(input.overview !== undefined ? { zh: input.overview.trim() } : {}),
       },
-      ...(input.uploader !== undefined
-        ? { uploader: input.uploader?.trim() || null }
-        : {}),
+      ...(input.uploader !== undefined ? { uploader: input.uploader?.trim() || null } : {}),
       updatedAt: now,
       lastActivityAt: now,
     };
 
     let updatedSeasons: SeasonDoc[] | undefined = undefined;
-    if (
-      (prevTitle.source === 'custom' || prevTitle.source === 'url') &&
-      input.episodeCount !== undefined
-    ) {
-      const epCount =
-        input.episodeCount && input.episodeCount > 0
-          ? Math.min(2000, Math.floor(input.episodeCount))
-          : 0;
-      updatedSeasons = buildCustomSeasons(epCount, updatedTitle.runtimeMin || null, prevSeasons);
+    if ((prevTitle.source === 'custom' || prevTitle.source === 'url') && input.episodeCount !== undefined) {
+      const epCount = input.episodeCount && input.episodeCount > 0 ? Math.min(2000, Math.floor(input.episodeCount)) : 0;
+      updatedSeasons = buildCustomSeasons(
+        epCount,
+        updatedTitle.runtimeMin || null,
+        (await fetchTitleDetailsApi(titleId)).seasons,
+      );
     }
 
     const patch: Partial<Omit<TitleDoc, 'id'>> = { updatedAt: now, lastActivityAt: now };
@@ -305,9 +291,7 @@ export function createTitleActions(
         titles: curr.titles[titleId]
           ? { ...curr.titles, [titleId]: { ...curr.titles[titleId], ...revertPatch, id: titleId } }
           : curr.titles,
-        ...(updatedSeasons !== undefined
-          ? { seasonsByTitle: { ...curr.seasonsByTitle, [titleId]: prevSeasons } }
-          : {}),
+        ...(updatedSeasons !== undefined ? { seasonsByTitle: { ...curr.seasonsByTitle, [titleId]: prevSeasons } } : {}),
       }));
       showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
@@ -317,7 +301,7 @@ export function createTitleActions(
   async function updateTitleLanguage(
     titleId: string,
     displayLang: DisplayLang | null,
-    customName?: string
+    customName?: string,
   ): Promise<void> {
     const prevTitle = getState().titles[titleId];
     if (!prevTitle) return;
@@ -330,15 +314,13 @@ export function createTitleActions(
     const patch: Partial<Omit<TitleDoc, 'id'>> = {
       displayLang,
       updatedAt: now,
-      ...(JSON.stringify(updatedNames) !== JSON.stringify(prevTitle.names)
-        ? { names: updatedNames }
-        : {}),
+      ...(JSON.stringify(updatedNames) !== JSON.stringify(prevTitle.names) ? { names: updatedNames } : {}),
     };
 
     setState((prev) =>
       prev.titles[titleId]
         ? { ...prev, titles: { ...prev.titles, [titleId]: { ...prev.titles[titleId], ...patch, id: titleId } } }
-        : prev
+        : prev,
     );
 
     try {
@@ -358,7 +340,7 @@ export function createTitleActions(
                 },
               },
             }
-          : curr
+          : curr,
       );
       showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();
@@ -379,13 +361,11 @@ export function createTitleActions(
               [titleId]: { ...prev.titles[titleId], manualState, updatedAt: now, lastActivityAt: now },
             },
           }
-        : prev
+        : prev,
     );
 
     try {
-      applyServerMutation(
-        await patchTitleApi(titleId, { manualState, updatedAt: now, lastActivityAt: now })
-      );
+      applyServerMutation(await patchTitleApi(titleId, { manualState, updatedAt: now, lastActivityAt: now }));
     } catch {
       setState((curr) =>
         curr.titles[titleId]
@@ -401,7 +381,7 @@ export function createTitleActions(
                 },
               },
             }
-          : curr
+          : curr,
       );
       showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
       await triggerRefetch();

@@ -31,8 +31,7 @@ export function parseExpectedSha256(sumsText: string, binaryName: string): strin
 
 async function main() {
   const version = process.env.YTDLP_VERSION?.trim() || 'latest';
-  const targetPath =
-    process.env.YTDLP_OUT?.trim() || path.resolve(process.cwd(), '.bin', 'yt-dlp');
+  const targetPath = process.env.YTDLP_OUT?.trim() || path.resolve(process.cwd(), '.bin', 'yt-dlp');
   const binName = getPlatformBinaryName();
   const baseUrl = getReleaseBaseUrl(version);
 
@@ -53,10 +52,7 @@ async function main() {
     throw new Error(`Failed to fetch ${binName} (${binUrl}): HTTP ${binRes.status}`);
   }
 
-  const [sumsText, binArrayBuffer] = await Promise.all([
-    sumsRes.text(),
-    binRes.arrayBuffer(),
-  ]);
+  const [sumsText, binArrayBuffer] = await Promise.all([sumsRes.text(), binRes.arrayBuffer()]);
 
   const expectedHash = parseExpectedSha256(sumsText, binName);
   if (!expectedHash) {
@@ -67,9 +63,7 @@ async function main() {
   const actualHash = crypto.createHash('sha256').update(binBuffer).digest('hex').toLowerCase();
 
   if (actualHash !== expectedHash) {
-    throw new Error(
-      `SHA-256 checksum mismatch for ${binName}: expected ${expectedHash}, got ${actualHash}`
-    );
+    throw new Error(`SHA-256 checksum mismatch for ${binName}: expected ${expectedHash}, got ${actualHash}`);
   }
 
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
@@ -82,8 +76,7 @@ async function main() {
 }
 
 const isDirectRun =
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 
 if (isDirectRun) {
   main().catch((err) => {

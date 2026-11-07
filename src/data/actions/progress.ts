@@ -25,7 +25,7 @@ function recomputePlaythroughsForTitle(
   title: TitleDoc,
   state: ReturnType<TrackerActionDeps['getState']>,
   progress: ProgressDoc,
-  now: number
+  now: number,
 ): Playthrough[] {
   const seasons = state.seasonsByTitle[title.id] || [];
   const computed = computeTitleState(title, seasons, progress, {
@@ -45,7 +45,7 @@ export function createProgressActions(
   deps: TrackerActionDeps & {
     inFlightOps: Map<string, InFlightProgressOp>;
     triggerRefetch: () => Promise<void>;
-  }
+  },
 ) {
   const { getState, setState, applyServerMutation, showToast, inFlightOps, triggerRefetch } = deps;
 
@@ -103,13 +103,7 @@ export function createProgressActions(
 
     const hasProgressPayload =
       Boolean(playthroughId || deletePlaythroughId) &&
-      Boolean(
-        set ||
-          unset ||
-          movieWatchedAt !== undefined ||
-          replaceWatched !== undefined ||
-          deletePlaythroughId
-      );
+      Boolean(set || unset || movieWatchedAt !== undefined || replaceWatched !== undefined || deletePlaythroughId);
 
     try {
       const mut = await postTitleActionApi(titleId, {
@@ -154,16 +148,13 @@ export function createProgressActions(
             if (prevVal === undefined) delete revertedWatched[epKey];
             else revertedWatched[epKey] = prevVal;
           }
-          const revertedMovieWatchedAt = hadMovieWatchedAtChange
-            ? prevMovieWatchedAt
-            : currProg.movieWatchedAt;
+          const revertedMovieWatchedAt = hadMovieWatchedAtChange ? prevMovieWatchedAt : currProg.movieWatchedAt;
 
           nextProgMap[playthroughId] = {
+            ...currProg,
             playthroughId,
             watched: revertedWatched,
-            ...(revertedMovieWatchedAt !== undefined
-              ? { movieWatchedAt: revertedMovieWatchedAt }
-              : {}),
+            ...(revertedMovieWatchedAt !== undefined ? { movieWatchedAt: revertedMovieWatchedAt } : {}),
           };
         }
 
@@ -175,8 +166,7 @@ export function createProgressActions(
         revertedTitle = {
           ...revertedTitle,
           playthroughs:
-            prevTitleFields.playthroughs ??
-            recomputePlaythroughsForTitle(revertedTitle, curr, activeProg, now),
+            prevTitleFields.playthroughs ?? recomputePlaythroughsForTitle(revertedTitle, curr, activeProg, now),
         };
 
         return {
@@ -201,7 +191,7 @@ export function createProgressActions(
       activePlaythroughId: string;
       progress: ProgressDoc;
     },
-    now: number
+    now: number,
   ): Promise<void> {
     const diff = computeProgressDiff(prevProgress, res.progress);
     const prevWatchedValues: Record<string, number | undefined> = {};
@@ -251,21 +241,14 @@ export function createProgressActions(
     if (!prevTitle) return;
     const prevProgress = getActiveProgressFromState(state, prevTitle);
     const now = Date.now();
-    const res = toggleEpisodeWatched(
-      prevTitle,
-      state.seasonsByTitle[titleId] || [],
-      prevProgress,
-      episodeKey,
-      { includeSpecials: state.settings.includeSpecials, now }
-    );
+    const res = toggleEpisodeWatched(prevTitle, state.seasonsByTitle[titleId] || [], prevProgress, episodeKey, {
+      includeSpecials: state.settings.includeSpecials,
+      now,
+    });
     await commitComputedMutation(prevTitle, prevProgress, res, now);
   }
 
-  async function toggleSeason(
-    titleId: string,
-    seasonNumber: number,
-    markWatched: boolean
-  ): Promise<void> {
+  async function toggleSeason(titleId: string, seasonNumber: number, markWatched: boolean): Promise<void> {
     const state = getState();
     const prevTitle = state.titles[titleId];
     if (!prevTitle) return;
@@ -277,7 +260,7 @@ export function createProgressActions(
       prevProgress,
       seasonNumber,
       markWatched,
-      { includeSpecials: state.settings.includeSpecials, now }
+      { includeSpecials: state.settings.includeSpecials, now },
     );
     await commitComputedMutation(prevTitle, prevProgress, res, now);
   }
@@ -288,13 +271,10 @@ export function createProgressActions(
     if (!prevTitle) return;
     const prevProgress = getActiveProgressFromState(state, prevTitle);
     const now = Date.now();
-    const res = markUpToEpisode(
-      prevTitle,
-      state.seasonsByTitle[titleId] || [],
-      prevProgress,
-      episodeKey,
-      { includeSpecials: state.settings.includeSpecials, now }
-    );
+    const res = markUpToEpisode(prevTitle, state.seasonsByTitle[titleId] || [], prevProgress, episodeKey, {
+      includeSpecials: state.settings.includeSpecials,
+      now,
+    });
     await commitComputedMutation(prevTitle, prevProgress, res, now);
   }
 
@@ -304,19 +284,16 @@ export function createProgressActions(
     if (!prevTitle) return;
     const prevProgress = getActiveProgressFromState(state, prevTitle);
     const now = Date.now();
-    const res = markWholeTitleWatched(
-      prevTitle,
-      state.seasonsByTitle[titleId] || [],
-      prevProgress,
-      markWatched,
-      { includeSpecials: state.settings.includeSpecials, now }
-    );
+    const res = markWholeTitleWatched(prevTitle, state.seasonsByTitle[titleId] || [], prevProgress, markWatched, {
+      includeSpecials: state.settings.includeSpecials,
+      now,
+    });
     await commitComputedMutation(prevTitle, prevProgress, res, now);
   }
 
   async function saveResume(
     titleId: string,
-    resume: { episodeKey: string | null; seconds: number } | null
+    resume: { episodeKey: string | null; seconds: number } | null,
   ): Promise<void> {
     const prevTitle = getState().titles[titleId];
     if (!prevTitle) return;
@@ -356,7 +333,7 @@ export function createProgressActions(
         includeSpecials: state.settings.includeSpecials,
         now,
         newPlaythroughId: createRandomId('p'),
-      }
+      },
     );
 
     await executeAtomicProgressAndTitleOp({
@@ -393,7 +370,7 @@ export function createProgressActions(
     prevTitle: TitleDoc,
     prevProgressMap: Record<string, ProgressDoc>,
     res: ReturnType<typeof undoLatestPlaythrough>,
-    now: number
+    now: number,
   ): Promise<void> {
     if (res.removedPlaythroughId) {
       await executeAtomicProgressAndTitleOp({

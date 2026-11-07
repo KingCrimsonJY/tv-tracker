@@ -97,22 +97,26 @@
 ## Features
 
 ### Episode & Movie Tracking
-- **Automatic Watch Status**: Titles are automatically organized into *Unaired*, *Unwatched*, *Watching*, *Caught Up*, or *Completed*, and can be manually marked as *Paused* or *Dropped* at any time.
-- **New Episode Alerts**: When you catch up on an airing series, its status becomes *Caught Up* (`已追平`). As soon as a new episode airs, it returns to *Watching* with a **New Episodes (`有新集`)** badge.
+
+- **Automatic Watch Status**: Titles are automatically organized into _Unaired_, _Unwatched_, _Watching_, _Caught Up_, or _Completed_, and can be manually marked as _Paused_ or _Dropped_ at any time.
+- **New Episode Alerts**: When you catch up on an airing series, its status becomes _Caught Up_ (`已追平`). As soon as a new episode airs, it returns to _Watching_ with a **New Episodes (`有新集`)** badge.
 - **Effortless Episode Checklists**: Check off individual episodes, mark or unmark an entire season at once, use **Mark up to here** to check every aired episode up to the selected one without unchecking later episodes, or mark the entire title watched. Future unaired episodes show their air date and are disabled against accidental taps.
 - **Resume Timestamps**: Save where you left off in a movie or episode (e.g., `S2·E5 · 42:15`) so you can pick up right from the Home screen; checking that episode watched clears the timestamp automatically.
-- **Rewatch History & Full Undo**: Start a rewatch (`二刷中`) on any completed or caught-up title while keeping a full history of start and completion dates. Undo the latest playthrough step by step all the way back to *Unwatched*, or delete any individual playthrough from the history.
+- **Rewatch History & Full Undo**: Start a rewatch (`二刷中`) on any completed or caught-up title while keeping a full history of start and completion dates. Undo the latest playthrough step by step all the way back to _Unwatched_, or delete any individual playthrough from the history.
 
 ### Watch Lists & Collections
-- **Ordered Watch Lists**: Build numbered watch orders (such as the *Marvel Infinity Saga* order) that automatically highlight the first unwatched entry (`下一部待看`) and display your next movie and overall progress right on the Home screen when pinned.
-- **Poster Collections**: Group titles into collections (such as *Weekend Watchlist*) with sorting by date added, title, release year, rating, or manual drag-and-drop order.
+
+- **Ordered Watch Lists**: Build numbered watch orders (such as the _Marvel Infinity Saga_ order) that automatically highlight the first unwatched entry (`下一部待看`) and display your next movie and overall progress right on the Home screen when pinned.
+- **Poster Collections**: Group titles into collections (such as _Weekend Watchlist_) with sorting by date added, title, release year, rating, or manual drag-and-drop order.
 
 ### Flexible Ways to Add Titles
+
 - **TMDB Search**: Search movies, TV series, and anime in Chinese, English, or original title. Automatically fetches bilingual titles, overviews, posters, backdrops, seasons, and air dates, and displays **TMDB** ratings alongside **IMDb**, **Rotten Tomatoes**, and **Metacritic** scores.
 - **Link Import for Videos & Playlists**: For web series, courses, or playlists not on TMDB, paste a URL or share text from YouTube, Bilibili, and other sites. Single videos and multi-part playlists/collections are parsed into trackable episodes, with one-tap **Refresh Playlist** to append newly published videos later. If an anime or TV show link is detected, the app offers a one-tap shortcut to search TMDB instead.
 - **Manual Entry**: Add custom movies, series, or videos with your own title, poster URL, and episode count.
 
 ### Multi-Device Experience & Portable Data
+
 - **Designed for Phone, Tablet & Desktop**: Bottom navigation bar and action drawers on phones, navigation rail on tablets, and a full sidebar with pinned lists on desktop. Installable to your phone's home screen as a standalone PWA.
 - **Real-Time Sync Across Devices**: Check an episode on your phone and see your tablet or desktop update immediately.
 - **Customizable Interface**: Switch between Dark, Light, and System themes, choose your preferred title language globally or per title, toggle whether Season 0 specials count toward progress, and reorder or toggle Home screen sections.
@@ -145,6 +149,7 @@ Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, 
 ## Quick Start (Local Development)
 
 ### Prerequisites
+
 - **Node.js `>= 22.18.0`** (**Node.js 24 LTS** recommended; uses Node's built-in `node:sqlite` module out of the box)
 - **npm `>= 10`**
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Optional for local dev, recommended for Link Import of videos and playlists; install locally into `./.bin/yt-dlp` via `npm run setup:ytdlp`, or bundled automatically at `/opt/yt-dlp/yt-dlp` in Docker)
@@ -167,6 +172,7 @@ npm run dev
 ```
 
 ### First-Run Setup Code
+
 On first start (when no password exists yet), the server generates a random **one-time setup code** and prints it to the terminal:
 
 ```text
@@ -181,16 +187,16 @@ Open `http://localhost:3000`, enter the setup code from the terminal (or the `SE
 
 All environment variables are read exclusively on the server from `.env` (see [`.env.example`](./.env.example)):
 
-| Variable | Required | Default | Purpose | Where to Get / Notes |
-| :--- | :---: | :--- | :--- | :--- |
-| `TMDB_READ_TOKEN` | **Required** | Empty | TMDB Read Access Token (Bearer) or v3 API Key (auto-detected) for search and metadata | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
-| `OMDB_API_KEY` | Optional | Empty | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days) | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) |
-| `DATA_DIR` | Optional | `./data` | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports | Mounted at `/data` inside Docker |
-| `YTDLP_PATH` | Optional override | Auto-detected | Custom path to the `yt-dlp` binary (not listed in `.env.example`; set only to override the default lookup order) | When unset or empty, checks `/opt/yt-dlp/yt-dlp`, `./.bin/yt-dlp`, then `yt-dlp` on `PATH` |
-| `SETUP_CODE` | Optional | Random | One-time verification code required on the first-run password setup screen | If omitted, a random code is printed to server logs on first boot |
-| `APP_PASSWORD_HASH` | Optional | Empty | `scrypt` password hash override (takes priority over the database password hash) | Generate interactively via `npm run set-password` |
-| `TRUST_PROXY` | Optional | `0` | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy |
-| `PORT` | Optional | `3000` | HTTP server port | Defaults to `3000` |
+| Variable            |     Required      | Default       | Purpose                                                                                                          | Where to Get / Notes                                                                                           |
+| :------------------ | :---------------: | :------------ | :--------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
+| `TMDB_READ_TOKEN`   |   **Required**    | Empty         | TMDB Read Access Token (Bearer) or v3 API Key (auto-detected) for search and metadata                            | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
+| `OMDB_API_KEY`      |     Optional      | Empty         | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days)                             | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)           |
+| `DATA_DIR`          |     Optional      | `./data`      | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports                            | Mounted at `/data` inside Docker                                                                               |
+| `YTDLP_PATH`        | Optional override | Auto-detected | Custom path to the `yt-dlp` binary (not listed in `.env.example`; set only to override the default lookup order) | When unset or empty, checks `/opt/yt-dlp/yt-dlp`, `./.bin/yt-dlp`, then `yt-dlp` on `PATH`                     |
+| `SETUP_CODE`        |     Optional      | Random        | One-time verification code required on the first-run password setup screen                                       | If omitted, a random code is printed to server logs on first boot                                              |
+| `APP_PASSWORD_HASH` |     Optional      | Empty         | `scrypt` password hash override (takes priority over the database password hash)                                 | Generate interactively via `npm run set-password`                                                              |
+| `TRUST_PROXY`       |     Optional      | `0`           | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting                | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy                                                  |
+| `PORT`              |     Optional      | `3000`        | HTTP server port                                                                                                 | Defaults to `3000`                                                                                             |
 
 ## Deployment
 

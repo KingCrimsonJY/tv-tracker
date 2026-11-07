@@ -17,16 +17,39 @@ function ordinal(n: number): string {
 
 export const en: MessageCatalog = {
   upstream: {
-    title: 'Source and season structure', lock: 'Lock season structure',
-    lockHint: 'Keep season and episode numbering fixed. Names and images can still update.',
-    changed: 'The source structure has changed', changedHint: 'Your local structure and watched history are safe. Review the changes before adopting them.',
-    unavailable: 'Source unavailable', unavailableHint: 'The original entry is no longer available. Automatic refresh is paused; your library and history are preserved.',
-    preview: 'Preview changes', keep: 'Keep my version', adopt: 'Adopt new structure',
-    previewTitle: 'Review season changes', archived: 'Retained in history', added: 'New episode',
+    unlock: 'Unlock season structure',
+    search: 'Search TMDB',
+    noResults: 'No matching titles',
+    skippedEntries: (count: number) => 'Skipped ' + count + ' live or upcoming entries.',
+    seasonSummary: (before: number, after: number) =>
+      before === 1 && after > 1
+        ? '1 season split into ' + after
+        : before +
+          (before === 1 ? ' local season → ' : ' local seasons → ') +
+          after +
+          (after === 1 ? ' source season' : ' source seasons'),
+    episodeRef: (season: number, episode?: number) =>
+      episode === undefined ? 'Season ' + season : 'Season ' + season + ', Episode ' + episode,
+
+    title: 'Source and season structure',
+    lock: 'Lock season structure',
+    changed: 'The source structure has changed',
+    changedHint: 'Your local structure and watched history are safe. Review the changes before adopting them.',
+    unavailable: 'Source unavailable',
+    unavailableHint:
+      'The original entry is no longer available. Automatic refresh is paused; your library and history are preserved.',
+    preview: 'Preview changes',
+    keep: 'Keep my version',
+    adopt: 'Adopt new structure',
+    previewTitle: 'Review season changes',
+    archived: 'Retained in history',
+    added: 'New episode',
     counts: (kept: number, archived: number) => `${kept} watched marks mapped · ${archived} retained in the archive`,
-    previewHint: 'Matching uses episode IDs first, then air date and episode order. Unmatched marks are retained and restored when the episode returns.',
+    previewHint:
+      'Matching uses episode IDs first, then air date and episode order. Unmatched marks are retained and restored when the episode returns.',
     lockedHint: 'Unlock the season structure before adopting changes.',
-    manual: 'Maintain manually', relink: 'Re-link to TMDB', tmdbId: 'New TMDB ID',
+    manual: 'Maintain manually',
+    relink: 'Re-link to TMDB',
     sourceHint: 'Re-linking updates metadata; structural changes still require your review.',
     archivedCount: (count: number) => `${count} watched marks retained for missing episodes`,
   },
@@ -69,7 +92,8 @@ export const en: MessageCatalog = {
     offlineRetry: 'Reconnect',
     installApp: 'Install App',
     installIosGuideTitle: 'Add to Home Screen',
-    installIosGuideBody: 'Tap the Share button in your browser toolbar, then choose "Add to Home Screen" for a full-screen app experience.',
+    installIosGuideBody:
+      'Tap the Share button in your browser toolbar, then choose "Add to Home Screen" for a full-screen app experience.',
     writeRollbackToast: 'Save failed. Changes have been reverted.',
     syncConnected: 'Live sync connected',
     desktopNavAria: 'Desktop primary navigation',
@@ -100,11 +124,33 @@ export const en: MessageCatalog = {
   },
   mediaType: { movie: 'Movie', tv: 'TV Series', other: 'Other' },
   genres: {
-    12: 'Adventure', 14: 'Fantasy', 16: 'Animation', 18: 'Drama', 27: 'Horror', 28: 'Action',
-    35: 'Comedy', 36: 'History', 37: 'Western', 53: 'Thriller', 80: 'Crime', 99: 'Documentary',
-    878: 'Sci-Fi', 9648: 'Mystery', 10402: 'Music', 10749: 'Romance', 10751: 'Family',
-    10752: 'War', 10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News', 10764: 'Reality',
-    10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics', 10770: 'TV Movie',
+    12: 'Adventure',
+    14: 'Fantasy',
+    16: 'Animation',
+    18: 'Drama',
+    27: 'Horror',
+    28: 'Action',
+    35: 'Comedy',
+    36: 'History',
+    37: 'Western',
+    53: 'Thriller',
+    80: 'Crime',
+    99: 'Documentary',
+    878: 'Sci-Fi',
+    9648: 'Mystery',
+    10402: 'Music',
+    10749: 'Romance',
+    10751: 'Family',
+    10752: 'War',
+    10759: 'Action & Adventure',
+    10762: 'Kids',
+    10763: 'News',
+    10764: 'Reality',
+    10765: 'Sci-Fi & Fantasy',
+    10766: 'Soap',
+    10767: 'Talk',
+    10768: 'War & Politics',
+    10770: 'TV Movie',
   },
   errors: {
     LINK_REGION_RESTRICTED: 'This content is region restricted in the server’s location.',
@@ -112,7 +158,8 @@ export const en: MessageCatalog = {
     LINK_PAYMENT_REQUIRED: 'This content requires a purchase or membership.',
     LINK_LOGIN_REQUIRED: 'This content requires signing in to the source account.',
     LINK_LIVE_UNSUPPORTED: 'Live rooms and live streams cannot be tracked. Import the replay after it ends.',
-    LINK_FAVORITES_UNSUPPORTED: 'Favorites are feeds, not finished works. Import a video or a regular playlist instead.',
+    LINK_FAVORITES_UNSUPPORTED:
+      'Favorites are feeds, not finished works. Import a video or a regular playlist instead.',
     LINK_WATCH_LATER_UNSUPPORTED: 'Watch Later is not supported. Import an individual video or a regular playlist.',
     LINK_FEED_UNSUPPORTED: 'Channel and user upload pages are not supported. Import a video or a specific playlist.',
     LINK_METADATA_PENDING: 'Imported basic metadata. Missing episode details will fill in in the background.',
@@ -121,7 +168,8 @@ export const en: MessageCatalog = {
     LINK_EMPTY_PLAYLIST: 'The playlist is empty or has no accessible public entries.',
     LINK_PLAYLIST_TOO_LARGE: 'This list exceeds 2,000 entries. Please select a smaller playlist.',
     LINK_METADATA_INCOMPLETE: 'Some metadata is missing. Review before saving; refresh later to retry.',
-    LINK_PLAYBACK_RESTRICTED: 'Public metadata was retrieved; playback may still require sign-in, payment, or regional access.',
+    LINK_PLAYBACK_RESTRICTED:
+      'Public metadata was retrieved; playback may still require sign-in, payment, or regional access.',
 
     PASSWORD_ALREADY_SET: 'Password has already been configured',
     PASSWORD_NOT_SET: 'Password is not set yet. Complete initial setup first.',
@@ -134,9 +182,9 @@ export const en: MessageCatalog = {
     TITLE_NOT_FOUND: 'Title not found',
     LIST_NOT_FOUND: 'List not found',
     ENTRY_NOT_FOUND: 'List entry not found',
-    STRUCTURE_CONFLICT: "The library changed after this preview. Review the latest changes and try again.",
-    SOURCE_UNAVAILABLE: "The source is unavailable. Your local data has been preserved.",
-    REWATCH_CONFLICT: "Another device changed the active viewing. Your library has been refreshed; try again.",
+    STRUCTURE_CONFLICT: 'The library changed after this preview. Review the latest changes and try again.',
+    SOURCE_UNAVAILABLE: 'The source is unavailable. Your local data has been preserved.',
+    REWATCH_CONFLICT: 'Another device changed the active viewing. Your library has been refreshed; try again.',
     CONFLICT_ERROR: 'Data conflict. Please refresh and try again.',
     VALIDATION_ERROR: 'Invalid request payload',
     VALIDATION_FIELD: (field: string) => `Invalid field: ${field}`,
@@ -291,7 +339,8 @@ export const en: MessageCatalog = {
     searching: 'Searching TMDB…',
     noResults: 'No matching titles found. Try Link Import or Manual Entry.',
     tmdbErrorTitle: 'Failed to fetch TMDB data. Please try again.',
-    tmdbUnconfiguredHint: 'TMDB_READ_TOKEN is not configured on the server. You can still add items via Link Import or Manual Entry.',
+    tmdbUnconfiguredHint:
+      'TMDB_READ_TOKEN is not configured on the server. You can still add items via Link Import or Manual Entry.',
     searchPromptTitle: 'Search the global movie & TV catalog',
     searchPromptSubtitle: 'Search by localized or original title, or use Link Import and Manual Entry above.',
     addedTitleToast: (name: string) => `Added "${name}"`,
@@ -302,7 +351,8 @@ export const en: MessageCatalog = {
     addToListFailedToast: 'Failed to add to list',
     linkImport: {
       title: 'Import from Link',
-      description: 'Import metadata from YouTube and Bilibili videos, multi-part uploads, playlists, courses, and live replays. Availability depends on platform access restrictions.',
+      description:
+        'Import metadata from YouTube and Bilibili videos, multi-part uploads, playlists, courses, and live replays. Availability depends on platform access restrictions.',
       urlLabel: 'Video URL or Share Text',
       urlPlaceholder: 'Paste a video or playlist link (https://...)',
       parseButton: 'Parse Link',
@@ -375,7 +425,12 @@ export const en: MessageCatalog = {
       deleteTitle: 'Delete from Library',
     },
     deleteConfirm: 'Delete this title from your library? All watch progress and list entries for it will be removed.',
-    languageOptions: { default: 'Follow Global Setting', zh: 'Chinese Title', original: 'Original Title', en: 'English Title' },
+    languageOptions: {
+      default: 'Follow Global Setting',
+      zh: 'Chinese Title',
+      original: 'Original Title',
+      en: 'English Title',
+    },
     ratings: {
       tmdb: 'TMDB',
       imdb: 'IMDb',
@@ -384,6 +439,7 @@ export const en: MessageCatalog = {
     },
     overview: { expand: 'Read More', collapse: 'Show Less', empty: 'No overview yet' },
     seasons: {
+      episodeRange: 'Episodes',
       tabLabel: (n: number) => (n === 0 ? 'Specials' : `Season ${n}`),
       selectOptionWithCount: (seasonLabel: string, count: number | string) => `${seasonLabel} (${count} eps)`,
       selectAria: 'Select season',
@@ -391,16 +447,15 @@ export const en: MessageCatalog = {
       progressAria: (seasonNum: number) => `Season ${seasonNum} watch progress`,
       markWholeSeason: 'Mark Season Watched',
       unmarkWholeSeason: 'Unmark Season',
-      specialsCollapsedTitle: (watched: number | string, total: number | string) => `Specials (${watched}/${total} watched)`,
+      specialsCollapsedTitle: (watched: number | string, total: number | string) =>
+        `Specials (${watched}/${total} watched)`,
       episodePrefix: (ep: number) => `E${ep}`,
       episodeDefaultName: (ep: number) => `Episode ${ep}`,
       unairedWithDate: (date: string) => `Airs ${date}`,
       unairedNoDate: 'TBA',
       runtimeMinutes: (mins: number | string) => `${mins} min`,
-      seasonCountMeta: (count: number | string) =>
-        Number(count) === 1 ? '1 Season' : `${count} Seasons`,
-      episodeCountMeta: (count: number | string) =>
-        Number(count) === 1 ? '1 Episode' : `${count} Episodes`,
+      seasonCountMeta: (count: number | string) => (Number(count) === 1 ? '1 Season' : `${count} Seasons`),
+      episodeCountMeta: (count: number | string) => (Number(count) === 1 ? '1 Episode' : `${count} Episodes`),
       checkEpisodeAria: (s: number, e: number, watched: boolean) =>
         `${watched ? 'Unmark' : 'Mark'} Season ${s} Episode ${e} watched`,
       episodeMoreAria: (s: number, e: number) => `More actions for Season ${s} Episode ${e}`,
@@ -427,8 +482,7 @@ export const en: MessageCatalog = {
     },
     playthroughs: {
       title: 'Watch history',
-      watchedCount: (count: number | string) =>
-        `Watched ${count} ${Number(count) === 1 ? 'time' : 'times'}`,
+      watchedCount: (count: number | string) => `Watched ${count} ${Number(count) === 1 ? 'time' : 'times'}`,
       nthWatch: (n: number) => `${ordinal(n)} watch`,
       startedOn: (date: string) => `Started ${date}`,
       finishedOn: (date: string) => `Finished ${date}`,
@@ -485,8 +539,10 @@ export const en: MessageCatalog = {
       exportJson: 'Export JSON',
       importJson: 'Import JSON',
       refreshAllMetadata: 'Refresh All Metadata',
-      refreshingAllToast: (done: number | string, total: number | string) => `Refreshing bilingual metadata (${done}/${total})…`,
-      refreshAllSummary: (updated: number, partial: number, failed: number, skipped: number) => `Updated: ${updated} · Partial: ${partial} · Failed: ${failed} · Skipped: ${skipped}`,
+      refreshingAllToast: (done: number | string, total: number | string) =>
+        `Refreshing bilingual metadata (${done}/${total})…`,
+      refreshAllSummary: (updated: number, needsReview: number, partial: number, failed: number, skipped: number) =>
+        `Updated: ${updated} · Needs review: ${needsReview} · Partial: ${partial} · Failed: ${failed} · Skipped: ${skipped}`,
       refreshAllEmptyToast: 'No TMDB titles in library to refresh',
       refreshAllFailedToast: 'Metadata refresh failed. Check your TMDB token or connection.',
       importConfirmTitle: 'Overwrite Library Data?',

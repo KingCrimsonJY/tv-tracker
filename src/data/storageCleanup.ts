@@ -6,10 +6,7 @@ const KNOWN_FIREBASE_IDB_NAMES = [
   'firebase-installations-database',
 ];
 
-const LEGACY_LOCAL_STORAGE_KEYS = [
-  'zhenji_demo_state_v3',
-  'zhenji_use_demo',
-];
+const LEGACY_LOCAL_STORAGE_KEYS = ['zhenji_demo_state_v3', 'zhenji_use_demo'];
 
 export async function runOneTimeLegacyStorageCleanup(): Promise<void> {
   if (typeof window === 'undefined') return;

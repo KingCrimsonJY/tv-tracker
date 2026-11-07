@@ -1,3 +1,4 @@
+import { toLocalDateString } from '../src/domain/airing.ts';
 import { assertSupportedLinkType } from './providers/linkScope.ts';
 import type { Express } from 'express';
 import {
@@ -23,6 +24,14 @@ export function registerEntityRoutes(
   broadcastMutation: (mutation: StateMutationResult) => StateMutationResult,
   scheduleEnrichment: (id: string) => void = () => {},
 ): void {
+  app.get('/api/titles/:id/details', (req, res) => {
+    if (!repo.getTitle(String(req.params.id))) {
+      res.status(404).json({ code: 'TITLE_NOT_FOUND' });
+      return;
+    }
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.json({ seasons: repo.getSeasons(String(req.params.id)) });
+  });
   app.put('/api/titles/:id', (req, res, next) => {
     try {
       const id = String(req.params.id);
@@ -106,8 +115,8 @@ export function registerEntityRoutes(
           repo.putProgress(titleId, playthroughId, {
             watched: parsed.watched,
             movieWatchedAt: parsed.movieWatchedAt,
-          })
-        )
+          }),
+        ),
       );
     } catch (err) {
       next(err);
@@ -207,7 +216,7 @@ export function registerEntityRoutes(
 
   app.get('/api/export', (_req, res) => {
     const exported = repo.exportData();
-    const dateStr = exported.exportedAt.slice(0, 10);
+    const dateStr = toLocalDateString();
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="zhenji-${dateStr}.json"`);
     res.send(JSON.stringify(exported, null, 2));

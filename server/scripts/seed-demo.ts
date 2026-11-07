@@ -3,25 +3,14 @@ import { createDemoDirectory } from './demoDirectory.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateKeyBetween } from 'fractional-indexing';
-import {
-  computeTitleState,
-  toLocalDateString,
-  makeEpisodeKey,
-} from '../../src/domain/progress.ts';
+import { computeTitleState, toLocalDateString, makeEpisodeKey } from '../../src/domain/progress.ts';
 import type { ProgressDoc, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
 import { TrackerRepository } from '../db/repository.ts';
 import { fetchTmdbTitleDetails, isTmdbConfigured } from '../providers/tmdb.ts';
 import { mapYtdlpJsonToLinkResult } from '../providers/ytdlp.ts';
-import {
-  buildFallbackTitleAndSeasons,
-  DEMO_TMDB_SPECS,
-  type DemoTitleSpec,
-} from './seed-demo-fixtures.ts';
+import { buildFallbackTitleAndSeasons, DEMO_TMDB_SPECS, type DemoTitleSpec } from './seed-demo-fixtures.ts';
 
-async function resolveDemoTitle(
-  spec: DemoTitleSpec,
-  now: number
-): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
+async function resolveDemoTitle(spec: DemoTitleSpec, now: number): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
   const fallback = buildFallbackTitleAndSeasons(spec, now);
   if (isTmdbConfigured()) {
     try {
@@ -35,15 +24,12 @@ async function resolveDemoTitle(
           },
           ratings: { ...fallback.title.ratings, ...fetched.title.ratings, fetchedAt: now },
         },
-        seasons:
-          fetched.seasons.length > 0
-            ? fetched.seasons
-            : fallback.seasons,
+        seasons: fetched.seasons.length > 0 ? fetched.seasons : fallback.seasons,
       };
     } catch (err) {
       console.warn(
         `[seed-demo] TMDB live fetch failed for ${spec.mediaType}/${spec.sourceId}, using fixture:`,
-        err instanceof Error ? err.message : err
+        err instanceof Error ? err.message : err,
       );
     }
   }
@@ -53,7 +39,7 @@ async function resolveDemoTitle(
 function buildEpisodeMap(
   seasons: SeasonDoc[],
   predicate: (seasonNumber: number, episodeNumber: number, airDate: string | null) => boolean,
-  timestampBase: number
+  timestampBase: number,
 ): Record<string, number> {
   const watched: Record<string, number> = {};
   let step = 0;
@@ -85,11 +71,7 @@ async function main() {
 
   console.log(`[seed-demo] Seeding curated demo database in ${targetDir} ...`);
 
-  const completedMcuIds = new Set([
-    'tmdb_movie_1771',
-    'tmdb_movie_1726',
-    'tmdb_movie_24428',
-  ]);
+  const completedMcuIds = new Set(['tmdb_movie_1771', 'tmdb_movie_1726', 'tmdb_movie_24428']);
 
   for (const spec of DEMO_TMDB_SPECS) {
     const { title, seasons } = await resolveDemoTitle(spec, now);
@@ -100,7 +82,7 @@ async function main() {
       const watched = buildEpisodeMap(
         seasons,
         (_s, _e, airDate) => Boolean(airDate && airDate <= todayStr),
-        now - 120 * dayMs
+        now - 120 * dayMs,
       );
       repo.putTitle(id, {
         title: {
@@ -128,7 +110,7 @@ async function main() {
       const allAiredWatched = buildEpisodeMap(
         seasons,
         (_s, _e, airDate) => Boolean(airDate && airDate <= todayStr),
-        now - 14 * dayMs
+        now - 14 * dayMs,
       );
       const candidateTitle: TitleDoc = {
         ...title,
@@ -140,7 +122,7 @@ async function main() {
         candidateTitle,
         seasons,
         { playthroughId: 'p1', watched: allAiredWatched },
-        { includeSpecials: false, todayStr }
+        { includeSpecials: false, todayStr },
       );
       if (candidateState.status === 'caught_up') {
         repo.putTitle(id, {
@@ -149,11 +131,7 @@ async function main() {
           progress: { p1: { playthroughId: 'p1', watched: allAiredWatched } },
         });
       } else {
-        const partialWatched = buildEpisodeMap(
-          seasons,
-          (s, e) => s === 1 || (s === 2 && e <= 4),
-          now - 10 * dayMs
-        );
+        const partialWatched = buildEpisodeMap(seasons, (s, e) => s === 1 || (s === 2 && e <= 4), now - 10 * dayMs);
         repo.putTitle(id, {
           title: {
             ...candidateTitle,
@@ -210,11 +188,7 @@ async function main() {
       });
     } else if (id === 'tmdb_tv_209867') {
       // Frieren: Beyond Journey's End: anime added through TMDB, watching (S1 E1-E16 watched, resume on S1E17 14:20)
-      const watched = buildEpisodeMap(
-        seasons,
-        (s, e) => s === 1 && e <= 16,
-        now - 12 * dayMs
-      );
+      const watched = buildEpisodeMap(seasons, (s, e) => s === 1 && e <= 16, now - 12 * dayMs);
       repo.putTitle(id, {
         title: {
           ...title,
@@ -258,7 +232,7 @@ async function main() {
   // Seed link-import item #1: 3Blue1Brown "Essence of linear algebra" YouTube playlist (from fixture JSON)
   const ytLinkResult = loadYtdlpFixture(
     'ytdlp-3b1b-youtube.json',
-    'https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab'
+    'https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab',
   );
   const ytId = 'url_yt_3b1b_linear_algebra';
   const ytSeasons: SeasonDoc[] = [
@@ -322,7 +296,7 @@ async function main() {
   // Seed link-import item #2: 3Blue1Brown official Bilibili 合集 "【官方双语】线性代数的本质" (from fixture JSON)
   const biliLinkResult = loadYtdlpFixture(
     'ytdlp-3b1b-bilibili.json',
-    'https://space.bilibili.com/88461692/lists/1528924?type=season'
+    'https://space.bilibili.com/88461692/lists/1528924?type=season',
   );
   const biliId = 'url_bili_3b1b_linear_algebra';
   const biliSeasons: SeasonDoc[] = [
@@ -536,7 +510,7 @@ async function main() {
     }
     if (t.sourceId !== exp.expectedSourceId) {
       throw new Error(
-        `[seed-demo] Verification failed for ${exp.id}: expected sourceId=${exp.expectedSourceId}, got ${t.sourceId}`
+        `[seed-demo] Verification failed for ${exp.id}: expected sourceId=${exp.expectedSourceId}, got ${t.sourceId}`,
       );
     }
     const seasons = state.seasonsByTitle[exp.id] || [];
@@ -547,23 +521,19 @@ async function main() {
     });
     if (!exp.expectedStatuses.includes(computed.status)) {
       throw new Error(
-        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected status in [${exp.expectedStatuses.join(', ')}], got ${computed.status}`
+        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected status in [${exp.expectedStatuses.join(', ')}], got ${computed.status}`,
       );
     }
     if (exp.expectNewEpisodes && !computed.hasNewEpisodes) {
-      throw new Error(
-        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected hasNewEpisodes=true`
-      );
+      throw new Error(`[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected hasNewEpisodes=true`);
     }
     if (exp.expectRewatching && !computed.isRewatching) {
-      throw new Error(
-        `[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected isRewatching=true`
-      );
+      throw new Error(`[seed-demo] Verification failed for ${exp.id} (${exp.label}): expected isRewatching=true`);
     }
     console.log(
       `[seed-demo] Verified ${exp.id} (sourceId=${t.sourceId}): status=${computed.status}${
         computed.hasNewEpisodes ? ' [有新集]' : ''
-      }${computed.isRewatching ? ' [二刷中]' : ''}`
+      }${computed.isRewatching ? ' [二刷中]' : ''}`,
     );
   }
 
@@ -571,7 +541,7 @@ async function main() {
   console.log(
     `[seed-demo] Done! Seeded ${Object.keys(state.titles).length} titles and ${
       Object.keys(state.lists).length
-    } lists in ${targetDir}.`
+    } lists in ${targetDir}.`,
   );
 }
 

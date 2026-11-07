@@ -62,9 +62,7 @@ export const TitleDetailPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 mt-5">
         <div className="max-w-3xl space-y-1.5">
           {title.uploader && (
-            <p className="text-xs font-medium text-[var(--muted)]">
-              {t.detail.uploaderPrefix(title.uploader)}
-            </p>
+            <p className="text-xs font-medium text-[var(--muted)]">{t.detail.uploaderPrefix(title.uploader)}</p>
           )}
           <p
             className={`text-sm ${
@@ -113,54 +111,59 @@ export const TitleDetailPage: React.FC = () => {
         />
       </div>
 
-      <ResumeDialog
-        isOpen={detail.resumeDialogOpen}
-        onOpenChange={detail.setResumeDialogOpen}
-        title={title}
-        seasons={seasons}
-        defaultEpisodeKey={detail.resumeDefaultEpKey}
-        onSave={(seconds, epKey) =>
-          void detail.saveResume(title.id, { seconds, episodeKey: epKey })
-        }
-        onClear={() => void detail.saveResume(title.id, null)}
-      />
+      {detail.resumeDialogOpen && (
+        <ResumeDialog
+          isOpen={detail.resumeDialogOpen}
+          onOpenChange={detail.setResumeDialogOpen}
+          title={title}
+          seasons={seasons}
+          defaultEpisodeKey={detail.resumeDefaultEpKey}
+          onSave={(seconds, epKey) => void detail.saveResume(title.id, { seconds, episodeKey: epKey })}
+          onClear={() => void detail.saveResume(title.id, null)}
+        />
+      )}
 
-      <TitleModals
-        title={title}
-        lists={detail.lists}
-        entriesByList={detail.entriesByList}
-        addToListOpen={detail.addToListOpen}
-        onAddToListOpenChange={detail.setAddToListOpen}
-        onAddListEntry={(listId, titleId) => void detail.addTitleToList(listId, titleId)}
-        onRemoveListEntry={(listId, entryId) => void detail.removeEntryFromList(listId, entryId)}
-        langModalOpen={detail.langModalOpen}
-        onLangModalOpenChange={detail.setLangModalOpen}
-        onUpdateDisplayLang={(displayLang) =>
-          void detail.updateTitleLanguage(title.id, displayLang)
-        }
-        editModalOpen={detail.editModalOpen}
-        onEditModalOpenChange={detail.setEditModalOpen}
-        onUpdateTitle={(patch) => void detail.updateTitleDetails(title.id, patch)}
-        deleteConfirmOpen={detail.deleteConfirmOpen}
-        onDeleteConfirmOpenChange={detail.setDeleteConfirmOpen}
-        onConfirmDelete={async () => {
-          await detail.removeTitle(title.id);
-          detail.setDeleteConfirmOpen(false);
-          detail.navigate('/library');
-        }}
-        undoPlaythroughOpen={detail.undoPlaythroughOpen}
-        onUndoPlaythroughOpenChange={detail.setUndoPlaythroughOpen}
-        onConfirmUndoPlaythrough={async () => {
-          await detail.cancelTitleRewatch(title.id);
-          detail.setUndoPlaythroughOpen(false);
-        }}
-        deletePlaythroughId={detail.deletePlaythroughId}
-        onDeletePlaythroughIdChange={detail.setDeletePlaythroughId}
-        onConfirmDeletePlaythrough={async (ptId) => {
-          await detail.deleteTitlePlaythrough(title.id, ptId);
-          detail.setDeletePlaythroughId(null);
-        }}
-      />
+      {(detail.addToListOpen ||
+        detail.langModalOpen ||
+        detail.editModalOpen ||
+        detail.deleteConfirmOpen ||
+        detail.undoPlaythroughOpen ||
+        detail.deletePlaythroughId) && (
+        <TitleModals
+          title={title}
+          lists={detail.lists}
+          entriesByList={detail.entriesByList}
+          addToListOpen={detail.addToListOpen}
+          onAddToListOpenChange={detail.setAddToListOpen}
+          onAddListEntry={(listId, titleId) => void detail.addTitleToList(listId, titleId)}
+          onRemoveListEntry={(listId, entryId) => void detail.removeEntryFromList(listId, entryId)}
+          langModalOpen={detail.langModalOpen}
+          onLangModalOpenChange={detail.setLangModalOpen}
+          onUpdateDisplayLang={(displayLang) => void detail.updateTitleLanguage(title.id, displayLang)}
+          editModalOpen={detail.editModalOpen}
+          onEditModalOpenChange={detail.setEditModalOpen}
+          onUpdateTitle={(patch) => void detail.updateTitleDetails(title.id, patch)}
+          deleteConfirmOpen={detail.deleteConfirmOpen}
+          onDeleteConfirmOpenChange={detail.setDeleteConfirmOpen}
+          onConfirmDelete={async () => {
+            await detail.removeTitle(title.id);
+            detail.setDeleteConfirmOpen(false);
+            detail.navigate('/library');
+          }}
+          undoPlaythroughOpen={detail.undoPlaythroughOpen}
+          onUndoPlaythroughOpenChange={detail.setUndoPlaythroughOpen}
+          onConfirmUndoPlaythrough={async () => {
+            await detail.cancelTitleRewatch(title.id);
+            detail.setUndoPlaythroughOpen(false);
+          }}
+          deletePlaythroughId={detail.deletePlaythroughId}
+          onDeletePlaythroughIdChange={detail.setDeletePlaythroughId}
+          onConfirmDeletePlaythrough={async (ptId) => {
+            await detail.deleteTitlePlaythrough(title.id, ptId);
+            detail.setDeletePlaythroughId(null);
+          }}
+        />
+      )}
     </div>
   );
 };

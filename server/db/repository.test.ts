@@ -3,13 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_APP_SETTINGS } from '../../src/domain/schemas.ts';
-import type {
-  ListEntryDoc,
-  ProgressDoc,
-  SeasonDoc,
-  TitleDoc,
-  WatchListDoc,
-} from '../../src/domain/types.ts';
+import type { ListEntryDoc, ProgressDoc, SeasonDoc, TitleDoc, WatchListDoc } from '../../src/domain/types.ts';
 import { ConflictError, TrackerRepository } from './repository.ts';
 
 function makeSampleTitle(id = 'tmdb_tv_100', name = '人生切割术'): TitleDoc {
@@ -28,8 +22,8 @@ function makeSampleTitle(id = 'tmdb_tv_100', name = '人生切割术'): TitleDoc
     year: 2022,
     runtimeMin: 50,
     genres: ['剧情', '科幻'],
-    posterPath: 'https://image.tmdb.org/t/p/w500/poster.jpg',
-    backdropPath: 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
     overview: {
       zh: '卢蒙工业的员工接受了记忆切割手术。',
       en: 'Mark leads a team of office workers whose memories have been surgically divided.',
@@ -407,7 +401,7 @@ describe('TrackerRepository (in-memory SQLite)', () => {
         },
         writeFileSync: () => undefined,
         unlinkSync: () => undefined,
-      })
+      }),
     ).toThrow(DataDirPermissionError);
 
     try {
@@ -431,25 +425,23 @@ describe('TrackerRepository (in-memory SQLite)', () => {
     const { runSetPasswordCli, SetPasswordCliError } = await import('../scripts/set-password.ts');
 
     // 1. Rejects command-line password argument
-    await expect(
-      runSetPasswordCli({ argv: ['my-secret-password'] })
-    ).rejects.toThrow(SetPasswordCliError);
+    await expect(runSetPasswordCli({ argv: ['my-secret-password'] })).rejects.toThrow(SetPasswordCliError);
 
     // 2. Rejects passwords shorter than 10 characters
     const shortIn = new PassThrough();
     const shortOut = new PassThrough();
     shortIn.end('short123\nshort123\n');
-    await expect(
-      runSetPasswordCli({ argv: [], input: shortIn, output: shortOut })
-    ).rejects.toThrow(/at least 10 characters/);
+    await expect(runSetPasswordCli({ argv: [], input: shortIn, output: shortOut })).rejects.toThrow(
+      /at least 10 characters/,
+    );
 
     // 3. Rejects mismatched confirmation
     const mismatchIn = new PassThrough();
     const mismatchOut = new PassThrough();
     mismatchIn.end('valid-password-10\ndifferent-password-10\n');
-    await expect(
-      runSetPasswordCli({ argv: [], input: mismatchIn, output: mismatchOut })
-    ).rejects.toThrow(/do not match/);
+    await expect(runSetPasswordCli({ argv: [], input: mismatchIn, output: mismatchOut })).rejects.toThrow(
+      /do not match/,
+    );
 
     // 4. Accepts matching >= 10 char password and never echoes the typed characters to output
     const validIn = new PassThrough();
@@ -468,4 +460,3 @@ describe('TrackerRepository (in-memory SQLite)', () => {
     expect(capturedOutput).not.toContain(secret);
   });
 });
-

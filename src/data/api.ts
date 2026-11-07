@@ -47,8 +47,7 @@ export function getIframeBearerToken(): string | null {
   if (!isRunningInIframe()) return null;
   try {
     return (
-      window.sessionStorage.getItem(IFRAME_TOKEN_STORAGE_KEY) ||
-      window.localStorage.getItem(IFRAME_TOKEN_STORAGE_KEY)
+      window.sessionStorage.getItem(IFRAME_TOKEN_STORAGE_KEY) || window.localStorage.getItem(IFRAME_TOKEN_STORAGE_KEY)
     );
   } catch {
     return null;
@@ -136,11 +135,12 @@ async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchAuthStatus(): Promise<{
+export async function fetchAuthStatus(includeState = false): Promise<{
   needsSetup: boolean;
   authenticated: boolean;
+  state?: AppStateSnapshot;
 }> {
-  return apiJson('/api/auth/status');
+  return apiJson('/api/auth/status' + (includeState ? '?state=1' : ''));
 }
 
 export async function setupPasswordApi(password: string, setupCode: string): Promise<void> {
@@ -189,7 +189,7 @@ export async function putTitleApi(
     title: TitleDoc;
     seasons?: SeasonDoc[];
     progress?: Record<string, ProgressDoc>;
-  }
+  },
 ): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}`, {
     method: 'PUT',
@@ -197,20 +197,14 @@ export async function putTitleApi(
   });
 }
 
-export async function patchTitleApi(
-  id: string,
-  patch: Partial<Omit<TitleDoc, 'id'>>
-): Promise<StateMutationResult> {
+export async function patchTitleApi(id: string, patch: Partial<Omit<TitleDoc, 'id'>>): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
 }
 
-export async function postTitleActionApi(
-  id: string,
-  payload: TitleAtomicActionInput
-): Promise<StateMutationResult> {
+export async function postTitleActionApi(id: string, payload: TitleAtomicActionInput): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}/actions`, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -223,10 +217,7 @@ export async function deleteTitleApi(id: string): Promise<StateMutationResult> {
   });
 }
 
-export async function putSeasonsApi(
-  titleId: string,
-  seasons: SeasonDoc[]
-): Promise<StateMutationResult> {
+export async function putSeasonsApi(titleId: string, seasons: SeasonDoc[]): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(titleId)}/seasons`, {
     method: 'PUT',
     body: JSON.stringify({ seasons }),
@@ -236,14 +227,14 @@ export async function putSeasonsApi(
 export async function putProgressApi(
   titleId: string,
   playthroughId: string,
-  payload: { watched: Record<string, number>; movieWatchedAt?: number }
+  payload: { watched: Record<string, number>; movieWatchedAt?: number },
 ): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(
     `/api/titles/${encodeURIComponent(titleId)}/progress/${encodeURIComponent(playthroughId)}`,
     {
       method: 'PUT',
       body: JSON.stringify(payload),
-    }
+    },
   );
 }
 
@@ -254,33 +245,27 @@ export async function patchProgressApi(
     set?: Record<string, number>;
     unset?: string[];
     movieWatchedAt?: number | null;
-  }
+  },
 ): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(
     `/api/titles/${encodeURIComponent(titleId)}/progress/${encodeURIComponent(playthroughId)}`,
     {
       method: 'PATCH',
       body: JSON.stringify(patch),
-    }
+    },
   );
 }
 
-export async function deleteProgressApi(
-  titleId: string,
-  playthroughId: string
-): Promise<StateMutationResult> {
+export async function deleteProgressApi(titleId: string, playthroughId: string): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(
     `/api/titles/${encodeURIComponent(titleId)}/progress/${encodeURIComponent(playthroughId)}`,
     {
       method: 'DELETE',
-    }
+    },
   );
 }
 
-export async function putListApi(
-  listId: string,
-  payload: Omit<WatchListDoc, 'id'>
-): Promise<StateMutationResult> {
+export async function putListApi(listId: string, payload: Omit<WatchListDoc, 'id'>): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/lists/${encodeURIComponent(listId)}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
@@ -289,7 +274,7 @@ export async function putListApi(
 
 export async function patchListApi(
   listId: string,
-  patch: Partial<Omit<WatchListDoc, 'id'>>
+  patch: Partial<Omit<WatchListDoc, 'id'>>,
 ): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/lists/${encodeURIComponent(listId)}`, {
     method: 'PATCH',
@@ -306,46 +291,41 @@ export async function deleteListApi(listId: string): Promise<StateMutationResult
 export async function putListEntryApi(
   listId: string,
   entryId: string,
-  payload: Omit<ListEntryDoc, 'id'>
+  payload: Omit<ListEntryDoc, 'id'>,
 ): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(
     `/api/lists/${encodeURIComponent(listId)}/entries/${encodeURIComponent(entryId)}`,
     {
       method: 'PUT',
       body: JSON.stringify(payload),
-    }
+    },
   );
 }
 
 export async function patchListEntryApi(
   listId: string,
   entryId: string,
-  patch: Partial<Omit<ListEntryDoc, 'id'>>
+  patch: Partial<Omit<ListEntryDoc, 'id'>>,
 ): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(
     `/api/lists/${encodeURIComponent(listId)}/entries/${encodeURIComponent(entryId)}`,
     {
       method: 'PATCH',
       body: JSON.stringify(patch),
-    }
+    },
   );
 }
 
-export async function deleteListEntryApi(
-  listId: string,
-  entryId: string
-): Promise<StateMutationResult> {
+export async function deleteListEntryApi(listId: string, entryId: string): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(
     `/api/lists/${encodeURIComponent(listId)}/entries/${encodeURIComponent(entryId)}`,
     {
       method: 'DELETE',
-    }
+    },
   );
 }
 
-export async function patchSettingsApi(
-  patch: Partial<AppSettingsDoc>
-): Promise<StateMutationResult> {
+export async function patchSettingsApi(patch: Partial<AppSettingsDoc>): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>('/api/settings', {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -362,11 +342,11 @@ export async function importDataApi(payload: unknown): Promise<StateMutationResu
 export async function searchTmdbApi(
   query: string,
   lang: 'zh-CN' | 'en-US' = 'zh-CN',
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<{ configured?: boolean; results: TmdbSearchItem[] }> {
   return apiJson<{ configured?: boolean; results: TmdbSearchItem[] }>(
     `/api/tmdb/search?q=${encodeURIComponent(query)}&lang=${encodeURIComponent(lang)}`,
-    { signal }
+    { signal },
   );
 }
 
@@ -379,16 +359,14 @@ export async function fetchTmdbGenresApi(): Promise<{
 
 export async function fetchTmdbDetailsApi(
   mediaType: 'movie' | 'tv',
-  sourceId: string
+  sourceId: string,
 ): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
   return apiJson<{ title: TitleDoc; seasons: SeasonDoc[] }>(
-    `/api/tmdb/${encodeURIComponent(mediaType)}/${encodeURIComponent(sourceId)}`
+    `/api/tmdb/${encodeURIComponent(mediaType)}/${encodeURIComponent(sourceId)}`,
   );
 }
 
-export async function fetchRatingsApi(params: {
-  imdbId?: string;
-}): Promise<{
+export async function fetchRatingsApi(params: { imdbId?: string }): Promise<{
   ratings?: Ratings;
 }> {
   const query = new URLSearchParams();
@@ -405,18 +383,14 @@ export async function importLinkApi(url: string, force?: boolean, signal?: Abort
 }
 
 export async function refreshLinkPlaylistApi(titleId: string): Promise<PlaylistRefreshResult> {
-  return apiJson<PlaylistRefreshResult>(
-    `/api/titles/${encodeURIComponent(titleId)}/refresh-link`,
-    {
-      method: 'POST',
-    }
-  );
+  return apiJson<PlaylistRefreshResult>(`/api/titles/${encodeURIComponent(titleId)}/refresh-link`, {
+    method: 'POST',
+  });
 }
 
 export async function fetchSystemInfoApi(): Promise<SystemInfoResponse> {
   return apiJson<SystemInfoResponse>('/api/system/info');
 }
-
 
 export function refreshMetadataApi(titleId: string): Promise<import('../domain/types.ts').MetadataRefreshResult> {
   return apiJson(`/api/titles/${encodeURIComponent(titleId)}/refresh-metadata`, { method: 'POST' });
@@ -425,9 +399,25 @@ export function refreshMetadataApi(titleId: string): Promise<import('../domain/t
 export function previewStructureApi(titleId: string): Promise<import('../domain/structure.ts').StructurePreview> {
   return apiJson(`/api/titles/${encodeURIComponent(titleId)}/structure`);
 }
-export function decideStructureApi(titleId: string, input: { decision: 'keep' | 'adopt'; version: number; signature: string }): Promise<StateMutationResult> {
-  return apiJson(`/api/titles/${encodeURIComponent(titleId)}/structure`, { method: 'POST', body: JSON.stringify(input) });
+export function decideStructureApi(
+  titleId: string,
+  input: { decision: 'keep' | 'adopt'; version: number; signature: string },
+): Promise<StateMutationResult> {
+  return apiJson(`/api/titles/${encodeURIComponent(titleId)}/structure`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
-export function changeTitleSourceApi(titleId: string, input: { action: 'manual' } | { action: 'relink'; sourceId: string; mediaType: 'movie' | 'tv' }): Promise<StateMutationResult> {
+export function changeTitleSourceApi(
+  titleId: string,
+  input: { action: 'manual' } | { action: 'relink'; sourceId: string; mediaType: 'movie' | 'tv' },
+): Promise<StateMutationResult> {
   return apiJson(`/api/titles/${encodeURIComponent(titleId)}/source`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function fetchTitleDetailsApi(id: string): Promise<{ seasons: SeasonDoc[] }> {
+  return apiJson(`/api/titles/${encodeURIComponent(id)}/details`);
+}
+export function exportDataApi(): Promise<import('../domain/types.ts').ZhenjiExportV2> {
+  return apiJson('/api/export');
 }

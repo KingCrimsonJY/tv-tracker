@@ -5,7 +5,7 @@ export function putProgress(
   ctx: DbContext,
   titleId: string,
   playthroughId: string,
-  input: { watched: Record<string, number>; movieWatchedAt?: number }
+  input: { watched: Record<string, number>; movieWatchedAt?: number },
 ): StateMutationResult {
   return ctx.runInTransaction(() => {
     const exists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(titleId);
@@ -13,8 +13,10 @@ export function putProgress(
       throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
-    const previousRow = ctx.db.prepare('SELECT data FROM progress WHERE title_id = ? AND playthrough_id = ?').get(titleId, playthroughId) as { data: string } | undefined;
-    const previous = previousRow ? JSON.parse(previousRow.data) as StoredProgressData : undefined;
+    const previousRow = ctx.db
+      .prepare('SELECT data FROM progress WHERE title_id = ? AND playthrough_id = ?')
+      .get(titleId, playthroughId) as { data: string } | undefined;
+    const previous = previousRow ? (JSON.parse(previousRow.data) as StoredProgressData) : undefined;
     const payload: StoredProgressData = {
       archivedWatched: previous?.archivedWatched,
       watched: { ...(input.watched || {}) },
@@ -25,17 +27,15 @@ export function putProgress(
       .prepare(
         `INSERT INTO progress (title_id, playthrough_id, data)
          VALUES (?, ?, ?)
-         ON CONFLICT(title_id, playthrough_id) DO UPDATE SET data = excluded.data`
+         ON CONFLICT(title_id, playthrough_id) DO UPDATE SET data = excluded.data`,
       )
       .run(titleId, playthroughId, JSON.stringify(payload));
 
     const doc: ProgressDoc = {
       playthroughId,
       watched: payload.watched,
-          archivedWatched: payload.archivedWatched,
-      ...(payload.movieWatchedAt !== undefined
-        ? { movieWatchedAt: payload.movieWatchedAt }
-        : {}),
+      archivedWatched: payload.archivedWatched,
+      ...(payload.movieWatchedAt !== undefined ? { movieWatchedAt: payload.movieWatchedAt } : {}),
     };
 
     const version = ctx.bumpVersionInTx();
@@ -61,7 +61,7 @@ export function patchProgress(
     set?: Record<string, number>;
     unset?: string[];
     movieWatchedAt?: number | null;
-  }
+  },
 ): StateMutationResult {
   return ctx.runInTransaction(() => {
     const exists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(titleId);
@@ -73,9 +73,7 @@ export function patchProgress(
       .prepare('SELECT data FROM progress WHERE title_id = ? AND playthrough_id = ?')
       .get(titleId, playthroughId) as { data: string } | undefined;
 
-    const current: StoredProgressData = row
-      ? (JSON.parse(row.data) as StoredProgressData)
-      : { watched: {} };
+    const current: StoredProgressData = row ? (JSON.parse(row.data) as StoredProgressData) : { watched: {} };
 
     const watched: Record<string, number> = { ...(current.watched || {}) };
 
@@ -107,17 +105,15 @@ export function patchProgress(
       .prepare(
         `INSERT INTO progress (title_id, playthrough_id, data)
          VALUES (?, ?, ?)
-         ON CONFLICT(title_id, playthrough_id) DO UPDATE SET data = excluded.data`
+         ON CONFLICT(title_id, playthrough_id) DO UPDATE SET data = excluded.data`,
       )
       .run(titleId, playthroughId, JSON.stringify(updatedData));
 
     const doc: ProgressDoc = {
       playthroughId,
       watched: updatedData.watched,
-          archivedWatched: updatedData.archivedWatched,
-      ...(updatedData.movieWatchedAt !== undefined
-        ? { movieWatchedAt: updatedData.movieWatchedAt }
-        : {}),
+      archivedWatched: updatedData.archivedWatched,
+      ...(updatedData.movieWatchedAt !== undefined ? { movieWatchedAt: updatedData.movieWatchedAt } : {}),
     };
 
     const version = ctx.bumpVersionInTx();
@@ -135,15 +131,9 @@ export function patchProgress(
   });
 }
 
-export function deleteProgress(
-  ctx: DbContext,
-  titleId: string,
-  playthroughId: string
-): StateMutationResult {
+export function deleteProgress(ctx: DbContext, titleId: string, playthroughId: string): StateMutationResult {
   return ctx.runInTransaction(() => {
-    ctx.db
-      .prepare('DELETE FROM progress WHERE title_id = ? AND playthrough_id = ?')
-      .run(titleId, playthroughId);
+    ctx.db.prepare('DELETE FROM progress WHERE title_id = ? AND playthrough_id = ?').run(titleId, playthroughId);
     const version = ctx.bumpVersionInTx();
     return {
       version,

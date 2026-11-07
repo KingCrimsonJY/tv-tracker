@@ -1,10 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type {
-  ListEntryDoc,
-  ServerErrorCode,
-  TitleDoc,
-  WatchListDoc,
-} from '../../src/domain/types.ts';
+import type { ListEntryDoc, ServerErrorCode, TitleDoc, WatchListDoc } from '../../src/domain/types.ts';
 
 export class NotFoundError extends Error {
   public readonly code: ServerErrorCode;
@@ -53,6 +48,10 @@ export interface DbContext {
 
 export function serializeTitleData(title: TitleDoc): string {
   const { id: _id, ...rest } = title;
+  if (rest.upstreamChange) {
+    const { seasons: _seasons, ...header } = rest.upstreamChange;
+    return JSON.stringify({ ...rest, upstreamChange: header });
+  }
   return JSON.stringify(rest);
 }
 

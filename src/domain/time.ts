@@ -12,7 +12,7 @@ export type TimeParseErrorCode =
  */
 export function computeResumeRatio(
   seconds: number | null | undefined,
-  runtimeMinutes: number | null | undefined
+  runtimeMinutes: number | null | undefined,
 ): number {
   if (!seconds || seconds <= 0) return 0;
   if (!runtimeMinutes || runtimeMinutes <= 0) return 0;
@@ -25,10 +25,8 @@ export function computeResumeRatio(
  */
 export function parseTimeInput(
   input: string,
-  runtimeMinutes?: number | null
-):
-  | { ok: true; seconds: number }
-  | { ok: false; code: TimeParseErrorCode; maxMinutes?: number } {
+  runtimeMinutes?: number | null,
+): { ok: true; seconds: number } | { ok: false; code: TimeParseErrorCode; maxMinutes?: number } {
   const trimmed = input.trim();
   if (!trimmed) {
     return { ok: false, code: 'EMPTY' };

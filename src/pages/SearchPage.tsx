@@ -49,13 +49,16 @@ export const SearchPage: React.FC = () => {
       }
     }, 350);
 
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, locale, translateError]);
 
   const existingTmdbKeys = new Set(
     Object.values(titles)
       .filter((item) => item.source === 'tmdb' && item.sourceId !== null)
-      .map((item) => `${item.mediaType}:${item.sourceId}`)
+      .map((item) => `${item.mediaType}:${item.sourceId}`),
   );
 
   const handleAddTmdb = useCallback(
@@ -70,7 +73,7 @@ export const SearchPage: React.FC = () => {
         setAddingKey(null);
       }
     },
-    [addTitleFromTmdb, translateError]
+    [addTitleFromTmdb, translateError],
   );
 
   const listArray = Object.values(lists);
@@ -98,12 +101,7 @@ export const SearchPage: React.FC = () => {
         </div>
       </div>
 
-      <SearchField
-        value={query}
-        onChange={setQuery}
-        aria-label={t.search.placeholder}
-        className="w-full"
-      >
+      <SearchField value={query} onChange={setQuery} aria-label={t.search.placeholder} className="w-full">
         <SearchField.Group>
           <SearchField.SearchIcon />
           <SearchField.Input placeholder={t.search.placeholder} />
@@ -112,9 +110,7 @@ export const SearchPage: React.FC = () => {
       </SearchField>
 
       {searchError && (
-        <div className="p-4 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
-          {searchError}
-        </div>
+        <div className="p-4 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">{searchError}</div>
       )}
 
       {searching ? (
@@ -135,9 +131,7 @@ export const SearchPage: React.FC = () => {
           <p className="text-xs text-[var(--muted)]">{t.search.searchPromptSubtitle}</p>
         </div>
       ) : results.length === 0 && !searchError ? (
-        <div className="py-16 text-center text-sm text-[var(--muted)]">
-          {t.search.noResults}
-        </div>
+        <div className="py-16 text-center text-sm text-[var(--muted)]">{t.search.noResults}</div>
       ) : (
         <SearchResults
           results={results}
@@ -157,7 +151,7 @@ export const SearchPage: React.FC = () => {
           setLinkDialogOpen(false);
           setQuery(suggestedTitle);
         }}
-        onSelectTmdb={async hit => {
+        onSelectTmdb={async (hit) => {
           const created = await addTitleFromTmdb(hit.mediaType, hit.sourceId);
           navigate(`/title/${created.id}`);
         }}

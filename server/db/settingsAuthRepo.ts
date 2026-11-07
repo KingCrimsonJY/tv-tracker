@@ -3,9 +3,7 @@ import type { AppSettingsDoc, StateMutationResult } from '../../src/domain/types
 import { ConflictError, type DbContext, type StoredAuthData } from './types.ts';
 
 export function getSettings(ctx: DbContext): AppSettingsDoc {
-  const row = ctx.db.prepare("SELECT data FROM settings WHERE key = 'app'").get() as
-    | { data: string }
-    | undefined;
+  const row = ctx.db.prepare("SELECT data FROM settings WHERE key = 'app'").get() as { data: string } | undefined;
   if (!row) {
     return structuredClone(DEFAULT_APP_SETTINGS);
   }
@@ -20,10 +18,7 @@ export function getSettings(ctx: DbContext): AppSettingsDoc {
   }
 }
 
-export function patchSettings(
-  ctx: DbContext,
-  patch: Partial<AppSettingsDoc>
-): StateMutationResult {
+export function patchSettings(ctx: DbContext, patch: Partial<AppSettingsDoc>): StateMutationResult {
   return ctx.runInTransaction(() => {
     const current = getSettings(ctx);
     const updated: AppSettingsDoc = {
@@ -34,7 +29,7 @@ export function patchSettings(
     ctx.db
       .prepare(
         `INSERT INTO settings (key, data) VALUES ('app', ?)
-         ON CONFLICT(key) DO UPDATE SET data = excluded.data`
+         ON CONFLICT(key) DO UPDATE SET data = excluded.data`,
       )
       .run(JSON.stringify(updated));
 
@@ -50,9 +45,7 @@ export function patchSettings(
 }
 
 export function getStoredPasswordHash(ctx: DbContext): string | null {
-  const row = ctx.db.prepare("SELECT data FROM settings WHERE key = 'auth'").get() as
-    | { data: string }
-    | undefined;
+  const row = ctx.db.prepare("SELECT data FROM settings WHERE key = 'auth'").get() as { data: string } | undefined;
   if (!row) return null;
   try {
     const parsed = JSON.parse(row.data) as Partial<StoredAuthData>;
@@ -62,29 +55,18 @@ export function getStoredPasswordHash(ctx: DbContext): string | null {
   }
 }
 
-export function setStoredPasswordHash(
-  ctx: DbContext,
-  passwordHash: string,
-  now = Date.now()
-): void {
+export function setStoredPasswordHash(ctx: DbContext, passwordHash: string, now = Date.now()): void {
   ctx.runInTransaction(() => {
     const existing = getStoredPasswordHash(ctx);
     if (existing) {
       throw new ConflictError('Password has already been configured', 'PASSWORD_ALREADY_SET');
     }
     const data: StoredAuthData = { passwordHash, updatedAt: now };
-    ctx.db
-      .prepare("INSERT INTO settings (key, data) VALUES ('auth', ?)")
-      .run(JSON.stringify(data));
+    ctx.db.prepare("INSERT INTO settings (key, data) VALUES ('auth', ?)").run(JSON.stringify(data));
   });
 }
 
-export function createSession(
-  ctx: DbContext,
-  tokenHash: string,
-  now: number,
-  expiresAt: number
-): void {
+export function createSession(ctx: DbContext, tokenHash: string, now: number, expiresAt: number): void {
   ctx.runInTransaction(() => {
     ctx.db
       .prepare(
@@ -92,21 +74,15 @@ export function createSession(
          VALUES (?, ?, ?, ?)
          ON CONFLICT(token_hash) DO UPDATE SET
            last_seen_at = excluded.last_seen_at,
-           expires_at = excluded.expires_at`
+           expires_at = excluded.expires_at`,
       )
       .run(tokenHash, now, now, expiresAt);
   });
 }
 
-export function verifyAndTouchSession(
-  ctx: DbContext,
-  tokenHash: string,
-  now: number,
-  newExpiresAt: number
-): boolean {
-  const row = ctx.db
-    .prepare('SELECT expires_at FROM sessions WHERE token_hash = ?')
-    .get(tokenHash) as { expires_at: number } | undefined;
+export function verifyAndTouchSession(ctx: DbContext, tokenHash: string, now: number, newExpiresAt: number): boolean {
+  const row = ctx.db.prepare('SELECT expires_at FROM sessions WHERE token_hash = ?').get(tokenHash) as
+    { expires_at: number } | undefined;
 
   if (!row) return false;
 

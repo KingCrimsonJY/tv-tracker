@@ -26,7 +26,7 @@ type ElementWithChildren = ReactElement<{ children?: ReactNode }>;
 
 function inspectSiblings(node: ReactNode, elements: ElementWithChildren[] = []) {
   const keys = new Set<string>();
-  Children.forEach(node, child => {
+  Children.forEach(node, (child) => {
     if (!isValidElement<{ children?: ReactNode }>(child)) return;
     if (child.key !== null) {
       expect(keys.has(child.key), `duplicate sibling key: ${child.key}`).toBe(false);
@@ -41,18 +41,19 @@ function inspectSiblings(node: ReactNode, elements: ElementWithChildren[] = []) 
 test.each([
   { id: 'tmdb_tv_95396', source: 'tmdb', mediaType: 'tv' },
   { id: 'url_test_playlist', source: 'url', mediaType: 'other' },
-] as const)('detail panels have distinct identities for $source titles', async overrides => {
+] as const)('detail panels have distinct identities for $source titles', async (overrides) => {
   currentTitle = makeBaseTvTitle(overrides);
   const elements = inspectSiblings(await TitleDetailPage({}));
-  const panels = elements.filter(element => element.type === SeasonPanel || element.type === UpstreamPanel);
+  const panels = elements.filter((element) => element.type === SeasonPanel || element.type === UpstreamPanel);
   expect(panels).toHaveLength(2);
-  expect(panels.every(panel => panel.key !== null)).toBe(true);
+  expect(panels.every((panel) => panel.key !== null)).toBe(true);
 });
 
 test('panel identities survive metadata updates and reset when changing titles', async () => {
-  const panelKeys = async () => inspectSiblings(await TitleDetailPage({}))
-    .filter(element => element.type === SeasonPanel || element.type === UpstreamPanel)
-    .map(element => element.key);
+  const panelKeys = async () =>
+    inspectSiblings(await TitleDetailPage({}))
+      .filter((element) => element.type === SeasonPanel || element.type === UpstreamPanel)
+      .map((element) => element.key);
   currentTitle = makeBaseTvTitle();
   const original = await panelKeys();
   currentTitle = { ...currentTitle, structureLocked: true };
