@@ -12,7 +12,7 @@ import { AddTitlesDialog } from '../features/lists/AddTitlesDialog';
 import { useI18n } from '../i18n';
 
 export const ListDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { listId: id } = useParams<{ listId: string }>();
   const navigate = useNavigate();
   const {
     lists,
