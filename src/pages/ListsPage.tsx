@@ -41,6 +41,7 @@ export const ListsPage: React.FC = () => {
   const [kind, setKind] = useState<ListKind>('ordered');
   const [description, setDescription] = useState('');
   const [pinned, setPinned] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
   const sortedLists = Object.values(lists).sort((a, b) => {
@@ -55,20 +56,28 @@ export const ListsPage: React.FC = () => {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (creating) return;
     if (!name.trim()) {
       setNameError(t.lists.createModal.nameRequiredError);
       return;
     }
-    const created = await createList({
-      name: name.trim(),
-      kind,
-      description: description.trim() || undefined,
-      pinned,
-    });
-    setName('');
-    setDescription('');
-    setCreateOpen(false);
-    navigate(`/lists/${created.id}`);
+    setCreating(true);
+    try {
+      const created = await createList({
+        name: name.trim(),
+        kind,
+        description: description.trim() || undefined,
+        pinned,
+      });
+      setName('');
+      setDescription('');
+      setCreateOpen(false);
+      navigate(`/lists/${created.id}`);
+    } catch {
+      // The action reports the error and rolls back; keep the form available for retry.
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -256,14 +265,19 @@ export const ListsPage: React.FC = () => {
       )}
 
       {/* Create List Modal */}
-      <Modal.Backdrop isOpen={createOpen} onOpenChange={setCreateOpen} isDismissable>
-        <Modal.Container size="md" placement="center">
+      <Modal.Backdrop
+        isOpen={createOpen}
+        onOpenChange={(open) => { if (!creating) setCreateOpen(open); }}
+        isDismissable={!creating}
+        isKeyboardDismissDisabled={creating}
+      >
+        <Modal.Container size="md" placement="center" scroll="inside">
           <Modal.Dialog>
             <Modal.Header>
               <Modal.Heading>{t.lists.createModal.title}</Modal.Heading>
             </Modal.Header>
 
-            <form onSubmit={handleCreateSubmit}>
+            <form onSubmit={handleCreateSubmit} className="flex min-h-0 flex-col">
               <Modal.Body className="space-y-4">
                 <TextField
                   value={name}
@@ -287,28 +301,24 @@ export const ListsPage: React.FC = () => {
                 >
                   <Label>{t.lists.createModal.kindLabel}</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-1">
-                    <Radio value="ordered">
-                      <Radio.Content>
+                    <Radio value="ordered" className="m-0 min-w-0 rounded-xl border border-border p-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft">
+                      <Radio.Content className="min-h-11 w-full">
                         <Radio.Control>
                           <Radio.Indicator />
                         </Radio.Control>
-                        <div className="flex flex-col gap-0.5">
-                          <Label>{t.lists.orderedType}</Label>
-                          <Description>{t.lists.orderedTypeHint}</Description>
-                        </div>
+                        <Label>{t.lists.orderedType}</Label>
                       </Radio.Content>
+                      <Description className="pl-7">{t.lists.orderedTypeHint}</Description>
                     </Radio>
 
-                    <Radio value="collection">
-                      <Radio.Content>
+                    <Radio value="collection" className="m-0 min-w-0 rounded-xl border border-border p-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft">
+                      <Radio.Content className="min-h-11 w-full">
                         <Radio.Control>
                           <Radio.Indicator />
                         </Radio.Control>
-                        <div className="flex flex-col gap-0.5">
-                          <Label>{t.lists.collectionType}</Label>
-                          <Description>{t.lists.collectionTypeHint}</Description>
-                        </div>
+                        <Label>{t.lists.collectionType}</Label>
                       </Radio.Content>
+                      <Description className="pl-7">{t.lists.collectionTypeHint}</Description>
                     </Radio>
                   </div>
                 </RadioGroup>
@@ -340,11 +350,12 @@ export const ListsPage: React.FC = () => {
                   type="button"
                   variant="secondary"
                   size="sm"
+                  isDisabled={creating}
                   onPress={() => setCreateOpen(false)}
                 >
                   {t.lists.createModal.cancel}
                 </Button>
-                <Button type="submit" variant="primary" size="sm">
+                <Button type="submit" variant="primary" size="sm" isPending={creating}>
                   {t.lists.createModal.submit}
                 </Button>
               </Modal.Footer>

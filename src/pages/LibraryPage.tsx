@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Film, Plus } from 'lucide-react';
 import {
   Button,
+  ScrollShadow,
   Label,
   ListBox,
   Select,
@@ -11,7 +12,6 @@ import {
   ToggleButtonGroup,
 } from '@heroui/react';
 import { PosterCard } from '../components/PosterCard';
-import { ScrollableFilterRow } from '../components/ScrollableFilterRow';
 import { useTracker } from '../context/TrackerContext';
 import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
 import { useI18n } from '../i18n';
@@ -139,7 +139,7 @@ export const LibraryPage: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[var(--separator)] min-w-0">
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 min-w-0 max-w-full">
           {/* Status filter */}
-          <ScrollableFilterRow>
+          <ScrollShadow orientation="horizontal" hideScrollBar size={28} className="max-w-full">
             <ToggleButtonGroup
               selectionMode="single"
               disallowEmptySelection
@@ -158,10 +158,10 @@ export const LibraryPage: React.FC = () => {
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
-          </ScrollableFilterRow>
+          </ScrollShadow>
 
           {/* Type filter */}
-          <ScrollableFilterRow>
+          <ScrollShadow orientation="horizontal" hideScrollBar size={28} className="max-w-full">
             <ToggleButtonGroup
               selectionMode="single"
               disallowEmptySelection
@@ -180,7 +180,7 @@ export const LibraryPage: React.FC = () => {
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
-          </ScrollableFilterRow>
+          </ScrollShadow>
         </div>
 
         {/* Sort selector */}

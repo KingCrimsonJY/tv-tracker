@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
+  Alert,
   TextField,
   Label,
   Input,
@@ -102,15 +103,18 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <Modal.CloseTrigger aria-label={t.app.close} />
           <Modal.Header>
             <Modal.Heading>{initialSeed?.source === 'url' ? t.search.manual.ParsedPreviewTitle : t.search.manual.title}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
             {initialSeed?.warning && (
-              <p role="status" className="rounded-lg bg-warning/10 p-3 text-sm text-foreground break-words">
-                {translateError({ code: initialSeed.warning })}
-              </p>
+              <Alert status="warning">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>{translateError({ code: initialSeed.warning })}</Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
             {initialSeed?.liveStatus && <p className="text-sm text-muted">{t.liveStatus[initialSeed.liveStatus]}</p>}
             <TextField value={title} onChange={setTitle} isRequired>

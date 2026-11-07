@@ -1,3 +1,4 @@
+@import "tailwindcss";
 @import "@heroui/styles";
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -121,33 +122,11 @@
 }
 
 @layer components {
-  /* 1. Focus rings: show only during keyboard navigation (data-focus-visible="true"),
-        never after a mouse click, touch tap, or programmatic focus restore when a
-        Dropdown or Select popover closes. */
-  .button:focus:not([data-focus-visible="true"]),
-  .button:focus-visible:not([data-focus-visible="true"]),
-  .dropdown__trigger:focus:not([data-focus-visible="true"]),
-  .dropdown__trigger:focus-visible:not([data-focus-visible="true"]),
-  .tabs__tab:focus:not([data-focus-visible="true"]),
-  .tabs__tab:focus-visible:not([data-focus-visible="true"]),
-  .toggle-button:focus:not([data-focus-visible="true"]),
-  .toggle-button:focus-visible:not([data-focus-visible="true"]),
-  .select__trigger:focus:not([data-focus-visible="true"]),
-  .select__trigger:focus-visible:not([data-focus-visible="true"]),
-  .modal__trigger:focus:not([data-focus-visible="true"]),
-  .modal__trigger:focus-visible:not([data-focus-visible="true"]),
-  .drawer__trigger:focus:not([data-focus-visible="true"]),
-  .drawer__trigger:focus-visible:not([data-focus-visible="true"]) {
-    --tw-ring-shadow: 0 0 #0000;
-    --tw-ring-offset-width: 0px;
-    outline: none;
-  }
-
   .select__value {
     @apply whitespace-nowrap;
   }
 
-  /* 2. Tabs: keep horizontal tab lists content-sized instead of stretching into a long
+  /* Tabs: keep horizontal tab lists content-sized instead of stretching into a long
         empty pill, prevent tab labels from wrapping, and align tab panels flush with content. */
   .tabs__list-container {
     @apply w-fit max-w-full;
@@ -165,26 +144,7 @@
     @apply p-0;
   }
 
-  /* 3. Card-style Radio items: when a Radio has a Description inside Radio.Content,
-        render the clickable label as a full-width card with border and selected state. */
-  .radio:has(.radio__content [data-slot="description"]) {
-    @apply mt-0 w-full;
-
-    .radio__content {
-      @apply flex w-full items-start gap-3 rounded-2xl border border-border bg-surface-secondary p-3.5 transition-colors;
-    }
-
-    .radio__control {
-      @apply mt-0.5;
-    }
-
-    &[data-selected="true"] .radio__content,
-    &:has(input:checked) .radio__content {
-      @apply border-accent bg-accent-soft;
-    }
-  }
-
-  /* 4. Toast: keep bottom toast region clear of the mobile tab bar, and vertically align
+  /* Toast: keep bottom toast region clear of the mobile tab bar, and vertically align
         the indicator icon, text content, and action button on a single row. */
   .toast-region--bottom {
     @apply max-sm:bottom-[calc(64px+env(safe-area-inset-bottom,0px)+12px)];
@@ -204,7 +164,7 @@
     @apply col-start-3;
   }
 
-  /* 5. ToggleButtonGroup: never wrap pill segments across multiple rows; keep labels on one line. */
+  /* ToggleButtonGroup: never wrap pill segments across multiple rows; keep labels on one line. */
   .toggle-button-group {
     @apply flex-nowrap shrink-0;
   }
@@ -212,21 +172,6 @@
   .toggle-button {
     @apply shrink-0 whitespace-nowrap;
   }
-}
-
-.filter-scroll-fade-right {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-}
-
-.filter-scroll-fade-left {
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28px);
-  mask-image: linear-gradient(to right, transparent 0%, #000 28px);
-}
-
-.filter-scroll-fade-both {
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 28px, #000 calc(100% - 28px), transparent 100%);
 }
 
 .tabular-nums {

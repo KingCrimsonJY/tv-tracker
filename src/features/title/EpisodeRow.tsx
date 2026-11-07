@@ -1,6 +1,6 @@
 import React from 'react';
-import { Button, Dropdown, Label } from '@heroui/react';
-import { Check, MoreHorizontal, CheckCheck, Clock } from 'lucide-react';
+import { Button, Checkbox, Dropdown, Label } from '@heroui/react';
+import { MoreHorizontal, CheckCheck, Clock } from 'lucide-react';
 import { EpisodeMeta } from '../../domain/types';
 import { isEpisodeAired, resolveLocalizedText } from '../../domain/progress';
 import { formatSeconds } from '../../domain/time';
@@ -46,26 +46,19 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
           : 'border-border bg-surface hover:border-muted/50'
       } ${!aired ? 'opacity-55' : ''}`}
     >
-      {/* Check circle: >= 44px tap target */}
-      <button
-        type="button"
-        disabled={!aired}
-        onClick={onToggle}
+      <Checkbox
+        isSelected={isWatched}
+        isDisabled={!aired}
+        onChange={onToggle}
         aria-label={t.detail.seasons.checkEpisodeAria(seasonNumber, episode.number, isWatched)}
-        className="w-11 h-11 flex items-center justify-center shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed"
+        className="m-0 shrink-0"
       >
-        <span
-          className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-            isWatched
-              ? 'bg-accent text-accent-foreground'
-              : aired
-                ? 'border-2 border-muted hover:border-foreground'
-                : 'border-2 border-border'
-          }`}
-        >
-          {isWatched && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
-        </span>
-      </button>
+        <Checkbox.Content className="size-11 justify-center">
+          <Checkbox.Control className="size-6 rounded-full">
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+        </Checkbox.Content>
+      </Checkbox>
 
       {/* Thumbnail on tablet and up */}
       {episode.stillPath && (

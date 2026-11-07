@@ -92,9 +92,9 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
   return (
     <>
       <Modal.Backdrop isOpen={addToListOpen} onOpenChange={onAddToListOpenChange}>
-        <Modal.Container size="sm">
+        <Modal.Container size="sm" scroll="inside">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={t.app.close} />
             <Modal.Header>
               <Modal.Heading>{t.detail.menu.addToList}</Modal.Heading>
             </Modal.Header>
@@ -145,7 +145,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
       <Modal.Backdrop isOpen={langModalOpen} onOpenChange={onLangModalOpenChange}>
         <Modal.Container size="sm" scroll="inside">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={t.app.close} />
             <Modal.Header>
               <Modal.Heading>{t.detail.menu.titleLanguage}</Modal.Heading>
             </Modal.Header>
@@ -183,7 +183,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
       <Modal.Backdrop isOpen={editModalOpen} onOpenChange={onEditModalOpenChange}>
         <Modal.Container size="md" scroll="inside">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <Modal.CloseTrigger aria-label={t.app.close} />
             <Modal.Header>
               <Modal.Heading>{t.detail.editModal.title}</Modal.Heading>
             </Modal.Header>

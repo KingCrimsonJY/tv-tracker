@@ -70,7 +70,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <Modal.CloseTrigger aria-label={t.app.close} />
           <Modal.Header>
             <Modal.Heading>{t.search.linkImport.title}</Modal.Heading>
           </Modal.Header>
