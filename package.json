@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "license": "MIT",
-  "description": "个人自托管影视进度追踪应用 (Personal self-hosted movie & TV watch progress tracker)",
+  "description": "\u4e2a\u4eba\u81ea\u6258\u7ba1\u5f71\u89c6\u8fdb\u5ea6\u8ffd\u8e2a\u5e94\u7528 (Personal self-hosted movie & TV watch progress tracker)",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -19,7 +19,10 @@
     "test": "vitest run",
     "set-password": "node server/scripts/set-password.ts",
     "seed:demo": "node server/scripts/seed-demo.ts",
-    "setup:ytdlp": "node server/scripts/setup-ytdlp.ts"
+    "setup:ytdlp": "node server/scripts/setup-ytdlp.ts",
+    "perf": "node server/scripts/perf.ts",
+    "format": "prettier --ignore-path .prettierignore --write .",
+    "format:check": "prettier --ignore-path .prettierignore --check ."
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -49,6 +52,8 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "playwright": "^1.65.0",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",

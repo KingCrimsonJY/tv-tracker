@@ -97,6 +97,7 @@
 ## 功能特性
 
 ### 追剧与观影记录
+
 - **清晰的状态归类**：自动将作品归为「未开播」「未看」「观看中」「已追平」「已看完」，并支持随时手动设为「暂停」或「弃剧」。
 - **连载更新提醒**：正在追的连载剧追平后显示「已追平」；当新剧集播出后会自动回到「观看中」并点亮 **有新集** 提醒。
 - **顺手的分集勾选**：支持单集点选、整季一键标记或取消、「标记到此集」（自动勾选当前集及之前所有已开播剧集，不会取消后面已勾过的集数）以及整部标记已看；尚未开播的剧集会显示开播日期并防止误触。
@@ -104,15 +105,18 @@
 - **多刷历史与随时撤回**：看完的作品可一键开启「二刷 / 多刷」，完整保留每一次观看的起止日期；如果误操作，可随时逐级撤回最新一轮观看记录（直至恢复为「未看」），或单独删除任意一条历史记录。
 
 ### 片单与整理
+
 - **顺序片单**：适合「漫威无限传奇观影顺序」等系列作品，按编号排列并自动高亮第一部还没看完的作品（`下一部待看`），置顶后直接在首页展示下一部与整体进度。
 - **收藏合集**：适合「周末想看的电影」等主题片单，以海报墙展示，支持按添加时间、名称、年份、评分排序或手动拖拽调整顺序。
 
 ### 丰富的添加方式
+
 - **TMDB 搜索**：支持中文、原名或英文搜索全球电影、剧集与番剧，自动获取中英双语标题、简介、海报、分季分集与开播日期，并在展示 **TMDB** 评分的同时按需聚合 **IMDb**、**烂番茄 (Rotten Tomatoes)** 与 **Metacritic** 评分。
 - **通过链接导入视频与合集**：遇到 TMDB 没有收录的网络课程、纪录片或视频合集，可直接粘贴 YouTube、哔哩哔哩 (Bilibili) 等链接或带标题的分享口令，自动解析单视频、播放列表、合集与分P，后续还能一键「刷新列表」追加新发布的分集。若粘贴的是番剧或剧集链接，会自动提示跳转 TMDB 搜索。
 - **手动添加**：支持完全自定义录入标题、类型、海报链接与总集数。
 
 ### 多端体验与数据便携
+
 - **手机、平板、电脑自适应**：手机端采用底部导航栏与抽屉菜单，平板采用侧边导轨，电脑端提供完整侧边栏与置顶片单快捷入口；支持作为 PWA 添加到手机主屏幕全屏使用。
 - **多设备实时同步**：在手机上勾选一集，平板和电脑页面会立即同步更新。
 - **高度可定制**：支持深色、浅色与跟随系统主题，支持全局或单部作品独立切换标题语言（中文 / 原名 / 英文），可自由开关是否将特别篇 (Season 0) 计入进度，以及自定义首页显示的模块与顺序。
@@ -145,6 +149,7 @@ B站的 BV/AV、移动端、短链接、分P、合集、系列、番剧、电影
 ## 快速开始（本地开发）
 
 ### 环境要求
+
 - **Node.js `>= 22.18.0`**（推荐使用 **Node.js 24 LTS**；内置 `node:sqlite` 模块开箱即用）
 - **npm `>= 10`**
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)**（可选但推荐，用于「通过链接添加」解析视频、合集与播放列表；可通过 `npm run setup:ytdlp` 一键下载至 `./.bin/yt-dlp`，Docker 镜像已内置至 `/opt/yt-dlp/yt-dlp`）
@@ -167,6 +172,7 @@ npm run dev
 ```
 
 ### 首次启动设置密码
+
 首次启动且数据库尚未设置密码时，终端日志会打印一行**一次性设置码**：
 
 ```text
@@ -181,16 +187,16 @@ npm run dev
 
 所有配置项均位于服务端 `.env` 文件中（参考 [`.env.example`](./.env.example)）：
 
-| 变量名 | 必填 | 默认值 | 用途说明 | 获取方式 / 备注 |
-| :--- | :---: | :--- | :--- | :--- |
-| `TMDB_READ_TOKEN` | **必填** | 空 | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据 | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
-| `OMDB_API_KEY` | 可选 | 空 | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天） | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天） |
-| `DATA_DIR` | 可选 | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录 | Docker 容器内固定为 `/data` |
-| `YTDLP_PATH` | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置） | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp` |
-| `SETUP_CODE` | 可选 | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码 | 留空时会在服务端启动日志中自动生成并打印 |
-| `APP_PASSWORD_HASH` | 可选 | 空 | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码） | 通过 `npm run set-password` 交互式生成 |
-| `TRUST_PROXY` | 可选 | `0` | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流 | 使用 Cloudflare Tunnel 或反向代理时设为 `1` |
-| `PORT` | 可选 | `3000` | Node.js 服务端监听端口 | 本地或容器内默认 `3000` |
+| 变量名              |   必填   | 默认值   | 用途说明                                                                               | 获取方式 / 备注                                                                              |
+| :------------------ | :------: | :------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| `TMDB_READ_TOKEN`   | **必填** | 空       | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据        | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
+| `OMDB_API_KEY`      |   可选   | 空       | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天）             | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天）    |
+| `DATA_DIR`          |   可选   | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录                                  | Docker 容器内固定为 `/data`                                                                  |
+| `YTDLP_PATH`        | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置） | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp`   |
+| `SETUP_CODE`        |   可选   | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码                                           | 留空时会在服务端启动日志中自动生成并打印                                                     |
+| `APP_PASSWORD_HASH` |   可选   | 空       | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码）                                 | 通过 `npm run set-password` 交互式生成                                                       |
+| `TRUST_PROXY`       |   可选   | `0`      | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流  | 使用 Cloudflare Tunnel 或反向代理时设为 `1`                                                  |
+| `PORT`              |   可选   | `3000`   | Node.js 服务端监听端口                                                                 | 本地或容器内默认 `3000`                                                                      |
 
 ## 部署
 
@@ -271,3 +277,21 @@ npm run seed:demo
 ## 许可证
 
 本项目基于 [MIT License](./LICENSE) 开源，Copyright (c) 2026 KingCrimsonJY。
+
+## Performance checks
+
+Run inside the development container:
+
+```sh
+npx playwright install --with-deps chromium
+npm run build
+npm run perf
+```
+
+The benchmark creates its own temporary SQLite database; it never reads or replaces `DATA_DIR`.
+It seeds 300 deterministic titles (40-episode series, a 150-episode show, a 564-entry archive, and 12 movies)
+and measures the production frontend at 390 × 844 with 4× CPU throttling, 150 ms latency, 1.6 Mbps down,
+and 750 Kbps up. Browser cache and service workers are disabled for a cold load.
+Bilingual episode text varies deterministically; artwork uses local fixture images so upstream latency
+and availability cannot skew the application benchmark. External image delivery is outside this measurement.
+Use `PERF_OUTPUT_DIR` to select a directory inside the container for the JSON report.
