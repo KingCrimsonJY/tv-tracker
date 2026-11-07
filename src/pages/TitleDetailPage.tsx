@@ -85,11 +85,11 @@ export const TitleDetailPage: React.FC = () => {
           )}
         </div>
 
-        <UpstreamPanel key={title.id} title={title} />
+        <UpstreamPanel key={`upstream:${title.id}`} title={title} />
 
         {titleState.isEpisodic && (
           <SeasonPanel
-            key={title.id}
+            key={`seasons:${title.id}`}
             title={title}
             seasons={regularSeasons}
             specialSeason={specialSeason}
