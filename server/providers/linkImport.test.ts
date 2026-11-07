@@ -520,7 +520,7 @@ test('7. yt-dlp missing (ENOENT) falls back to Open Graph with warning notice an
   assert.equal(hugeResult.warning, YTDLP_MISSING_WARNING);
 });
 
-test('8. yt-dlp timeout falls back to Open Graph, and to manual seed if Open Graph also fails', async () => {
+test('8. yt-dlp timeout reports partial Open Graph metadata and throws when no metadata is available', async () => {
   const execTimeout: YtdlpExecFn = async () => {
     throw new YtdlpExecutionError('yt-dlp timed out (30s)', 'YTDLP_TIMEOUT');
   };
@@ -531,20 +531,16 @@ test('8. yt-dlp timeout falls back to Open Graph, and to manual seed if Open Gra
     execFn: execTimeout,
   });
   assert.equal(ogFallback.fallbackUsed, 'og');
-  assert.equal(ogFallback.warning, undefined);
+  assert.equal(ogFallback.warning, 'YTDLP_TIMEOUT');
   assert.equal(ogFallback.title, "飞向太空 Solaris's & Co. 🎬");
 
-  const manualFallback = await resolveLinkMetadata('https://example.com/unlisted-video-404', {
-    lookupFn: mockPublicDns,
-    fetchFn: mockFetch,
-    execFn: execTimeout,
-  });
-  assert.equal(manualFallback.fallbackUsed, 'manual');
-  assert.equal(manualFallback.title, 'example.com');
-  assert.equal(manualFallback.sourceUrl, 'https://example.com/unlisted-video-404');
+  await assert.rejects(resolveLinkMetadata('https://example.com/unlisted-video-404', {
+    lookupFn: mockPublicDns, fetchFn: mockFetch, execFn: execTimeout,
+  }), { code: 'YTDLP_TIMEOUT' });
+
 });
 
-test('9. Share-text URL extraction and long sourceUrl preservation (up to 2048 chars, no 120-char truncation)', async () => {
+test('9. Share-text extraction strips Bilibili tracking parameters without altering the content', async () => {
   const shareText =
     '【这就是全网吹的1000以内音质吊打的oppo enco x3啊？-哔哩哔哩】 https://b23.tv/AbCdEf 快来看！';
   assert.equal(extractFirstHttpUrl(shareText), 'https://b23.tv/AbCdEf');
@@ -571,8 +567,7 @@ test('9. Share-text URL extraction and long sourceUrl preservation (up to 2048 c
   });
 
   assert.equal(result.title, '这就是全网吹的1000以内音质吊打的oppo enco x3啊？');
-  assert.equal(result.sourceUrl, longUrl);
-  assert.ok(result.sourceUrl.length > 440);
+  assert.equal(result.sourceUrl, 'https://www.bilibili.com/video/BV1aFXaYmEFt/');
 });
 
 test('10. Contract test: every path in src/data/api.ts exists on the Express server, and no component calls apiJson with raw paths', () => {

@@ -4,7 +4,7 @@
 
 **A personal, self-hosted movie & TV watch progress tracker — cinematic interface, single-folder portable storage, and real-time multi-device sync.**
 
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.13-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![HeroUI v3](https://img.shields.io/badge/HeroUI-v3-006FEE)](https://heroui.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.x_Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -126,18 +126,27 @@
 - **SSE Sync & Fractional Indexing**: Server-Sent Events (`/api/events`) broadcast `{ version, epoch, upserts, deletes }` to connected clients and trigger automatic state reconciliation on reconnect or tab focus. Drag-and-drop list ordering uses `fractional-indexing` with `@dnd-kit` so reordering writes a single row.
 - **Security**: Password authentication uses `node:crypto` `scrypt` with random salt and `timingSafeEqual`, paired with a one-time first-run setup code (`SETUP_CODE`), `HttpOnly; SameSite=Lax` 365-day sliding sessions, CSRF `Origin` verification, per-IP and global login rate limiting, and SSRF private-network blocking on link imports.
 
+## Link import support
+
+Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, bangumi, films, courses and live rooms use public metadata where available. YouTube videos, Shorts, playlists and channel tabs use yt-dlp. Review the type, year, runtime and episodes before saving; refresh preserves watch history and fills missing metadata.
+
+- Empty lists, expired links, login, age and regional restrictions are reported explicitly. Basic webpage fallbacks are labelled as incomplete.
+- Imports are limited to 2,000 entries. Metadata enrichment has concurrency and time limits; unavailable fields remain unknown, without fabricated dates.
+- Public metadata does not grant playback access. The app does not download media or bypass paid, member-only or regional restrictions.
+- See the [link-import validation record](docs/link-import-validation.md) for coverage and reproduction steps.
+
 ## Known Limitations
 
 - **Single-User Only**: Built for one owner protected by a single password; there are no multi-user accounts or social features.
 - **Offline Use Intentionally Blocked**: To prevent multi-device sync conflicts, if the server or event stream is unreachable for more than 5 seconds, a full-screen connection guard blocks edits until reconnected.
 - **YouTube Datacenter IP Restrictions**: YouTube frequently blocks `yt-dlp` requests originating from datacenter/VPS IPs; Link Import works best when self-hosted on a home connection (e.g., a home Linux PC exposed via Cloudflare Tunnel or Tailscale).
 - **No Douban Ratings**: Because Douban has no official public API, Douban ratings are not fetched; ratings are provided via TMDB and OMDb (IMDb, Rotten Tomatoes, Metacritic).
-- **API Keys**: A free **TMDB Read Access Token** is required for TMDB search and metadata refresh; an **OMDb API Key** is optional (used only for IMDb, Rotten Tomatoes, and Metacritic ratings).
+- **API Keys**: A free **TMDB Read Access Token or v3 API Key** is required for TMDB search and metadata refresh; an **OMDb API Key** is optional (used only for IMDb, Rotten Tomatoes, and Metacritic ratings).
 
 ## Quick Start (Local Development)
 
 ### Prerequisites
-- **Node.js `>= 22.13.0`** (**Node.js 24 LTS** recommended; uses Node's built-in `node:sqlite` module out of the box)
+- **Node.js `>= 22.18.0`** (**Node.js 24 LTS** recommended; uses Node's built-in `node:sqlite` module out of the box)
 - **npm `>= 10`**
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Optional for local dev, recommended for Link Import of videos and playlists; install locally into `./.bin/yt-dlp` via `npm run setup:ytdlp`, or bundled automatically at `/opt/yt-dlp/yt-dlp` in Docker)
 
@@ -152,7 +161,7 @@ cd tv-tracker
 cp .env.example .env
 
 # 3. Install dependencies
-npm install
+npm ci
 
 # 4. Start the development server (listens on http://localhost:3000)
 npm run dev
@@ -175,7 +184,7 @@ All environment variables are read exclusively on the server from `.env` (see [`
 
 | Variable | Required | Default | Purpose | Where to Get / Notes |
 | :--- | :---: | :--- | :--- | :--- |
-| `TMDB_READ_TOKEN` | **Required** | Empty | TMDB v4 Read Access Token (Bearer auth) for searching titles and fetching bilingual metadata | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
+| `TMDB_READ_TOKEN` | **Required** | Empty | TMDB Read Access Token (Bearer) or v3 API Key (auto-detected) for search and metadata | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
 | `OMDB_API_KEY` | Optional | Empty | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days) | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) |
 | `DATA_DIR` | Optional | `./data` | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports | Mounted at `/data` inside Docker |
 | `YTDLP_PATH` | Optional override | Auto-detected | Custom path to the `yt-dlp` binary (not listed in `.env.example`; set only to override the default lookup order) | When unset or empty, checks `/opt/yt-dlp/yt-dlp`, `./.bin/yt-dlp`, then `yt-dlp` on `PATH` |

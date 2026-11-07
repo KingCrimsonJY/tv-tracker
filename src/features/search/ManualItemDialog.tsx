@@ -5,6 +5,7 @@ import {
   Label,
   Input,
   TextArea,
+  FieldError,
   ToggleButtonGroup,
   ToggleButton,
   Button,
@@ -36,17 +37,23 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
   const [posterUrl, setPosterUrl] = useState('');
   const [overview, setOverview] = useState('');
   const [episodeCount, setEpisodeCount] = useState('0');
+  const [year, setYear] = useState('');
+  const [runtime, setRuntime] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       if (initialSeed) {
+        setYear(initialSeed.year == null ? '' : String(initialSeed.year));
+        setRuntime(initialSeed.runtimeMin == null ? '' : String(initialSeed.runtimeMin));
         setTitle(initialSeed.title);
         setMediaType(initialSeed.mediaType);
         setPosterUrl(initialSeed.posterUrl);
         setOverview(initialSeed.overview);
         setEpisodeCount(String(initialSeed.episodeCount || 0));
       } else {
+        setYear('');
+        setRuntime('');
         setTitle('');
         setMediaType('movie');
         setPosterUrl('');
@@ -56,20 +63,28 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
     }
   }, [isOpen, initialSeed]);
 
+  const invalidYear = year !== '' && (!Number.isInteger(Number(year)) || Number(year) < 1800 || Number(year) > 2200);
+  const invalidRuntime = runtime !== '' && (!Number.isFinite(Number(runtime)) || Number(runtime) < 0 || Number(runtime) > 100000);
+  const invalidCount = mediaType !== 'movie' && (!Number.isInteger(Number(episodeCount)) || Number(episodeCount) < 0 || Number(episodeCount) > 2000);
+  const invalid = invalidYear || invalidRuntime || invalidCount;
+
   const handleSave = async () => {
-    if (!title.trim()) return;
+    if (!title.trim() || invalid || saving) return;
     setSaving(true);
     try {
       const epCount = Math.max(0, parseInt(episodeCount, 10) || 0);
       const createdDoc = await createCustomOrLinkTitle({
         name: title.trim(),
         mediaType,
+        year: year === '' ? null : Number(year),
+        runtimeMin: runtime === '' ? null : Number(runtime),
+        liveStatus: initialSeed?.liveStatus,
         posterPath: posterUrl.trim() || null,
         overview: overview.trim(),
         uploader: initialSeed?.uploader ?? null,
         episodeCount: mediaType === 'movie' ? 0 : epCount,
         episodes:
-          initialSeed?.episodes && initialSeed.episodes.length === epCount
+          mediaType !== 'movie' && initialSeed?.episodes && initialSeed.episodes.length === epCount
             ? initialSeed.episodes
             : undefined,
         source: initialSeed?.source ?? 'custom',
@@ -89,9 +104,15 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>{t.search.manual.title}</Modal.Heading>
+            <Modal.Heading>{initialSeed?.source === 'url' ? t.search.manual.ParsedPreviewTitle : t.search.manual.title}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
+            {initialSeed?.warning && (
+              <p role="status" className="rounded-lg bg-warning/10 p-3 text-sm text-foreground break-words">
+                {translateError({ code: initialSeed.warning })}
+              </p>
+            )}
+            {initialSeed?.liveStatus && <p className="text-sm text-muted">{t.liveStatus[initialSeed.liveStatus]}</p>}
             <TextField value={title} onChange={setTitle} isRequired>
               <Label>{t.search.manual.nameLabel}</Label>
               <Input placeholder={t.search.manual.namePlaceholder} />
@@ -101,6 +122,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
               <Label className="text-xs text-[var(--muted)]">{t.search.manual.typeLabel}</Label>
               <div>
                 <ToggleButtonGroup
+                  aria-label={t.search.manual.typeLabel}
                   selectionMode="single"
                   disallowEmptySelection
                   selectedKeys={new Set([mediaType])}
@@ -108,7 +130,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
                     const k = Array.from(keys)[0] as MediaType;
                     if (k) {
                       setMediaType(k);
-                      if (k !== 'movie' && episodeCount === '0') {
+                      if (k === 'tv' && episodeCount === '0' && !initialSeed) {
                         setEpisodeCount('12');
                       }
                     }
@@ -122,15 +144,29 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
               </div>
             </div>
 
+            <div className="grid grid-cols-2 items-end gap-3">
+              <TextField value={year} onChange={setYear} isInvalid={invalidYear}>
+                <Label>{t.search.manual.yearLabel}</Label>
+                <Input type="number" min={1800} max={2200} />
+                <FieldError>{t.search.manual.invalidYear}</FieldError>
+              </TextField>
+              <TextField value={runtime} onChange={setRuntime} isInvalid={invalidRuntime}>
+                <Label>{t.search.manual.runtimeLabel}</Label>
+                <Input type="number" min={0} max={100000} />
+                <FieldError>{t.search.manual.invalidRuntime}</FieldError>
+              </TextField>
+            </div>
+
             <TextField value={posterUrl} onChange={setPosterUrl}>
               <Label>{t.search.manual.posterUrlLabel}</Label>
               <Input placeholder={t.search.manual.posterUrlPlaceholder} type="url" />
             </TextField>
 
             {mediaType !== 'movie' && (
-              <TextField value={episodeCount} onChange={setEpisodeCount}>
+              <TextField value={episodeCount} onChange={setEpisodeCount} isInvalid={invalidCount}>
                 <Label>{t.search.manual.episodeCountLabel}</Label>
-                <Input type="number" min={1} max={2000} />
+                <Input type="number" min={0} max={2000} />
+                <FieldError>{t.search.manual.invalidCount}</FieldError>
               </TextField>
             )}
 
@@ -162,7 +198,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             <Button
               variant="primary"
               onPress={handleSave}
-              isDisabled={!title.trim() || saving}
+              isDisabled={!title.trim() || saving || invalid}
             >
               {saving ? t.app.loading : t.search.manual.submitButton}
             </Button>

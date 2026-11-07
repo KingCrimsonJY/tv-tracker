@@ -4,6 +4,8 @@ import path from 'node:path';
 import { z } from 'zod';
 import { isGenericEpisodeLabel } from '../../src/domain/airing.ts';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
+import { LinkImportError, classifyLinkFailure } from './linkErrors.ts';
+import { isBangumiUrl } from './linkUrls.ts';
 import { assertSafePublicUrl, type DnsLookupFn } from '../security/ssrf.ts';
 
 export const YTDLP_TIMEOUT_MS = 30_000;
@@ -88,9 +90,12 @@ const ytdlpEntrySchema = z.object({
   url: z.string().nullable().optional(),
   duration: z.number().nullable().optional(),
   ie_key: z.string().nullable().optional(),
+  live_status: z.string().nullable().optional(),
 });
 
 export const ytdlpOutputSchema = z.object({
+  live_status: z.string().nullable().optional(),
+  is_live: z.boolean().nullable().optional(),
   title: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   thumbnail: z.string().nullable().optional(),
@@ -158,7 +163,15 @@ export function getYtdlpBinaryPath(
 }
 
 export function buildYtdlpArgs(url: string): string[] {
+  const cookiesFile = process.env.YTDLP_COOKIES_FILE?.trim();
   return [
+    ...(cookiesFile ? ['--cookies', cookiesFile] : []),
+    '--ignore-config',
+    '--no-cache-dir',
+    '--playlist-end', '2001',
+    '--socket-timeout', '10',
+    '--retries', '1',
+    '--extractor-retries', '1',
     '--dump-single-json',
     '--skip-download',
     '--flat-playlist',
@@ -222,32 +235,10 @@ function deriveEntrySourceVideoId(
 }
 
 function isTvOrBangumiOutput(parsed: YtdlpOutput, inputUrl: string): boolean {
-  const extractor = `${parsed.extractor || ''} ${parsed.extractor_key || ''}`.toLowerCase();
-  if (extractor.includes('bangumi')) return true;
-
-  const urlToCheck = `${parsed.webpage_url || ''} ${inputUrl}`.toLowerCase();
-  if (urlToCheck.includes('bilibili.com/bangumi/')) return true;
-
-  if (Array.isArray(parsed.entries)) {
-    for (const entry of parsed.entries) {
-      if (entry?.ie_key && entry.ie_key.toLowerCase().includes('bangumi')) {
-        return true;
-      }
-      if (entry?.url && entry.url.toLowerCase().includes('bilibili.com/bangumi/')) {
-        return true;
-      }
-    }
-  }
-
-  if (
-    parsed.season_number != null ||
-    parsed.episode_number != null ||
-    Boolean(parsed.series && parsed.series.trim())
-  ) {
-    return true;
-  }
-
-  return false;
+  const extractor = ((parsed.extractor || '') + ' ' + (parsed.extractor_key || '')).toLowerCase();
+  if (extractor.includes('cheese')) return false;
+  return extractor.includes('bangumi') || isBangumiUrl(inputUrl) ||
+    (parsed.webpage_url ? isBangumiUrl(parsed.webpage_url) : false);
 }
 
 export function mapYtdlpJsonToLinkResult(
@@ -264,15 +255,8 @@ export function mapYtdlpJsonToLinkResult(
     ? parsed.series.trim()
     : parsed.title?.trim()) || '';
 
-  const fallbackHost = (() => {
-    try {
-      return new URL(inputUrl).hostname;
-    } catch {
-      return inputUrl;
-    }
-  })();
-
-  const title = (rawTitle || fallbackHost).slice(0, 200);
+  if (!rawTitle) throw new LinkImportError('LINK_PARSE_FAILED', 'Video title is missing.');
+  const title = rawTitle.slice(0, 200);
   const posterUrl = selectBestThumbnail(parsed);
 
   const uploader = parsed.uploader?.trim() || null;
@@ -297,6 +281,12 @@ export function mapYtdlpJsonToLinkResult(
     ? parsed.entries.filter((e): e is NonNullable<typeof e> => Boolean(e))
     : [];
 
+  if (validEntries.length > 2000 || (parsed.playlist_count ?? 0) > 2000) {
+    throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+  }
+  if ((parsed._type === 'playlist' || parsed._type === 'multi_video') && !validEntries.length) {
+    throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
+  }
   const episodes: LinkImportEpisodeSeed[] = validEntries.map((entry, idx) => {
     const rawEpTitle = entry.title?.trim() || null;
     const epTitle = rawEpTitle && !isGenericEpisodeLabel(rawEpTitle) ? rawEpTitle.slice(0, 300) : null;
@@ -311,8 +301,19 @@ export function mapYtdlpJsonToLinkResult(
     };
   });
 
+  const liveStatus = parsed.is_live || parsed.live_status === 'is_live' ? 'live'
+    : parsed.live_status === 'is_upcoming' ? 'upcoming'
+    : parsed.live_status === 'was_live' || parsed.live_status === 'post_live' ? 'ended' : undefined;
+  const metadata = {
+    ...(liveStatus ? { liveStatus } : {}),
+    mediaType: 'other' as const,
+    ...((parsed.playlist_count != null && parsed.playlist_count > validEntries.length) || validEntries.some(entry => !entry.title || (!entry.duration && !['is_live', 'is_upcoming'].includes(entry.live_status || '')))
+      ? { warning: 'LINK_METADATA_INCOMPLETE' } : {}),
+  } satisfies Partial<LinkImportResult>;
+
   if (!options.forceImport && isTvOrBangumiOutput(parsed, inputUrl)) {
     return {
+      ...metadata,
       kind: 'tmdb-suggestion',
       title,
       posterUrl,
@@ -330,6 +331,7 @@ export function mapYtdlpJsonToLinkResult(
     episodes.length > 0 || parsed._type === 'playlist' || parsed._type === 'multi_video';
 
   return {
+    ...metadata,
     kind: isPlaylist ? 'playlist' : 'video',
     title,
     posterUrl,
@@ -378,7 +380,42 @@ export async function resolveWithYtdlp(
     throw new YtdlpExecutionError('yt-dlp output is not valid JSON', 'YTDLP_FAILED');
   }
 
-  return mapYtdlpJsonToLinkResult(parsedJson, safeUrl.toString(), {
+  const parsed = ytdlpOutputSchema.parse(parsedJson);
+  // Validate size and shape before spending requests on optional enrichment.
+  mapYtdlpJsonToLinkResult(parsed, safeUrl.toString(), { forceImport: options.forceImport });
+  if (parsed.entries && (parsed.extractor || '').toLowerCase().startsWith('youtube')) {
+    // Bounded enrichment of Shorts/channel entries omitted by the flat extractor.
+    // Never follow arbitrary entry URLs emitted by a third-party page.
+    const deadline = Date.now() + 60_000;
+    const pending = parsed.entries.filter(entry => entry?.id && /^[\w-]{11}$/.test(entry.id) &&
+      (!entry.title || !entry.duration) && !['is_live', 'is_upcoming'].includes(entry.live_status || '')).slice(0, 2000);
+    let cursor = 0;
+    let sourceBlocked = false;
+    await Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
+      while (!sourceBlocked && cursor < pending.length && Date.now() < deadline) {
+        const entry = pending[cursor++];
+        if (!entry) continue;
+        try {
+          const target = 'https://www.youtube.com/watch?v=' + entry.id;
+          await assertSafePublicUrl(target, options.lookupFn);
+          const detail = await execFn(binaryPath, buildYtdlpArgs(target), {
+            timeout: Math.min(timeout, Math.max(1, deadline - Date.now())),
+            maxBuffer: YTDLP_MAX_BUFFER_BYTES,
+          });
+          const info = ytdlpOutputSchema.parse(JSON.parse(detail.stdout));
+          entry.title ||= info.title;
+          entry.duration ||= info.duration;
+          entry.live_status ||= info.live_status;
+        } catch (err) {
+          if (['LINK_RATE_LIMITED', 'LINK_LOGIN_REQUIRED'].includes(classifyLinkFailure(err).code)) {
+            sourceBlocked = true;
+          }
+          // Preserve every item and report partial metadata instead of dropping it.
+        }
+      }
+    }));
+  }
+  return mapYtdlpJsonToLinkResult(parsed, safeUrl.toString(), {
     forceImport: options.forceImport,
   });
 }

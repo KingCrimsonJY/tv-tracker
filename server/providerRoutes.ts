@@ -15,10 +15,10 @@ import {
 } from './providers/tmdb.ts';
 import {
   getYtdlpVersion,
-  resolveWithYtdlp,
   YtdlpExecutionError,
   YtdlpNotInstalledError,
 } from './providers/ytdlp.ts';
+import { LinkImportError } from './providers/linkErrors.ts';
 import { UnsafeUrlError } from './security/ssrf.ts';
 
 function getPackageVersion(): string {
@@ -44,6 +44,7 @@ function classifyProviderError(err: unknown, fallbackCode: ServerErrorCode): {
   code: ServerErrorCode;
   message: string;
 } {
+  if (err instanceof LinkImportError) return { code: err.code, message: err.message };
   if (err instanceof UnsafeUrlError) {
     return { code: err.code as ServerErrorCode, message: err.message };
   }
@@ -186,14 +187,16 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         return;
       }
 
-      const resolved = await resolveWithYtdlp(title.sourceId, {
-        binaryPath: linkDeps.ytdlpPath,
-        lookupFn: linkDeps.lookupFn,
-        execFn: linkDeps.execFn,
+      const resolved = await resolveLinkMetadata(title.sourceId, {
+        ...linkDeps,
         forceImport: true,
       });
+      // A generic web page must never be used to refresh structured video metadata.
+      if (resolved.fallbackUsed === 'og' || resolved.fallbackUsed === 'manual') {
+        throw new LinkImportError('REFRESH_LINK_FAILED', 'Only basic page metadata was available.');
+      }
 
-      const refreshResult = repo.appendPlaylistEpisodes(id, resolved.episodes, nowFn());
+      const refreshResult = repo.appendPlaylistEpisodes(id, resolved.episodes, nowFn(), resolved);
       const broadcasted = broadcastMutation({
         version: refreshResult.version,
         upserts: refreshResult.upserts,
@@ -202,6 +205,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       res.json({
         ...broadcasted,
         addedCount: refreshResult.addedCount,
+        ...(resolved.warning ? { warning: resolved.warning } : {}),
       });
     } catch (err) {
       if (err instanceof NotFoundError) {

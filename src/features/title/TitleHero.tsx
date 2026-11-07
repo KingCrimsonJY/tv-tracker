@@ -36,6 +36,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
       <div className="relative w-full h-[clamp(240px,42vh,440px)] bg-surface-secondary overflow-hidden">
         {backdropUrl ? (
           <img
+            referrerPolicy="no-referrer"
             src={backdropUrl}
             alt=""
             className="w-full h-full object-cover object-top"
@@ -111,6 +112,11 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
                 </Chip>
               )}
 
+              {title.liveStatus && (
+                <Chip size="sm" color={title.liveStatus === 'live' ? 'danger' : 'default'} variant="soft">
+                  {t.liveStatus[title.liveStatus]}
+                </Chip>
+              )}
               {titleState.hasNewEpisodes && (
                 <Chip size="sm" color="accent" variant="primary">
                   {t.status.newEpisodesBadge}
@@ -118,7 +124,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground leading-tight">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground leading-tight break-words">
               {displayTitle}
             </h1>
 

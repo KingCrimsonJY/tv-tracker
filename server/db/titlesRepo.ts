@@ -2,6 +2,7 @@ import { normalizeLocalizedEpisodeName } from '../../src/domain/progress.ts';
 import { titleDocSchema } from '../../src/domain/schemas.ts';
 import type {
   LinkImportEpisodeSeed,
+  LinkImportResult,
   PlaylistRefreshResult,
   ProgressDoc,
   SeasonDoc,
@@ -321,7 +322,8 @@ export function appendPlaylistEpisodes(
   ctx: DbContext,
   titleId: string,
   incomingEpisodes: LinkImportEpisodeSeed[],
-  now = Date.now()
+  now = Date.now(),
+  metadata?: LinkImportResult
 ): PlaylistRefreshResult {
   return ctx.runInTransaction(() => {
     const titleRow = ctx.db.prepare('SELECT data FROM titles WHERE id = ?').get(titleId) as
@@ -338,9 +340,22 @@ export function appendPlaylistEpisodes(
       )
       .all(titleId) as Array<{ season_number: number; data: string }>;
 
-    const seasons: SeasonDoc[] = seasonRows.map((r) => JSON.parse(r.data) as SeasonDoc);
+    const incomingById = new Map(incomingEpisodes.filter(ep => ep.sourceVideoId).map(ep => [ep.sourceVideoId!, ep]));
+    const seasons: SeasonDoc[] = seasonRows.map((r) => {
+      const season = JSON.parse(r.data) as SeasonDoc;
+      return { ...season, episodes: season.episodes.map(ep => {
+        const item = ep.sourceVideoId ? incomingById.get(ep.sourceVideoId) : undefined;
+        if (!item) return ep;
+        return {
+          ...ep,
+          name: normalizeLocalizedEpisodeName(ep.name) ?? normalizeLocalizedEpisodeName(item.name),
+          runtime: ep.runtime ?? item.runtime ?? null,
+          airDate: ep.airDate ?? item.airDate ?? null,
+        };
+      }) };
+    });
     let season1 = seasons.find((s) => s.seasonNumber === 1);
-    if (!season1) {
+    if (!season1 && incomingEpisodes.length > 0) {
       season1 = { seasonNumber: 1, name: null, episodes: [] };
       seasons.push(season1);
       seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
@@ -360,7 +375,7 @@ export function appendPlaylistEpisodes(
     }
 
     let addedCount = 0;
-    const appendedEpisodes = [...season1.episodes];
+    const appendedEpisodes = [...(season1?.episodes ?? [])];
     for (const item of incomingEpisodes) {
       const vidId = item.sourceVideoId?.trim();
       if (!vidId || existingVideoIds.has(vidId)) {
@@ -376,7 +391,7 @@ export function appendPlaylistEpisodes(
           zh: item.name ?? undefined,
           en: item.name ?? undefined,
         }),
-        airDate: '2020-01-01',
+        airDate: item.airDate ?? null,
         runtime: item.runtime ?? existingTitle.runtimeMin ?? null,
         stillPath: null,
         overview: {},
@@ -399,6 +414,17 @@ export function appendPlaylistEpisodes(
     const updatedTitle: TitleDoc = {
       ...existingTitle,
       id: titleId,
+      ...(metadata ? {
+        sourceId: metadata.sourceUrl,
+        year: existingTitle.year ?? metadata.year,
+        runtimeMin: metadata.liveStatus === 'live' ? null : existingTitle.runtimeMin ?? metadata.runtimeMin,
+        posterPath: existingTitle.posterPath || metadata.posterUrl,
+        backdropPath: existingTitle.backdropPath || metadata.posterUrl,
+        uploader: existingTitle.uploader || metadata.uploader,
+        ...(metadata.liveStatus ? { liveStatus: metadata.liveStatus } : {}),
+      } : {}),
+      mediaType: incomingEpisodes.length > 0 && existingTitle.mediaType === 'movie' && metadata?.mediaType !== 'movie'
+        ? 'other' : existingTitle.mediaType,
       metaFetchedAt: now,
       updatedAt: now,
     };

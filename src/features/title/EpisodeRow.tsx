@@ -71,6 +71,7 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
       {episode.stillPath && (
         <div className="hidden sm:block w-28 aspect-video rounded-lg overflow-hidden bg-surface-secondary shrink-0">
           <img
+            referrerPolicy="no-referrer"
             src={episode.stillPath}
             alt={resolvedEpTitle}
             className="w-full h-full object-cover"

@@ -361,10 +361,12 @@ export async function importDataApi(payload: unknown): Promise<StateMutationResu
 
 export async function searchTmdbApi(
   query: string,
-  lang: 'zh-CN' | 'en-US' = 'zh-CN'
+  lang: 'zh-CN' | 'en-US' = 'zh-CN',
+  signal?: AbortSignal
 ): Promise<{ configured?: boolean; results: TmdbSearchItem[] }> {
   return apiJson<{ configured?: boolean; results: TmdbSearchItem[] }>(
-    `/api/tmdb/search?q=${encodeURIComponent(query)}&lang=${encodeURIComponent(lang)}`
+    `/api/tmdb/search?q=${encodeURIComponent(query)}&lang=${encodeURIComponent(lang)}`,
+    { signal }
   );
 }
 
@@ -394,8 +396,9 @@ export async function fetchRatingsApi(params: {
   return apiJson(`/api/ratings?${query.toString()}`);
 }
 
-export async function importLinkApi(url: string, force?: boolean): Promise<LinkImportResult> {
+export async function importLinkApi(url: string, force?: boolean, signal?: AbortSignal): Promise<LinkImportResult> {
   return apiJson<LinkImportResult>('/api/import/link', {
+    signal,
     method: 'POST',
     body: JSON.stringify({ url, ...(force ? { force: true } : {}) }),
   });

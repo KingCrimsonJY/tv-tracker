@@ -28,25 +28,27 @@ export const SearchPage: React.FC = () => {
     const trimmed = query.trim();
     if (!trimmed) {
       setResults([]);
+      setSearching(false);
       setSearchError(null);
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setSearching(true);
       setSearchError(null);
       try {
         const lang = locale === 'en' ? 'en-US' : 'zh-CN';
-        const data = await searchTmdbApi(trimmed, lang);
-        setResults(data.results || []);
+        const data = await searchTmdbApi(trimmed, lang, controller.signal);
+        if (!controller.signal.aborted) setResults(data.results || []);
       } catch (err) {
-        setSearchError(translateError(err));
+        if (!controller.signal.aborted) setSearchError(translateError(err));
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 350);
 
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [query, locale, translateError]);
 
   const existingTmdbKeys = new Set(

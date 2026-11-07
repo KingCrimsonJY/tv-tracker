@@ -1,20 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Modal, TextField, Label, Input, Button, toast } from '@heroui/react';
 import { importLinkApi, LinkImportResult } from '../../data/api';
-import { LinkImportEpisodeSeed, MediaType } from '../../domain/types';
+import { linkResultToManualSeed, type ManualSeed } from './linkImportModel';
+export type { ManualSeed } from './linkImportModel';
 import { useI18n } from '../../i18n';
-
-export interface ManualSeed {
-  title: string;
-  mediaType: MediaType;
-  posterUrl: string;
-  overview: string;
-  uploader?: string | null;
-  episodeCount: number;
-  episodes?: LinkImportEpisodeSeed[];
-  source: 'url' | 'custom';
-  sourceUrl: string | null;
-}
 
 interface LinkImportDialogProps {
   isOpen: boolean;
@@ -29,50 +18,58 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
   onSearchTmdb,
   onParsedToManual,
 }) => {
+  const request = useRef<AbortController | null>(null);
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [tmdbSuggestion, setTmdbSuggestion] = useState<LinkImportResult | null>(null);
   const { t, translateError } = useI18n();
 
-  const finishToManual = (res: LinkImportResult, sourceUrl: string) => {
-    onParsedToManual({
-      title: res.title || '',
-      mediaType: res.episodes && res.episodes.length > 1 ? 'other' : 'movie',
-      posterUrl: res.posterUrl || '',
-      overview: res.overview || '',
-      uploader: res.uploader ?? null,
-      episodeCount: res.episodes?.length ?? 0,
-      episodes: res.episodes,
-      source: 'url',
-      sourceUrl: res.sourceUrl || sourceUrl,
-    });
+  useEffect(() => {
+    if (!isOpen) {
+      request.current?.abort();
+      setLoading(false);
+      setTmdbSuggestion(null);
+    }
+    return () => request.current?.abort();
+  }, [isOpen]);
+
+  const finishToManual = (res: LinkImportResult) => {
+    onParsedToManual(linkResultToManualSeed(res));
     setUrl('');
     setTmdbSuggestion(null);
-    toast.success(t.search.linkImport.parseSuccessToast);
+    if (res.warning || res.fallbackUsed === 'og') {
+      toast.warning(translateError({ code: res.warning || 'LINK_METADATA_INCOMPLETE' }));
+    } else {
+      toast.success(t.search.linkImport.parseSuccessToast);
+    }
   };
 
   const handleParse = async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
     setTmdbSuggestion(null);
     try {
-      const res = await importLinkApi(trimmed);
+      const res = await importLinkApi(trimmed, undefined, controller.signal);
+      if (controller.signal.aborted) return;
       if (res.kind === 'tmdb-suggestion') {
         setTmdbSuggestion(res);
         return;
       }
-      finishToManual(res, trimmed);
+      finishToManual(res);
     } catch (err) {
-      toast.danger(translateError(err));
+      if (!controller.signal.aborted) toast.danger(translateError(err));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container size="md">
+      <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
@@ -82,14 +79,14 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             <p className="text-xs text-[var(--muted)] leading-relaxed">
               {t.search.linkImport.description}
             </p>
-            <TextField value={url} onChange={setUrl} isRequired>
+            <TextField value={url} onChange={(value) => { setUrl(value); setTmdbSuggestion(null); }} isRequired isDisabled={loading}>
               <Label>{t.search.linkImport.urlLabel}</Label>
-              <Input placeholder={t.search.linkImport.urlPlaceholder} type="url" />
+              <Input placeholder={t.search.linkImport.urlPlaceholder} type="text" />
             </TextField>
 
             {tmdbSuggestion && (
               <div className="p-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] space-y-2.5">
-                <div className="text-sm font-medium text-[var(--foreground)]">
+                <div className="text-sm font-medium text-[var(--foreground)] break-words">
                   {t.search.linkImport.tmdbSuggestionTitle(tmdbSuggestion.title)}
                 </div>
                 <p className="text-xs text-[var(--muted)]">
@@ -98,6 +95,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <Button
                     size="sm"
+                    className="h-auto min-h-9 whitespace-normal text-left break-words"
                     variant="primary"
                     onPress={() => {
                       const q = tmdbSuggestion.title;
@@ -111,7 +109,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onPress={() => finishToManual(tmdbSuggestion, url.trim())}
+                    onPress={() => finishToManual(tmdbSuggestion)}
                   >
                     {t.search.linkImport.addAsLinkAnywayButton}
                   </Button>

@@ -52,6 +52,15 @@ export type ServerErrorCode =
   | 'YTDLP_MISSING'
   | 'YTDLP_TIMEOUT'
   | 'YTDLP_FAILED'
+  | 'LINK_REGION_RESTRICTED'
+  | 'LINK_AGE_RESTRICTED'
+  | 'LINK_PAYMENT_REQUIRED'
+  | 'LINK_LOGIN_REQUIRED'
+  | 'LINK_UNAVAILABLE'
+  | 'LINK_NOT_LIVE'
+  | 'LINK_RATE_LIMITED'
+  | 'LINK_EMPTY_PLAYLIST'
+  | 'LINK_PLAYLIST_TOO_LARGE'
   | 'LINK_PARSE_FAILED'
   | 'REFRESH_LINK_ONLY_URL'
   | 'REFRESH_LINK_FAILED'
@@ -120,6 +129,8 @@ export interface TitleNames {
   custom?: string;
 }
 
+export type LinkLiveStatus = 'live' | 'upcoming' | 'ended' | 'offline';
+
 export interface TitleDoc {
   id: string;
   source: TitleSource;
@@ -133,6 +144,7 @@ export interface TitleDoc {
   genres: string[];
   genreIds?: number[];
   uploader?: string | null;
+  liveStatus?: LinkLiveStatus;
   posterPath: string | null;
   posters?: LocalizedPosters;
   backdropPath: string | null;
@@ -218,6 +230,7 @@ export interface AppSettingsDoc {
 }
 
 export interface LinkImportEpisodeSeed {
+  airDate?: string | null;
   name: string | null;
   sourceVideoId?: string;
   runtime?: number | null;
@@ -229,11 +242,13 @@ export interface LinkImportResult {
   posterUrl: string | null;
   overview: string;
   uploader?: string | null;
+  liveStatus?: LinkLiveStatus;
   sourceUrl: string;
   year: number | null;
   runtimeMin: number | null;
   episodes: LinkImportEpisodeSeed[];
-  fallbackUsed: 'yt-dlp' | 'og' | 'manual';
+  fallbackUsed: 'yt-dlp' | 'bilibili' | 'og' | 'manual';
+  mediaType?: MediaType;
   warning?: string;
 }
 
@@ -286,6 +301,7 @@ export interface TitleAtomicActionInput {
 }
 
 export interface PlaylistRefreshResult extends StateMutationResult {
+  warning?: string;
   addedCount: number;
 }
 
