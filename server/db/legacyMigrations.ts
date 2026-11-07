@@ -1,15 +1,19 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
-import { normalizeLocalizedEpisodeName, normalizeLocalizedSeasonName, splitUploaderPrefixFromOverview } from '../../src/domain/progress.ts';
+import {
+  normalizeLocalizedEpisodeName,
+  normalizeLocalizedSeasonName,
+  splitUploaderPrefixFromOverview,
+} from '../../src/domain/progress.ts';
 import type { SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
 
 export function runMigration002InTx(db: DatabaseSync): void {
-  const seasonRows = db
-    .prepare('SELECT title_id, season_number, data FROM seasons')
-    .all() as Array<{ title_id: string; season_number: number; data: string }>;
-  const updateSeason = db.prepare(
-    'UPDATE seasons SET data = ? WHERE title_id = ? AND season_number = ?'
-  );
+  const seasonRows = db.prepare('SELECT title_id, season_number, data FROM seasons').all() as Array<{
+    title_id: string;
+    season_number: number;
+    data: string;
+  }>;
+  const updateSeason = db.prepare('UPDATE seasons SET data = ? WHERE title_id = ? AND season_number = ?');
 
   for (const row of seasonRows) {
     try {

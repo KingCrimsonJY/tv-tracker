@@ -25,12 +25,7 @@ interface ManualItemDialogProps {
   onCreated: (titleId: string) => void;
 }
 
-export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
-  isOpen,
-  onOpenChange,
-  initialSeed,
-  onCreated,
-}) => {
+export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOpenChange, initialSeed, onCreated }) => {
   const { createCustomOrLinkTitle } = useTracker();
   const { t, translateError } = useI18n();
 
@@ -66,8 +61,11 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
   }, [isOpen, initialSeed]);
 
   const invalidYear = year !== '' && (!Number.isInteger(Number(year)) || Number(year) < 1800 || Number(year) > 2200);
-  const invalidRuntime = runtime !== '' && (!Number.isFinite(Number(runtime)) || Number(runtime) < 0 || Number(runtime) > 100000);
-  const invalidCount = mediaType !== 'movie' && (!Number.isInteger(Number(episodeCount)) || Number(episodeCount) < 0 || Number(episodeCount) > 2000);
+  const invalidRuntime =
+    runtime !== '' && (!Number.isFinite(Number(runtime)) || Number(runtime) < 0 || Number(runtime) > 100000);
+  const invalidCount =
+    mediaType !== 'movie' &&
+    (!Number.isInteger(Number(episodeCount)) || Number(episodeCount) < 0 || Number(episodeCount) > 2000);
   const invalid = invalidYear || invalidRuntime || invalidCount;
 
   const handleSave = async () => {
@@ -105,9 +103,12 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
         <Modal.Dialog>
           <Modal.CloseTrigger aria-label={t.app.close} />
           <Modal.Header>
-            <Modal.Heading>{initialSeed?.source === 'url' ? t.search.manual.parsedPreviewTitle : t.search.manual.title}</Modal.Heading>
+            <Modal.Heading>
+              {initialSeed?.source === 'url' ? t.search.manual.parsedPreviewTitle : t.search.manual.title}
+            </Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
+            {Boolean(initialSeed?.skippedCount) && <p>{t.upstream.skippedEntries(initialSeed?.skippedCount || 0)}</p>}
             {initialSeed?.warning && (
               <Alert status="warning">
                 <Alert.Indicator />
@@ -150,9 +151,11 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             <div className="grid grid-cols-1 min-[390px]:grid-cols-2 items-end gap-3">
               <NumberField
                 value={year === '' ? NaN : Number(year)}
-                onChange={value => setYear(value == null || Number.isNaN(value) ? '' : String(value))}
-                minValue={1800} maxValue={2200}
-                formatOptions={{ useGrouping: false }} isInvalid={invalidYear}
+                onChange={(value) => setYear(value == null || Number.isNaN(value) ? '' : String(value))}
+                minValue={1800}
+                maxValue={2200}
+                formatOptions={{ useGrouping: false }}
+                isInvalid={invalidYear}
               >
                 <Label>{t.search.manual.yearLabel}</Label>
                 <NumberField.Group>
@@ -164,9 +167,11 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
               </NumberField>
               <NumberField
                 value={runtime === '' ? NaN : Number(runtime)}
-                onChange={value => setRuntime(value == null || Number.isNaN(value) ? '' : String(value))}
-                minValue={0} maxValue={100000}
-                formatOptions={{ useGrouping: false }} isInvalid={invalidRuntime}
+                onChange={(value) => setRuntime(value == null || Number.isNaN(value) ? '' : String(value))}
+                minValue={0}
+                maxValue={100000}
+                formatOptions={{ useGrouping: false }}
+                isInvalid={invalidRuntime}
               >
                 <Label>{t.search.manual.runtimeLabel}</Label>
                 <NumberField.Group>
@@ -186,9 +191,11 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             {mediaType !== 'movie' && (
               <NumberField
                 value={episodeCount === '' ? NaN : Number(episodeCount)}
-                onChange={value => setEpisodeCount(value == null || Number.isNaN(value) ? '' : String(value))}
-                minValue={0} maxValue={2000}
-                formatOptions={{ useGrouping: false }} isInvalid={invalidCount}
+                onChange={(value) => setEpisodeCount(value == null || Number.isNaN(value) ? '' : String(value))}
+                minValue={0}
+                maxValue={2000}
+                formatOptions={{ useGrouping: false }}
+                isInvalid={invalidCount}
               >
                 <Label>{t.search.manual.episodeCountLabel}</Label>
                 <NumberField.Group>
@@ -225,11 +232,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
             <Button variant="tertiary" onPress={() => onOpenChange(false)}>
               {t.app.cancel}
             </Button>
-            <Button
-              variant="primary"
-              onPress={handleSave}
-              isDisabled={!title.trim() || saving || invalid}
-            >
+            <Button variant="primary" onPress={handleSave} isDisabled={!title.trim() || saving || invalid}>
               {saving ? t.app.loading : t.search.manual.submitButton}
             </Button>
           </Modal.Footer>

@@ -53,9 +53,7 @@ export const RatingsRow: React.FC<RatingsRowProps> = ({ title }) => {
       key: 'rt',
       label: t.detail.ratings.rottenTomatoes,
       score: ratings.rottenTomatoes,
-      href: rtQuery
-        ? `https://www.rottentomatoes.com/search?search=${encodeURIComponent(rtQuery)}`
-        : undefined,
+      href: rtQuery ? `https://www.rottentomatoes.com/search?search=${encodeURIComponent(rtQuery)}` : undefined,
     });
   }
 
@@ -65,9 +63,7 @@ export const RatingsRow: React.FC<RatingsRowProps> = ({ title }) => {
       key: 'mc',
       label: t.detail.ratings.metacritic,
       score: ratings.metacritic,
-      href: mcQuery
-        ? `https://www.metacritic.com/search/${encodeURIComponent(mcQuery)}/`
-        : undefined,
+      href: mcQuery ? `https://www.metacritic.com/search/${encodeURIComponent(mcQuery)}/` : undefined,
       valueColorClass: getMetacriticValueColor(ratings.metacritic),
     });
   }

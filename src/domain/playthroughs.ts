@@ -17,7 +17,7 @@ export function startRewatch(
   title: ActionTitleInput,
   seasons: SeasonDoc[],
   currentProgress: ProgressDoc,
-  options: ActionOptions & { newPlaythroughId?: string } = {}
+  options: ActionOptions & { newPlaythroughId?: string } = {},
 ): MutationResult {
   const {
     includeSpecials = false,
@@ -58,7 +58,7 @@ export interface UndoPlaythroughResult extends MutationResult {
 
 export function undoLatestPlaythrough(
   title: Pick<TitleDoc, 'playthroughs' | 'activePlaythroughId' | 'manualState' | 'resume'>,
-  progressByPlaythrough: Record<string, ProgressDoc> = {}
+  progressByPlaythrough: Record<string, ProgressDoc> = {},
 ): UndoPlaythroughResult {
   const ordered = renumberPlaythroughsByStartDate(title.playthroughs);
 
@@ -89,9 +89,7 @@ export function undoLatestPlaythrough(
   }
 
   const latest = ordered[ordered.length - 1];
-  const remaining = renumberPlaythroughsByStartDate(
-    ordered.filter((p) => p.id !== latest.id)
-  );
+  const remaining = renumberPlaythroughsByStartDate(ordered.filter((p) => p.id !== latest.id));
   const restored = remaining[remaining.length - 1];
   const restoredProgress = progressByPlaythrough?.[restored.id] ?? {
     playthroughId: restored.id,
@@ -114,7 +112,7 @@ export const cancelRewatch = undoLatestPlaythrough;
 export function deletePlaythrough(
   title: Pick<TitleDoc, 'playthroughs' | 'activePlaythroughId' | 'manualState' | 'resume'>,
   playthroughId: string,
-  progressByPlaythrough: Record<string, ProgressDoc> = {}
+  progressByPlaythrough: Record<string, ProgressDoc> = {},
 ): UndoPlaythroughResult {
   const ordered = renumberPlaythroughsByStartDate(title.playthroughs);
   const exists = ordered.some((p) => p.id === playthroughId);
@@ -136,12 +134,9 @@ export function deletePlaythrough(
     return undoLatestPlaythrough(title, progressByPlaythrough);
   }
 
-  const remaining = renumberPlaythroughsByStartDate(
-    ordered.filter((p) => p.id !== playthroughId)
-  );
+  const remaining = renumberPlaythroughsByStartDate(ordered.filter((p) => p.id !== playthroughId));
   const isDeletingActiveOrLatest =
-    playthroughId === title.activePlaythroughId ||
-    playthroughId === ordered[ordered.length - 1].id;
+    playthroughId === title.activePlaythroughId || playthroughId === ordered[ordered.length - 1].id;
 
   const nextActiveId = isDeletingActiveOrLatest
     ? remaining[remaining.length - 1].id

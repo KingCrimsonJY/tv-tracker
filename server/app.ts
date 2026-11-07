@@ -1,3 +1,4 @@
+import { clientSnapshot, clientMutation } from './clientState.ts';
 import { LinkImportError } from './providers/linkErrors.ts';
 import { createPlaylistEnricher } from './playlistEnrichment.ts';
 import { resolveWithYtdlp } from './providers/ytdlp.ts';
@@ -5,10 +6,7 @@ import compression from 'compression';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
 import { ZodError } from 'zod';
-import {
-  authPasswordRequestSchema,
-  authSetupRequestSchema,
-} from '../src/domain/schemas.ts';
+import { authPasswordRequestSchema, authSetupRequestSchema } from '../src/domain/schemas.ts';
 import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
 import {
   clearSessionCookie,
@@ -53,7 +51,7 @@ export function sendApiError(
   status: number,
   code: ServerErrorCode,
   _message: string,
-  extra?: Record<string, unknown>
+  extra?: Record<string, unknown>,
 ): void {
   res.status(status).json({
     code,
@@ -99,7 +97,7 @@ export function createApp(options: CreateAppOptions): Express {
         }
         return compression.filter(req, res);
       },
-    })
+    }),
   );
 
   const json1mb = express.json({ limit: '1mb' });
@@ -115,6 +113,7 @@ export function createApp(options: CreateAppOptions): Express {
   const sseClients = new Set<SseClient>();
 
   function broadcastMutation(mutation: StateMutationResult): StateMutationResult {
+    mutation = clientMutation(mutation);
     const stamped: StateMutationResult = { ...mutation, epoch };
     const payload = `data: ${JSON.stringify(stamped)}\n\n`;
     for (const client of sseClients) {
@@ -140,9 +139,7 @@ export function createApp(options: CreateAppOptions): Express {
   }
 
   function getActivePasswordHash(): string | null {
-    const rawEnv = (
-      envPasswordHash !== undefined ? envPasswordHash : process.env.APP_PASSWORD_HASH || ''
-    )
+    const rawEnv = (envPasswordHash !== undefined ? envPasswordHash : process.env.APP_PASSWORD_HASH || '')
       .trim()
       .replace(/^['"]|['"]$/g, '')
       .trim();
@@ -182,7 +179,12 @@ export function createApp(options: CreateAppOptions): Express {
     const activeHash = getActivePasswordHash();
     const needsSetup = !activeHash;
     const { authenticated } = isSessionAuthenticated(req);
-    res.json({ needsSetup, authenticated });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      needsSetup,
+      authenticated,
+      ...(authenticated && req.query.state === '1' ? { state: { ...clientSnapshot(repo.getState()), epoch } } : {}),
+    });
   });
 
   app.post('/api/auth/setup', (req, res, next) => {
@@ -193,12 +195,7 @@ export function createApp(options: CreateAppOptions): Express {
       }
       const { password, setupCode: providedSetupCode } = authSetupRequestSchema.parse(req.body);
       if (!verifySetupCode(providedSetupCode, activeSetupCode)) {
-        sendApiError(
-          res,
-          403,
-          'SETUP_CODE_INVALID',
-          'Invalid setup code. Check server logs or SETUP_CODE.'
-        );
+        sendApiError(res, 403, 'SETUP_CODE_INVALID', 'Invalid setup code. Check server logs or SETUP_CODE.');
         return;
       }
       const now = nowFn();
@@ -217,12 +214,7 @@ export function createApp(options: CreateAppOptions): Express {
       const now = nowFn();
       const clientIp = getClientIp(req, trustProxy);
       if (rateLimiter.isBlocked(clientIp, now)) {
-        sendApiError(
-          res,
-          429,
-          'TOO_MANY_ATTEMPTS',
-          'Too many failed login attempts. Try again in 15 minutes.'
-        );
+        sendApiError(res, 429, 'TOO_MANY_ATTEMPTS', 'Too many failed login attempts. Try again in 15 minutes.');
         return;
       }
       const activeHash = getActivePasswordHash();
@@ -253,17 +245,9 @@ export function createApp(options: CreateAppOptions): Express {
       return;
     }
     const isMutating =
-      req.method === 'POST' ||
-      req.method === 'PUT' ||
-      req.method === 'PATCH' ||
-      req.method === 'DELETE';
+      req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE';
     if (viaCookie && isMutating && !isSameOriginRequest(req)) {
-      sendApiError(
-        res,
-        403,
-        'CSRF_ORIGIN_MISMATCH',
-        'Cross-origin request rejected (Origin check failed).'
-      );
+      sendApiError(res, 403, 'CSRF_ORIGIN_MISMATCH', 'Cross-origin request rejected (Origin check failed).');
       return;
     }
     const tokenHash = hashSessionToken(token);
@@ -294,7 +278,7 @@ export function createApp(options: CreateAppOptions): Express {
   });
 
   app.get('/api/state', (_req, res) => {
-    res.json({ ...repo.getState(), epoch });
+    res.json({ ...clientSnapshot(repo.getState()), epoch });
   });
 
   app.get('/api/events', (req, res) => {
@@ -304,7 +288,11 @@ export function createApp(options: CreateAppOptions): Express {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
-    res.write(': connected\n\n');
+    res.write(
+      'data: ' +
+        JSON.stringify({ checkpoint: true, version: repo.getVersion(), epoch, upserts: {}, deletes: {} }) +
+        '\n\n',
+    );
 
     let closed = false;
     const heartbeat = setInterval(() => {
@@ -334,8 +322,15 @@ export function createApp(options: CreateAppOptions): Express {
     req.on('close', () => client.close());
   });
 
-  const enricher = createPlaylistEnricher({ repo, broadcast: broadcastMutation,
-    loadVideo: url => resolveWithYtdlp(url, { binaryPath: options.linkDeps?.ytdlpPath, execFn: options.linkDeps?.execFn, lookupFn: options.linkDeps?.lookupFn }),
+  const enricher = createPlaylistEnricher({
+    repo,
+    broadcast: broadcastMutation,
+    loadVideo: (url) =>
+      resolveWithYtdlp(url, {
+        binaryPath: options.linkDeps?.ytdlpPath,
+        execFn: options.linkDeps?.execFn,
+        lookupFn: options.linkDeps?.lookupFn,
+      }),
   });
   app.locals.stopBackgroundTasks = () => enricher.stop();
   for (const title of Object.values(repo.getState().titles)) if (title.source === 'url') enricher.schedule(title.id);
@@ -358,11 +353,14 @@ export function createApp(options: CreateAppOptions): Express {
       const field = firstIssue?.path.length ? firstIssue.path.join('.') : undefined;
       sendApiError(res, 400, 'VALIDATION_ERROR', firstIssue?.message || 'Invalid request payload', {
         ...(field ? { field } : {}),
-        issues: err.issues.map(issue => ({ code: issue.code, path: issue.path })),
+        issues: err.issues.map((issue) => ({ code: issue.code, path: issue.path })),
       });
       return;
     }
-    if (err instanceof LinkImportError) { sendApiError(res, 400, err.code, err.code); return; }
+    if (err instanceof LinkImportError) {
+      sendApiError(res, 400, err.code, err.code);
+      return;
+    }
     if (err instanceof NotFoundError) {
       sendApiError(res, 404, err.code, err.message);
       return;
@@ -381,12 +379,7 @@ export function createApp(options: CreateAppOptions): Express {
       return;
     }
     console.error('Unhandled API error:', err);
-    sendApiError(
-      res,
-      500,
-      'INTERNAL_ERROR',
-      err instanceof Error ? err.message : 'Internal server error.'
-    );
+    sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : 'Internal server error.');
   });
 
   return app;

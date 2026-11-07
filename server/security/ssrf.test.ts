@@ -48,28 +48,24 @@ test('1. isPrivateOrReservedIp identifies private, loopback, link-local, and IPv
 test('2. assertSafePublicUrl rejects non-http protocols and private/reserved DNS resolutions', async () => {
   await assert.rejects(
     () => assertSafePublicUrl('file:///etc/passwd'),
-    (err: unknown) => err instanceof UnsafeUrlError
+    (err: unknown) => err instanceof UnsafeUrlError,
   );
   await assert.rejects(
     () => assertSafePublicUrl('http://127.0.0.1:8080/test'),
-    (err: unknown) => err instanceof UnsafeUrlError
+    (err: unknown) => err instanceof UnsafeUrlError,
   );
   await assert.rejects(
     () => assertSafePublicUrl('http://169.254.169.254/latest/meta-data/'),
-    (err: unknown) => err instanceof UnsafeUrlError
+    (err: unknown) => err instanceof UnsafeUrlError,
   );
   await assert.rejects(
-    () =>
-      assertSafePublicUrl('https://evil.example.com/video', async () => [
-        { address: '10.1.2.3' },
-      ]),
-    (err: unknown) => err instanceof UnsafeUrlError
+    () => assertSafePublicUrl('https://evil.example.com/video', async () => [{ address: '10.1.2.3' }]),
+    (err: unknown) => err instanceof UnsafeUrlError,
   );
 
-  const valid = await assertSafePublicUrl(
-    'https://www.bilibili.com/video/BV1xx411c7mD',
-    async () => [{ address: '93.184.216.34' }]
-  );
+  const valid = await assertSafePublicUrl('https://www.bilibili.com/video/BV1xx411c7mD', async () => [
+    { address: '93.184.216.34' },
+  ]);
   assert.equal(valid.hostname, 'www.bilibili.com');
 });
 
@@ -79,9 +75,9 @@ test('3. safeFetchFollowingRedirects and resolveLinkMetadata reject private/loop
       safeFetchFollowingRedirects(
         'https://example.com/evil-redirect',
         {},
-        { lookupFn: mockPublicDns, fetchFn: mockFetch }
+        { lookupFn: mockPublicDns, fetchFn: mockFetch },
       ),
-    (err: unknown) => err instanceof UnsafeUrlError
+    (err: unknown) => err instanceof UnsafeUrlError,
   );
 
   let ytdlpCalled = false;
@@ -104,7 +100,7 @@ test('3. safeFetchFollowingRedirects and resolveLinkMetadata reject private/loop
           execFn,
         });
       },
-      (err: unknown) => err instanceof UnsafeUrlError
+      (err: unknown) => err instanceof UnsafeUrlError,
     );
   }
   assert.equal(ytdlpCalled, false);
@@ -120,7 +116,7 @@ test('3. safeFetchFollowingRedirects and resolveLinkMetadata reject private/loop
         execFn: execFail,
       });
     },
-    (err: unknown) => err instanceof UnsafeUrlError
+    (err: unknown) => err instanceof UnsafeUrlError,
   );
 });
 

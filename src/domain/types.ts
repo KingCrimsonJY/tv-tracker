@@ -4,25 +4,11 @@ export type DisplayLang = 'zh' | 'original' | 'en' | 'custom';
 export type UiLocale = 'zh-CN' | 'en';
 export type UiLangSetting = 'system' | 'zh-CN' | 'en';
 export type DefaultTitleLang = 'auto' | 'zh' | 'original' | 'en' | null;
-export type ShowStatus =
-  | 'Returning Series'
-  | 'Ended'
-  | 'Canceled'
-  | 'In Production'
-  | 'Planned'
-  | 'Released'
-  | null;
+export type ShowStatus = 'Returning Series' | 'Ended' | 'Canceled' | 'In Production' | 'Planned' | 'Released' | null;
 export type ManualState = 'paused' | 'dropped' | null;
 
 export type TitleStatusCode =
-  | 'unwatched'
-  | 'watching'
-  | 'caught_up'
-  | 'completed'
-  | 'unaired'
-  | 'unreleased'
-  | 'paused'
-  | 'dropped';
+  'unwatched' | 'watching' | 'caught_up' | 'completed' | 'unaired' | 'unreleased' | 'paused' | 'dropped';
 
 export type SeasonStateCode = 'none' | 'partial' | 'complete';
 
@@ -137,7 +123,7 @@ export interface TitleNames {
 
 export interface UpstreamChange {
   signature: string;
-  seasons: SeasonDoc[];
+  seasons?: SeasonDoc[];
   fetchedAt: number;
 }
 export interface ArchivedWatch {
@@ -146,6 +132,7 @@ export interface ArchivedWatch {
 }
 
 export interface TitleDoc {
+  episodeDetailsVersion?: number;
   structureLocked?: boolean;
   sourceUnavailable?: boolean;
   upstreamChange?: UpstreamChange | null;
@@ -228,12 +215,7 @@ export interface ListEntryDoc {
   addedAt: number;
 }
 
-export type HomeSectionId =
-  | 'continue_watching'
-  | 'new_episodes'
-  | 'pinned_lists'
-  | 'recently_added'
-  | 'watchlist';
+export type HomeSectionId = 'continue_watching' | 'new_episodes' | 'pinned_lists' | 'recently_added' | 'watchlist';
 
 export interface HomeSectionConfig {
   id: HomeSectionId;
@@ -256,6 +238,7 @@ export interface LinkImportEpisodeSeed {
 }
 
 export interface LinkImportResult {
+  skippedCount?: number;
   seriesTitle?: string;
   tmdbMatches?: TmdbSearchItem[];
   kind: 'video' | 'playlist' | 'tmdb-suggestion';
@@ -300,6 +283,7 @@ export interface StateDeletes {
 }
 
 export interface StateMutationResult {
+  checkpoint?: boolean;
   replace?: boolean;
   version: number;
   epoch?: string;
@@ -323,6 +307,7 @@ export interface TitleAtomicActionInput {
 }
 
 export interface PlaylistRefreshResult extends StateMutationResult {
+  skippedCount?: number;
   warning?: string;
   addedCount: number;
 }
@@ -339,7 +324,7 @@ export interface ZhenjiExportV2 {
   entriesByList: Record<string, ListEntryDoc[]>;
 }
 
-export type MetadataRefreshStatus = 'updated' | 'partial' | 'failed' | 'skipped';
+export type MetadataRefreshStatus = 'updated' | 'needsReview' | 'partial' | 'failed' | 'skipped';
 export type MetadataRefreshCounts = Record<MetadataRefreshStatus, number>;
 export interface MetadataRefreshResult extends StateMutationResult {
   status: MetadataRefreshStatus;

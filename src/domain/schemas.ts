@@ -1,8 +1,7 @@
+import { DEFAULT_APP_SETTINGS } from './defaultSettings.ts';
+export { DEFAULT_APP_SETTINGS } from './defaultSettings.ts';
 import { z } from 'zod';
-import {
-  normalizeLocalizedEpisodeName,
-  normalizeLocalizedSeasonName,
-} from './airing.ts';
+import { normalizeLocalizedEpisodeName, normalizeLocalizedSeasonName } from './airing.ts';
 import type {
   AppSettingsDoc,
   EpisodeMeta,
@@ -27,14 +26,7 @@ export const displayLangSchema = z.enum(['zh', 'original', 'en', 'custom']).null
 export const uiLangSettingSchema = z.enum(['system', 'zh-CN', 'en']);
 export const defaultTitleLangSchema = z.enum(['auto', 'zh', 'original', 'en']).nullable();
 export const showStatusSchema = z
-  .enum([
-    'Returning Series',
-    'Ended',
-    'Canceled',
-    'In Production',
-    'Planned',
-    'Released',
-  ])
+  .enum(['Returning Series', 'Ended', 'Canceled', 'In Production', 'Planned', 'Released'])
   .nullable();
 export const manualStateSchema = z.enum(['paused', 'dropped']).nullable();
 
@@ -98,14 +90,19 @@ const upstreamFields = {
   structureLocked: z.boolean().optional(),
   sourceUnavailable: z.boolean().optional(),
   ignoredStructure: z.string().nullable().optional(),
-  upstreamChange: z.object({
-    signature: z.string(), fetchedAt: z.number().nonnegative(),
-    seasons: z.array(z.lazy(() => seasonDocSchema)),
-  }).nullable().optional(),
+  upstreamChange: z
+    .object({
+      signature: z.string(),
+      fetchedAt: z.number().nonnegative(),
+      seasons: z.array(z.lazy(() => seasonDocSchema)).optional(),
+    })
+    .nullable()
+    .optional(),
 };
 
 const baseTitleFields = {
   ...upstreamFields,
+  episodeDetailsVersion: z.number().nonnegative().optional(),
   source: titleSourceSchema,
   sourceId: z.string().nullable(),
   mediaType: mediaTypeSchema,
@@ -136,26 +133,20 @@ const baseTitleFields = {
 
 export const titleDocWithoutIdSchema: z.ZodType<Omit<TitleDoc, 'id'>> = z
   .object(baseTitleFields)
-  .refine(
-    (doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId),
-    {
-      message: 'activePlaythroughId must exist in playthroughs',
-      path: ['activePlaythroughId'],
-    }
-  );
+  .refine((doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId), {
+    message: 'activePlaythroughId must exist in playthroughs',
+    path: ['activePlaythroughId'],
+  });
 
 export const titleDocSchema: z.ZodType<TitleDoc> = z
   .object({
     id: z.string().min(1),
     ...baseTitleFields,
   })
-  .refine(
-    (doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId),
-    {
-      message: 'activePlaythroughId must exist in playthroughs',
-      path: ['activePlaythroughId'],
-    }
-  );
+  .refine((doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId), {
+    message: 'activePlaythroughId must exist in playthroughs',
+    path: ['activePlaythroughId'],
+  });
 
 export const patchTitleRequestSchema = z
   .object({
@@ -209,7 +200,9 @@ export const seasonDocSchema: z.ZodType<SeasonDoc> = z.object({
   episodes: z.array(episodeMetaSchema),
 });
 
-const archivedWatchedSchema = z.array(z.object({ episode: episodeMetaSchema, watchedAt: z.number().nonnegative() })).optional();
+const archivedWatchedSchema = z
+  .array(z.object({ episode: episodeMetaSchema, watchedAt: z.number().nonnegative() }))
+  .optional();
 
 export const progressDataSchema = z.object({
   archivedWatched: archivedWatchedSchema,
@@ -264,26 +257,19 @@ export const putTitleRequestSchema = z.union([
   z.object({
     title: titleDocSchema,
     seasons: z.array(seasonDocSchema).optional(),
-    progress: z
-      .union([progressDocSchema, z.record(z.string(), progressDocSchema)])
-      .optional(),
+    progress: z.union([progressDocSchema, z.record(z.string(), progressDocSchema)]).optional(),
   }),
   z
     .object({
       id: z.string().min(1).optional(),
       ...baseTitleFields,
       seasons: z.array(seasonDocSchema).optional(),
-      progress: z
-        .union([progressDocSchema, z.record(z.string(), progressDocSchema)])
-        .optional(),
+      progress: z.union([progressDocSchema, z.record(z.string(), progressDocSchema)]).optional(),
     })
-    .refine(
-      (doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId),
-      {
-        message: 'activePlaythroughId must exist in playthroughs',
-        path: ['activePlaythroughId'],
-      }
-    ),
+    .refine((doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId), {
+      message: 'activePlaythroughId must exist in playthroughs',
+      path: ['activePlaythroughId'],
+    }),
 ]);
 
 export const putSeasonsRequestSchema = z.union([
@@ -367,27 +353,11 @@ export const homeSectionConfigSchema: z.ZodType<HomeSectionConfig> = z.object({
   enabled: z.boolean(),
 });
 
-export const DEFAULT_APP_SETTINGS: AppSettingsDoc = {
-  uiLang: 'system',
-  defaultTitleLang: 'auto',
-  includeSpecials: false,
-  homeSections: [
-    { id: 'continue_watching', enabled: true },
-    { id: 'new_episodes', enabled: true },
-    { id: 'pinned_lists', enabled: true },
-    { id: 'recently_added', enabled: false },
-    { id: 'watchlist', enabled: false },
-  ],
-  theme: 'dark',
-};
-
 export const appSettingsDocSchema: z.ZodType<AppSettingsDoc> = z.object({
   uiLang: uiLangSettingSchema.optional().default('system'),
   defaultTitleLang: defaultTitleLangSchema.default('auto'),
   includeSpecials: z.boolean().default(false),
-  homeSections: z
-    .array(homeSectionConfigSchema)
-    .default(DEFAULT_APP_SETTINGS.homeSections),
+  homeSections: z.array(homeSectionConfigSchema).default(DEFAULT_APP_SETTINGS.homeSections),
   theme: z.enum(['dark', 'light', 'system']).default('dark'),
 });
 
@@ -422,10 +392,7 @@ export const exportV2Schema = z.object({
   settings: appSettingsDocSchema,
   titles: z.record(z.string(), titleDocSchema),
   seasonsByTitle: z.record(z.string(), z.array(seasonDocSchema)),
-  progressByTitle: z.record(
-    z.string(),
-    z.record(z.string(), progressDocSchema)
-  ),
+  progressByTitle: z.record(z.string(), z.record(z.string(), progressDocSchema)),
   lists: z.record(z.string(), watchListDocSchema),
   entriesByList: z.record(z.string(), z.array(listEntryDocSchema)),
 });
@@ -436,9 +403,7 @@ export const exportV1Schema = z.object({
   settings: appSettingsDocSchema.optional().default(DEFAULT_APP_SETTINGS),
   titles: z.record(z.string(), titleDocSchema).default({}),
   seasonsByTitle: z.record(z.string(), z.array(seasonDocSchema)).default({}),
-  progressByTitle: z
-    .record(z.string(), z.record(z.string(), progressDocSchema))
-    .default({}),
+  progressByTitle: z.record(z.string(), z.record(z.string(), progressDocSchema)).default({}),
   lists: z.record(z.string(), watchListDocSchema).default({}),
   entriesByList: z.record(z.string(), z.array(listEntryDocSchema)).default({}),
 });

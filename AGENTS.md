@@ -3,7 +3,7 @@
 ## Working agreement
 
 - Work from the latest `main` on a branch. Keep commits focused; when a request is divided into sections, make one commit per section. Open a PR with concise, idiomatic English and validation results.
-- Run installs, builds, commands and tests inside disposable Podman containers. Never install packages on the host or mount a host project directory. Clean up task containers, images and caches afterwards. Do not remove unrelated resources.
+- Run installs, builds, commands and tests inside disposable Podman containers. Never install packages on the host or mount a host project directory. Retain the development container, credentials, images and caches until the user explicitly requests cleanup. Do not remove unrelated resources.
 - Ask the user before adding dependencies or external services, changing the export format, or removing any feature not explicitly listed in the request.
 - Data changes require migrations. Keep both v1 and v2 backup imports working; retain the existing v2 export envelope.
 - Use strict TypeScript. No `any` and no non-null assertions.
@@ -17,7 +17,7 @@
 
 - Demo seeding must never touch `DATA_DIR` and must refuse to delete directories it did not create.
 - A failed upstream request must never remove local metadata or progress. Metadata refresh is a single server-side transaction.
-- Refresh All reports updated, partial, failed and skipped separately, including missing provider configuration.
+- Refresh All reports updated, needs review, partial, failed and skipped separately, including missing provider configuration.
 - CI must run lint, Vitest and the production build, build the Docker image, start it and verify `/healthz`.
 - `npm start` serves the production build without requiring the caller to set `NODE_ENV`. README offline timing must match the heartbeat watchdog and countdown.
 
@@ -33,7 +33,7 @@
 - Automatically apply additions and safe text/image updates.
 - Never automatically remove or renumber seasons/episodes. Show structural changes on the title page with a preview and a choice to keep the local structure or adopt the upstream structure.
 - On adoption, migrate watched marks by TMDB episode id first, then air date and order. Preserve unmatched marks so they return if the episode returns. Synchronization never silently deletes watched history.
-- Each title can lock its season structure while still accepting name/image updates.
+- Each title can lock its season structure. Continue safe text/image updates and append new episode identities to the end of the last local season in air-date order. Locking prevents removal, renumbering and moving existing episodes between seasons.
 - A missing upstream title/video is marked source unavailable; preserve everything and stop automatic refresh. Offer re-linking to another TMDB entry or conversion to manual maintenance.
 
 ## Link imports
@@ -56,3 +56,10 @@
 - Use camelCase i18n keys and HeroUI NumberField for numeric add-dialog inputs.
 - Regression coverage includes deleted upstream entries, removed/split seasons, locked structure, returning episodes, every rejected link category, and bangumi with/without TMDB matches.
 - Verify changed screens at 320, 390 and 1280 px in both languages with a clean browser console. Report lint, tests, frontend build, Docker build and health results, and mark each numbered request done, partly done or skipped with a brief explanation.
+
+## Design
+
+- Keep a calm, Infuse-like look with uncluttered layouts.
+- Reserve one accent color for the primary action.
+- Put advanced or rarely used controls in menus and reveal detail progressively.
+- Never show internal keys in user-facing text.

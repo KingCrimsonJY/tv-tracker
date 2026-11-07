@@ -1,3 +1,4 @@
+import { useTitleEpisodes } from './useTitleEpisodes';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@heroui/react';
@@ -16,7 +17,12 @@ export function useTitleDetail() {
   const navigate = useNavigate();
   const highlightEpKey = searchParams.get('ep');
 
-  const tracker = useTracker();
+  const tracker = useTracker((state) => [
+    id ? state.titles[id] : null,
+    id ? state.seasonsByTitle[id] : null,
+    id ? state.progressByTitle[id] : null,
+    state.settings,
+  ]);
   const { t, locale, translateError } = useI18n();
   const {
     titles,
@@ -39,7 +45,11 @@ export function useTitleDetail() {
   const [deletePlaythroughId, setDeletePlaythroughId] = useState<string | null>(null);
 
   const title = id ? titles[id] : undefined;
-  const seasons = useMemo(() => (id ? seasonsByTitle[id] ?? [] : []), [id, seasonsByTitle]);
+  const seasons = useTitleEpisodes(
+    id,
+    id ? seasonsByTitle[id] : undefined,
+    title?.episodeDetailsVersion ?? title?.metaFetchedAt,
+  );
   const activeProgress = title ? getActiveProgress(title) : undefined;
   const today = toLocalDateString();
 
@@ -68,26 +78,22 @@ export function useTitleDetail() {
     if (!titleId || titleUnavailable) return;
     const now = Date.now();
     const isOngoing =
-      titleMediaType === 'tv' &&
-      titleShowStatus &&
-      !['ended', 'canceled'].includes(titleShowStatus.toLowerCase());
+      titleMediaType === 'tv' && titleShowStatus && !['ended', 'canceled'].includes(titleShowStatus.toLowerCase());
     const threshold = isOngoing ? 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
     const missingEitherLang =
-      titleSource === 'tmdb' &&
-      (!titleNameZh || !titleNameEn || (!titleOverviewZh && !titleOverviewEn));
+      titleSource === 'tmdb' && (!titleNameZh || !titleNameEn || (!titleOverviewZh && !titleOverviewEn));
 
     if (
       titleSource === 'tmdb' &&
-      (!titleMetaFetchedAt || now - titleMetaFetchedAt > threshold || (missingEitherLang && now - titleMetaFetchedAt > 3600_000))
+      (!titleMetaFetchedAt ||
+        now - titleMetaFetchedAt > threshold ||
+        (missingEitherLang && now - titleMetaFetchedAt > 3600_000))
     ) {
       void refreshTitleMetadata(titleId).catch(() => {});
     }
 
     const ratingThreshold = 7 * 24 * 60 * 60 * 1000;
-    if (
-      titleImdbId &&
-      (!titleRatingsFetchedAt || now - titleRatingsFetchedAt > ratingThreshold)
-    ) {
+    if (titleImdbId && (!titleRatingsFetchedAt || now - titleRatingsFetchedAt > ratingThreshold)) {
       void fetchAndCacheTitleRatings(titleId).catch(() => {});
     }
   }, [
@@ -115,16 +121,14 @@ export function useTitleDetail() {
     title.names,
     title.displayLang,
     settings.defaultTitleLang,
-    locale
+    locale,
   );
   const showOriginalSub = Boolean(secondary && secondary !== displayTitle);
   const rawOverview = resolveOverviewText(title, settings.defaultTitleLang, locale);
   const hasOverviewText = Boolean(rawOverview && rawOverview.trim() !== '');
   const overviewText = hasOverviewText ? rawOverview : t.detail.overview.empty;
 
-  const regularSeasons = seasons
-    .filter((s) => s.seasonNumber >= 1)
-    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+  const regularSeasons = seasons.filter((s) => s.seasonNumber >= 1).sort((a, b) => a.seasonNumber - b.seasonNumber);
   const specialSeason = seasons.find((s) => s.seasonNumber === 0);
 
   const metaParts: string[] = [];
@@ -138,7 +142,7 @@ export function useTitleDetail() {
   const localizedGenres = resolveTitleGenres(
     title,
     locale,
-    tracker.tmdbGenres ? (locale === 'en' ? tracker.tmdbGenres.en : tracker.tmdbGenres.zh) : undefined
+    tracker.tmdbGenres ? (locale === 'en' ? tracker.tmdbGenres.en : tracker.tmdbGenres.zh) : undefined,
   );
   if (localizedGenres.length > 0) {
     metaParts.push(localizedGenres.slice(0, 2).join(' / '));
@@ -147,6 +151,11 @@ export function useTitleDetail() {
   const menuNode = React.createElement(TitleMenu, {
     title,
     titleState,
+    onToggleStructureLock: () => {
+      void tracker
+        .setStructureLock(title.id, !title.structureLocked)
+        .catch((error: unknown) => toast.danger(translateError(error)));
+    },
     onAddToList: () => setAddToListOpen(true),
     onOpenResume: () => {
       setResumeDefaultEpKey(title.resume?.episodeKey ?? titleState.nextUp?.key ?? null);
@@ -159,7 +168,13 @@ export function useTitleDetail() {
     onRefreshMetadata: async () => {
       try {
         const status = await refreshTitleMetadata(title.id);
-        const message = t.settings.dataManagement.refreshAllSummary(status === 'updated' ? 1 : 0, status === 'partial' ? 1 : 0, status === 'failed' ? 1 : 0, status === 'skipped' ? 1 : 0);
+        const message = t.settings.dataManagement.refreshAllSummary(
+          status === 'updated' ? 1 : 0,
+          status === 'needsReview' ? 1 : 0,
+          status === 'partial' ? 1 : 0,
+          status === 'failed' ? 1 : 0,
+          status === 'skipped' ? 1 : 0,
+        );
         if (status === 'failed' || status === 'partial') toast.warning(message);
         else toast.success(message);
       } catch (err) {

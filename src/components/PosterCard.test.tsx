@@ -7,12 +7,18 @@ import { PosterCard } from './PosterCard';
 
 vi.mock('../i18n', () => ({ useI18n: () => ({ t: en, locale: 'en' }) }));
 
-test.each([[2, 0], [6, 1], [282, 50]])(
+test.each([
+  [2, 0],
+  [6, 1],
+  [282, 50],
+])(
   'a 564-episode collection with %i watched reports %i percent without a visual minimum',
   (watchedCount, percentage) => {
     const episode = makeSampleSeasons()[1].episodes[0];
     const episodes = Array.from({ length: 564 }, (_, index) => ({
-      ...episode, number: index + 1, key: `s1e${index + 1}`,
+      ...episode,
+      number: index + 1,
+      key: `s1e${index + 1}`,
     }));
     const markup = renderToStaticMarkup(
       <MemoryRouter>
@@ -21,7 +27,7 @@ test.each([[2, 0], [6, 1], [282, 50]])(
           seasons={[{ seasonNumber: 1, name: null, episodes }]}
           progress={{
             playthroughId: 'p1',
-            watched: Object.fromEntries(episodes.slice(0, watchedCount).map(item => [item.key, 1])),
+            watched: Object.fromEntries(episodes.slice(0, watchedCount).map((item) => [item.key, 1])),
           }}
         />
       </MemoryRouter>,

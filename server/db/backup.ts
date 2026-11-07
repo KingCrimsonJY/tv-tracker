@@ -12,15 +12,10 @@ export function formatTimeHHmmss(now = new Date()): string {
 }
 
 const DAILY_BACKUP_REGEX = /^tracker-\d{4}-\d{2}-\d{2}\.db$/;
-const SAFETY_BACKUP_REGEX =
-  /^tracker-\d{4}-\d{2}-\d{2}-\d{6}-pre-(?:import|migration)(?:-\d+)?\.db$/;
+const SAFETY_BACKUP_REGEX = /^tracker-\d{4}-\d{2}-\d{2}-\d{6}-pre-(?:import|migration)(?:-\d+)?\.db$/;
 const DAILY_EXPORT_REGEX = /^zhenji-\d{4}-\d{2}-\d{2}\.json$/;
 
-export function pruneMatchingFilesKeepingNewest(
-  dirPath: string,
-  pattern: RegExp,
-  keepCount: number
-): void {
+export function pruneMatchingFilesKeepingNewest(dirPath: string, pattern: RegExp, keepCount: number): void {
   if (!fs.existsSync(dirPath)) return;
   const files = fs
     .readdirSync(dirPath)
@@ -40,7 +35,7 @@ export function pruneMatchingFilesKeepingNewest(
 export function createSafetyBackup(
   ctx: DbContext,
   kind: 'pre-migration' | 'pre-import',
-  now = new Date()
+  now = new Date(),
 ): string | null {
   if (ctx.isMemory || !ctx.dataDir) return null;
   const backupsDir = path.join(ctx.dataDir, 'backups');
@@ -112,16 +107,13 @@ export function backupDatabase(ctx: DbContext, dateStr = todayDateStr()): string
 export function writeDailyExport(
   ctx: DbContext,
   exportDataFn: () => ZhenjiExportV2,
-  dateStr = todayDateStr()
+  dateStr = todayDateStr(),
 ): string | null {
   if (ctx.isMemory || !ctx.dataDir) return null;
   const exportsDir = path.join(ctx.dataDir, 'exports');
   fs.mkdirSync(exportsDir, { recursive: true });
   const targetPath = path.join(exportsDir, `zhenji-${dateStr}.json`);
-  const tempPath = path.join(
-    exportsDir,
-    `.zhenji-${dateStr}.tmp-${process.pid}-${Date.now()}.json`
-  );
+  const tempPath = path.join(exportsDir, `.zhenji-${dateStr}.tmp-${process.pid}-${Date.now()}.json`);
 
   try {
     const exported = exportDataFn();

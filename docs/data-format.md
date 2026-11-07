@@ -63,9 +63,7 @@ DATA_DIR/
       "externalIds": { "imdb": "tt11280740" },
       "ratings": { "tmdb": "8.4", "tmdbVotes": 1520, "imdb": "8.7", "fetchedAt": 1700000000000 },
       "manualState": null,
-      "playthroughs": [
-        { "id": "p1", "number": 1, "startedAt": 1700000000000 }
-      ],
+      "playthroughs": [{ "id": "p1", "number": 1, "startedAt": 1700000000000 }],
       "activePlaythroughId": "p1",
       "resume": null,
       "metaFetchedAt": 1700000000000,

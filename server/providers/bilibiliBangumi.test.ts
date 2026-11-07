@@ -11,23 +11,32 @@ const episodes = [
 ];
 const deps = (items = episodes) => ({
   lookupFn,
-  fetchFn: async () => Response.json({ code: 0, result: {
-    title: 'Series', season_id: 123, type: 1, episodes: items,
-  } }),
+  fetchFn: async () =>
+    Response.json({
+      code: 0,
+      result: {
+        title: 'Series',
+        season_id: 123,
+        type: 1,
+        episodes: items,
+      },
+    }),
 });
 
 describe('Bilibili bangumi episode selection', () => {
-  test.each([false, true])('season imports exclude extras using section metadata (force=%s)', async forceImport => {
+  test.each([false, true])('season imports exclude extras using section metadata (force=%s)', async (forceImport) => {
     const result = await resolveBilibiliMetadata('https://www.bilibili.com/bangumi/play/ss123', {
-      ...deps(), forceImport,
+      ...deps(),
+      forceImport,
     });
-    expect(result?.episodes.map(ep => ep.sourceVideoId)).toEqual(['10', '12', '14']);
-    expect(result?.episodes.map(ep => ep.name)).toEqual(['Episode 1', 'Episode 2', 'A story about a preview']);
+    expect(result?.episodes.map((ep) => ep.sourceVideoId)).toEqual(['10', '12', '14']);
+    expect(result?.episodes.map((ep) => ep.name)).toEqual(['Episode 1', 'Episode 2', 'A story about a preview']);
   });
 
   test('an explicitly selected preview remains importable as a single video', async () => {
     const result = await resolveBilibiliMetadata('https://www.bilibili.com/bangumi/play/ep11', {
-      ...deps(), forceImport: true,
+      ...deps(),
+      forceImport: true,
     });
     expect(result).toMatchObject({ kind: 'video', title: 'Series · Episode 2 preview', runtimeMin: 1, episodes: [] });
   });
@@ -38,20 +47,31 @@ describe('Bilibili bangumi episode selection', () => {
   });
 
   test('a season with only promotional entries is not reported as a complete work', async () => {
-    await expect(resolveBilibiliMetadata('https://www.bilibili.com/bangumi/play/ss123', {
-      ...deps([episodes[1], episodes[3]]), forceImport: true,
-    })).rejects.toMatchObject({ code: 'LINK_EMPTY_PLAYLIST' });
+    await expect(
+      resolveBilibiliMetadata('https://www.bilibili.com/bangumi/play/ss123', {
+        ...deps([episodes[1], episodes[3]]),
+        forceImport: true,
+      }),
+    ).rejects.toMatchObject({ code: 'LINK_EMPTY_PLAYLIST' });
   });
 
   test('movie imports use one edition duration rather than adding dubbed editions', async () => {
     const result = await resolveBilibiliMetadata('https://www.bilibili.com/bangumi/play/ss123', {
-      lookupFn, forceImport: true,
-      fetchFn: async () => Response.json({ code: 0, result: {
-        title: 'Movie', season_id: 123, type: 2, episodes: [
-          { id: 20, title: 'Original', duration: 7260000, section_type: 0 },
-          { id: 21, title: 'Dubbed', duration: 7260000, section_type: 0 },
-        ],
-      } }),
+      lookupFn,
+      forceImport: true,
+      fetchFn: async () =>
+        Response.json({
+          code: 0,
+          result: {
+            title: 'Movie',
+            season_id: 123,
+            type: 2,
+            episodes: [
+              { id: 20, title: 'Original', duration: 7260000, section_type: 0 },
+              { id: 21, title: 'Dubbed', duration: 7260000, section_type: 0 },
+            ],
+          },
+        }),
     });
     expect(result).toMatchObject({ mediaType: 'movie', runtimeMin: 121 });
   });

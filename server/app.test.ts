@@ -209,7 +209,7 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     const reader = sseRes.body.getReader();
     const firstChunk = await reader.read();
     expect(firstChunk.done).toBe(false);
-    expect(new TextDecoder().decode(firstChunk.value)).toContain(': connected');
+    expect(new TextDecoder().decode(firstChunk.value)).toContain('"version":0');
 
     const logoutAllRes = await fetch(`${baseUrl}/api/auth/logout-all`, {
       method: 'POST',

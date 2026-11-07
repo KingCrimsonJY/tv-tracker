@@ -1,16 +1,9 @@
 import type { ListEntryDoc, StateMutationResult, WatchListDoc } from '../../src/domain/types.ts';
-import {
-  type DbContext,
-  NotFoundError,
-  serializeEntryData,
-  serializeListData,
-} from './types.ts';
+import { type DbContext, NotFoundError, serializeEntryData, serializeListData } from './types.ts';
 
 function getEntriesForListInTx(ctx: DbContext, listId: string): ListEntryDoc[] {
   const rows = ctx.db
-    .prepare(
-      'SELECT id, title_id, rank, data FROM list_entries WHERE list_id = ? ORDER BY rank ASC'
-    )
+    .prepare('SELECT id, title_id, rank, data FROM list_entries WHERE list_id = ? ORDER BY rank ASC')
     .all(listId) as Array<{
     id: string;
     title_id: string;
@@ -28,18 +21,14 @@ function getEntriesForListInTx(ctx: DbContext, listId: string): ListEntryDoc[] {
   });
 }
 
-export function putList(
-  ctx: DbContext,
-  id: string,
-  listInput: Omit<WatchListDoc, 'id'>
-): StateMutationResult {
+export function putList(ctx: DbContext, id: string, listInput: Omit<WatchListDoc, 'id'>): StateMutationResult {
   return ctx.runInTransaction(() => {
     const listDoc: WatchListDoc = { ...listInput, id };
     ctx.db
       .prepare(
         `INSERT INTO lists (id, data, rank)
          VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET data = excluded.data, rank = excluded.rank`
+         ON CONFLICT(id) DO UPDATE SET data = excluded.data, rank = excluded.rank`,
       )
       .run(id, serializeListData(listDoc), listDoc.rank);
 
@@ -54,15 +43,10 @@ export function putList(
   });
 }
 
-export function patchList(
-  ctx: DbContext,
-  id: string,
-  patch: Partial<Omit<WatchListDoc, 'id'>>
-): StateMutationResult {
+export function patchList(ctx: DbContext, id: string, patch: Partial<Omit<WatchListDoc, 'id'>>): StateMutationResult {
   return ctx.runInTransaction(() => {
     const row = ctx.db.prepare('SELECT data, rank FROM lists WHERE id = ?').get(id) as
-      | { data: string; rank: string }
-      | undefined;
+      { data: string; rank: string } | undefined;
     if (!row) {
       throw new NotFoundError(`List not found: ${id}`, 'LIST_NOT_FOUND');
     }
@@ -75,9 +59,7 @@ export function patchList(
       id,
     };
 
-    ctx.db
-      .prepare('UPDATE lists SET data = ?, rank = ? WHERE id = ?')
-      .run(serializeListData(merged), merged.rank, id);
+    ctx.db.prepare('UPDATE lists SET data = ?, rank = ? WHERE id = ?').run(serializeListData(merged), merged.rank, id);
 
     const version = ctx.bumpVersionInTx();
     return {
@@ -108,16 +90,14 @@ export function putListEntry(
   ctx: DbContext,
   listId: string,
   entryId: string,
-  entryInput: Omit<ListEntryDoc, 'id'>
+  entryInput: Omit<ListEntryDoc, 'id'>,
 ): StateMutationResult {
   return ctx.runInTransaction(() => {
     const listExists = ctx.db.prepare('SELECT 1 FROM lists WHERE id = ?').get(listId);
     if (!listExists) {
       throw new NotFoundError(`List not found: ${listId}`, 'LIST_NOT_FOUND');
     }
-    const titleExists = ctx.db
-      .prepare('SELECT 1 FROM titles WHERE id = ?')
-      .get(entryInput.titleId);
+    const titleExists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(entryInput.titleId);
     if (!titleExists) {
       throw new NotFoundError(`Title not found: ${entryInput.titleId}`, 'TITLE_NOT_FOUND');
     }
@@ -131,7 +111,7 @@ export function putListEntry(
            list_id = excluded.list_id,
            title_id = excluded.title_id,
            rank = excluded.rank,
-           data = excluded.data`
+           data = excluded.data`,
       )
       .run(entryId, listId, entryDoc.titleId, entryDoc.rank, serializeEntryData(entryDoc));
 
@@ -153,7 +133,7 @@ export function patchListEntry(
   ctx: DbContext,
   listId: string,
   entryId: string,
-  patch: Partial<Omit<ListEntryDoc, 'id'>>
+  patch: Partial<Omit<ListEntryDoc, 'id'>>,
 ): StateMutationResult {
   return ctx.runInTransaction(() => {
     const row = ctx.db
@@ -173,9 +153,7 @@ export function patchListEntry(
     };
 
     ctx.db
-      .prepare(
-        'UPDATE list_entries SET title_id = ?, rank = ?, data = ? WHERE id = ? AND list_id = ?'
-      )
+      .prepare('UPDATE list_entries SET title_id = ?, rank = ?, data = ? WHERE id = ? AND list_id = ?')
       .run(merged.titleId, merged.rank, serializeEntryData(merged), entryId, listId);
 
     const entries = getEntriesForListInTx(ctx, listId);
@@ -192,15 +170,9 @@ export function patchListEntry(
   });
 }
 
-export function deleteListEntry(
-  ctx: DbContext,
-  listId: string,
-  entryId: string
-): StateMutationResult {
+export function deleteListEntry(ctx: DbContext, listId: string, entryId: string): StateMutationResult {
   return ctx.runInTransaction(() => {
-    ctx.db
-      .prepare('DELETE FROM list_entries WHERE id = ? AND list_id = ?')
-      .run(entryId, listId);
+    ctx.db.prepare('DELETE FROM list_entries WHERE id = ? AND list_id = ?').run(entryId, listId);
     const entries = getEntriesForListInTx(ctx, listId);
     const version = ctx.bumpVersionInTx();
     return {

@@ -23,16 +23,8 @@ import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/ty
 import { useI18n } from '../i18n';
 
 export const ListsPage: React.FC = () => {
-  const {
-    loadingData,
-    titles,
-    seasonsByTitle,
-    lists,
-    entriesByList,
-    settings,
-    getActiveProgress,
-    createList,
-  } = useTracker();
+  const { loadingData, titles, seasonsByTitle, lists, entriesByList, settings, getActiveProgress, createList } =
+    useTracker();
   const { locale, t } = useI18n();
   const navigate = useNavigate();
 
@@ -84,29 +76,20 @@ export const ListsPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
       <header className="flex items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
-            {t.lists.title}
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">{t.lists.title}</h1>
           <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
             {t.lists.countLabel(sortedLists.length)}
           </span>
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          onPress={() => setCreateOpen(true)}
-        >
+        <Button variant="primary" size="sm" onPress={() => setCreateOpen(true)}>
           <Plus className="w-4 h-4" />
           <span>{t.lists.createList}</span>
         </Button>
       </header>
 
       {loadingData ? (
-        <div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
-          aria-label={t.lists.loadingAria}
-        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" aria-label={t.lists.loadingAria}>
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-56 rounded-2xl" />
           ))}
@@ -116,12 +99,8 @@ export const ListsPage: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center mx-auto">
             <Layers className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {t.lists.emptyListsTitle}
-          </h2>
-          <p className="text-sm text-[var(--muted)] leading-relaxed">
-            {t.lists.emptyListsDescription}
-          </p>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">{t.lists.emptyListsTitle}</h2>
+          <p className="text-sm text-[var(--muted)] leading-relaxed">{t.lists.emptyListsDescription}</p>
           <Button variant="primary" onPress={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4" />
             <span>{t.lists.createList}</span>
@@ -133,31 +112,22 @@ export const ListsPage: React.FC = () => {
             const rawEntries = entriesByList[list.id] || [];
             const hydrated = rawEntries
               .map((entry) => ({ entry, title: titles[entry.titleId] }))
-              .filter(
-                (item): item is { entry: ListEntryDoc; title: TitleDoc } =>
-                  Boolean(item.title)
-              );
+              .filter((item): item is { entry: ListEntryDoc; title: TitleDoc } => Boolean(item.title));
 
             const sortedEntries = sortListEntries(
               hydrated,
               list.kind,
               list.collectionSort,
               settings.defaultTitleLang,
-              locale
+              locale,
             );
 
-            const stats = computeListProgress(
-              sortedEntries,
-              seasonsByTitle,
-              progressByTitleMap,
-              { includeSpecials: settings.includeSpecials }
-            );
+            const stats = computeListProgress(sortedEntries, seasonsByTitle, progressByTitleMap, {
+              includeSpecials: settings.includeSpecials,
+            });
 
             const collageTitles = sortedEntries.slice(0, 4).map((h) => h.title);
-            const pct =
-              stats.totalCount > 0
-                ? Math.round((stats.completedCount / stats.totalCount) * 100)
-                : 0;
+            const pct = stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0;
 
             return (
               <Link
@@ -178,12 +148,8 @@ export const ListsPage: React.FC = () => {
                           <MediaImage
                             src={pickPoster(item, locale)}
                             alt={
-                              resolveDisplayTitle(
-                                item.names,
-                                item.displayLang,
-                                settings.defaultTitleLang,
-                                locale
-                              ).primary
+                              resolveDisplayTitle(item.names, item.displayLang, settings.defaultTitleLang, locale)
+                                .primary
                             }
                             aspect="poster"
                             mediaType={item.mediaType}
@@ -209,11 +175,7 @@ export const ListsPage: React.FC = () => {
                         ) : (
                           <Bookmark className="w-3.5 h-3.5" />
                         )}
-                        <span>
-                          {list.kind === 'ordered'
-                            ? t.lists.orderedType
-                            : t.lists.collectionType}
-                        </span>
+                        <span>{list.kind === 'ordered' ? t.lists.orderedType : t.lists.collectionType}</span>
                       </span>
 
                       {list.pinned && (
@@ -228,30 +190,16 @@ export const ListsPage: React.FC = () => {
                       {list.name}
                     </h2>
 
-                    {list.description && (
-                      <p className="text-xs text-[var(--muted)] line-clamp-1">
-                        {list.description}
-                      </p>
-                    )}
+                    {list.description && <p className="text-xs text-[var(--muted)] line-clamp-1">{list.description}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
                       <span>{t.lists.totalTitlesLabel(stats.totalCount)}</span>
-                      <span>
-                        {t.lists.progressLabel(
-                          stats.completedCount,
-                          stats.totalCount
-                        )}
-                      </span>
+                      <span>{t.lists.progressLabel(stats.completedCount, stats.totalCount)}</span>
                     </div>
 
-                    <ProgressBar
-                      aria-label={t.lists.progressAria(list.name)}
-                      value={pct}
-                      size="sm"
-                      className="w-full"
-                    >
+                    <ProgressBar aria-label={t.lists.progressAria(list.name)} value={pct} size="sm" className="w-full">
                       <ProgressBar.Track>
                         <ProgressBar.Fill />
                       </ProgressBar.Track>
@@ -267,7 +215,9 @@ export const ListsPage: React.FC = () => {
       {/* Create List Modal */}
       <Modal.Backdrop
         isOpen={createOpen}
-        onOpenChange={(open) => { if (!creating) setCreateOpen(open); }}
+        onOpenChange={(open) => {
+          if (!creating) setCreateOpen(open);
+        }}
         isDismissable={!creating}
         isKeyboardDismissDisabled={creating}
       >
@@ -294,14 +244,13 @@ export const ListsPage: React.FC = () => {
                   {nameError && <FieldError>{nameError}</FieldError>}
                 </TextField>
 
-                <RadioGroup
-                  value={kind}
-                  onChange={(val) => setKind(val as ListKind)}
-                  variant="secondary"
-                >
+                <RadioGroup value={kind} onChange={(val) => setKind(val as ListKind)} variant="secondary">
                   <Label>{t.lists.createModal.kindLabel}</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-1">
-                    <Radio value="ordered" className="m-0 min-w-0 rounded-xl border border-border p-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft">
+                    <Radio
+                      value="ordered"
+                      className="m-0 min-w-0 rounded-xl border border-border p-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft"
+                    >
                       <Radio.Content className="min-h-11 w-full">
                         <Radio.Control>
                           <Radio.Indicator />
@@ -311,7 +260,10 @@ export const ListsPage: React.FC = () => {
                       <Description className="pl-7">{t.lists.orderedTypeHint}</Description>
                     </Radio>
 
-                    <Radio value="collection" className="m-0 min-w-0 rounded-xl border border-border p-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft">
+                    <Radio
+                      value="collection"
+                      className="m-0 min-w-0 rounded-xl border border-border p-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft"
+                    >
                       <Radio.Content className="min-h-11 w-full">
                         <Radio.Control>
                           <Radio.Indicator />
@@ -323,12 +275,7 @@ export const ListsPage: React.FC = () => {
                   </div>
                 </RadioGroup>
 
-                <TextField
-                  value={description}
-                  onChange={setDescription}
-                  fullWidth
-                  variant="secondary"
-                >
+                <TextField value={description} onChange={setDescription} fullWidth variant="secondary">
                   <Label>{t.lists.createModal.descriptionLabel}</Label>
                   <Input placeholder={t.lists.createModal.descriptionPlaceholder} />
                 </TextField>

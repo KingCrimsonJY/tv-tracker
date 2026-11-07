@@ -1,11 +1,11 @@
-@import "tailwindcss";
-@import "@heroui/styles";
+@import 'tailwindcss';
+@import '@heroui/styles';
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root,
   .dark,
-  [data-theme="dark"] {
+  [data-theme='dark'] {
     --background: rgb(18 18 21);
     --surface: rgb(26 26 31);
     --surface-foreground: rgb(244 244 246);
@@ -54,7 +54,7 @@
   }
 
   .light,
-  [data-theme="light"] {
+  [data-theme='light'] {
     --background: rgb(245 245 248);
     --surface: rgb(255 255 255);
     --surface-foreground: rgb(20 20 24);
@@ -103,7 +103,9 @@
   }
 
   html {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Noto Sans SC', 'Noto Sans CJK SC',
+      'Microsoft YaHei', sans-serif;
     background-color: var(--background);
     color: var(--foreground);
     color-scheme: dark;
@@ -132,7 +134,7 @@
     @apply w-fit max-w-full;
   }
 
-  .tabs__list[data-orientation="horizontal"] {
+  .tabs__list[data-orientation='horizontal'] {
     @apply min-w-0;
   }
 

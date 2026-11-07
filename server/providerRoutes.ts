@@ -16,11 +16,7 @@ import {
   isTmdbConfigured,
   searchTmdb,
 } from './providers/tmdb.ts';
-import {
-  getYtdlpVersion,
-  YtdlpExecutionError,
-  YtdlpNotInstalledError,
-} from './providers/ytdlp.ts';
+import { getYtdlpVersion, YtdlpExecutionError, YtdlpNotInstalledError } from './providers/ytdlp.ts';
 import { LinkImportError } from './providers/linkErrors.ts';
 import { UnsafeUrlError } from './security/ssrf.ts';
 
@@ -44,7 +40,10 @@ export interface ProviderRoutesOptions {
   scheduleEnrichment?: (id: string) => void;
 }
 
-function classifyProviderError(err: unknown, fallbackCode: ServerErrorCode): {
+function classifyProviderError(
+  err: unknown,
+  fallbackCode: ServerErrorCode,
+): {
   code: ServerErrorCode;
   message: string;
 } {
@@ -92,8 +91,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
   app.get('/api/tmdb/search', async (req, res) => {
     const query = String(req.query.q || '').trim();
     const rawLang = String(req.query.lang || '').trim();
-    const lang: 'zh-CN' | 'en-US' =
-      rawLang === 'en' || rawLang === 'en-US' ? 'en-US' : 'zh-CN';
+    const lang: 'zh-CN' | 'en-US' = rawLang === 'en' || rawLang === 'en-US' ? 'en-US' : 'zh-CN';
 
     if (!isTmdbConfigured()) {
       sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_READ_TOKEN is not configured.');
@@ -105,13 +103,13 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     }
     try {
       const results = await searchTmdb(query, lang);
-      res.json({ results: results.map(item => toTmdbSearchItem(item, lang)) });
+      res.json({ results: results.map((item) => toTmdbSearchItem(item, lang)) });
     } catch (error) {
       sendApiError(
         res,
         502,
         'TMDB_UNAVAILABLE',
-        error instanceof Error ? error.message : 'TMDB search request failed.'
+        error instanceof Error ? error.message : 'TMDB search request failed.',
       );
     }
   });
@@ -121,12 +119,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     const sourceId = String(req.params.id || '');
 
     if (mediaType !== 'movie' && mediaType !== 'tv') {
-      sendApiError(
-        res,
-        400,
-        'TMDB_INVALID_MEDIA_TYPE',
-        'Invalid media type: must be movie or tv.'
-      );
+      sendApiError(res, 400, 'TMDB_INVALID_MEDIA_TYPE', 'Invalid media type: must be movie or tv.');
       return;
     }
     if (!/^\d+$/.test(sourceId)) {
@@ -146,7 +139,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         res,
         502,
         'TMDB_UNAVAILABLE',
-        error instanceof Error ? error.message : 'Failed to fetch TMDB title details.'
+        error instanceof Error ? error.message : 'Failed to fetch TMDB title details.',
       );
     }
   });
@@ -184,12 +177,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         throw new NotFoundError(`Title not found: ${id}`, 'TITLE_NOT_FOUND');
       }
       if (title.source !== 'url' || !title.sourceId) {
-        sendApiError(
-          res,
-          400,
-          'REFRESH_LINK_ONLY_URL',
-          'Only link-imported titles support playlist refresh.'
-        );
+        sendApiError(res, 400, 'REFRESH_LINK_ONLY_URL', 'Only link-imported titles support playlist refresh.');
         return;
       }
 
@@ -228,7 +216,8 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       if (classified.code === 'LINK_UNAVAILABLE') {
         const id = String(req.params.id);
         const current = repo.getTitle(id);
-        if (requestedSource && current?.source === 'url' && current.sourceId === requestedSource) broadcastMutation(repo.patchTitle(id, { sourceUnavailable: true, updatedAt: nowFn() }));
+        if (requestedSource && current?.source === 'url' && current.sourceId === requestedSource)
+          broadcastMutation(repo.patchTitle(id, { sourceUnavailable: true, updatedAt: nowFn() }));
       }
       sendApiError(res, 400, classified.code, classified.message);
     }

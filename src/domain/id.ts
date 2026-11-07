@@ -23,10 +23,7 @@ export function generateUuid(options: { forceFallback?: boolean } = {}): string 
   return formatBytesAsUuidV4(fallbackBytes);
 }
 
-export function createRandomId(
-  prefix?: string,
-  options: { forceFallback?: boolean } = {}
-): string {
+export function createRandomId(prefix?: string, options: { forceFallback?: boolean } = {}): string {
   const uuid = generateUuid(options);
   return prefix ? `${prefix}_${uuid}` : uuid;
 }

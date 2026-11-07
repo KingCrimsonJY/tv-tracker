@@ -1,4 +1,5 @@
-import { DEFAULT_APP_SETTINGS } from '../domain/schemas.ts';
+import { shareJson } from './structuralSharing.ts';
+import { DEFAULT_APP_SETTINGS } from '../domain/defaultSettings.ts';
 import type {
   AppStateSnapshot,
   ListEntryDoc,
@@ -7,12 +8,9 @@ import type {
   StateMutationResult,
   TitleDoc,
   WatchListDoc,
-  ZhenjiExportV2,
 } from '../domain/types.ts';
 
-export type StateUpdater =
-  | AppStateSnapshot
-  | ((prev: AppStateSnapshot) => AppStateSnapshot);
+export type StateUpdater = AppStateSnapshot | ((prev: AppStateSnapshot) => AppStateSnapshot);
 
 export type StoreListener = () => void;
 
@@ -23,7 +21,7 @@ export interface TrackerStore {
   applySnapshot: (snapshot: AppStateSnapshot) => { state: AppStateSnapshot; epochChanged: boolean };
   applyMutation: (
     mutation: StateMutationResult,
-    options?: { allowSameOrLowerVersion?: boolean }
+    options?: { allowSameOrLowerVersion?: boolean },
   ) => { state: AppStateSnapshot; epochChanged: boolean };
   reset: () => AppStateSnapshot;
 }
@@ -40,16 +38,13 @@ export function createInitialAppState(): AppStateSnapshot {
   };
 }
 
-export function hasEpochChanged(
-  currentEpoch: string | undefined,
-  incomingEpoch: string | undefined
-): boolean {
+export function hasEpochChanged(currentEpoch: string | undefined, incomingEpoch: string | undefined): boolean {
   return Boolean(currentEpoch && incomingEpoch && currentEpoch !== incomingEpoch);
 }
 
 export function applyStateSnapshot(
   currentState: AppStateSnapshot,
-  incomingSnapshot: AppStateSnapshot
+  incomingSnapshot: AppStateSnapshot,
 ): AppStateSnapshot {
   if (hasEpochChanged(currentState.epoch, incomingSnapshot.epoch)) {
     return incomingSnapshot;
@@ -57,16 +52,16 @@ export function applyStateSnapshot(
   if (incomingSnapshot.version < currentState.version) {
     return currentState;
   }
-  return {
+  return shareJson(currentState, {
     ...incomingSnapshot,
-    epoch: incomingSnapshot.epoch ?? currentState.epoch,
-  };
+    ...((incomingSnapshot.epoch ?? currentState.epoch) ? { epoch: incomingSnapshot.epoch ?? currentState.epoch } : {}),
+  });
 }
 
 export function applyMutationResult(
   currentState: AppStateSnapshot,
   mutation: StateMutationResult,
-  options: { allowSameOrLowerVersion?: boolean } = {}
+  options: { allowSameOrLowerVersion?: boolean } = {},
 ): AppStateSnapshot {
   if (!options.allowSameOrLowerVersion && mutation.version < currentState.version) {
     return currentState;
@@ -162,7 +157,7 @@ export function applyMutationResult(
     settings = upserts.settings;
   }
 
-  return {
+  return shareJson(currentState, {
     version: Math.max(currentState.version, mutation.version),
     epoch: mutation.epoch ?? currentState.epoch,
     titles,
@@ -171,12 +166,10 @@ export function applyMutationResult(
     lists,
     entriesByList,
     settings,
-  };
+  });
 }
 
-export function createTrackerStore(
-  initialState: AppStateSnapshot = createInitialAppState()
-): TrackerStore {
+export function createTrackerStore(initialState: AppStateSnapshot = createInitialAppState()): TrackerStore {
   let state: AppStateSnapshot = initialState;
   const listeners = new Set<StoreListener>();
 
@@ -211,10 +204,7 @@ export function createTrackerStore(
       }
       return { state, epochChanged };
     },
-    applyMutation: (
-      mutation: StateMutationResult,
-      options: { allowSameOrLowerVersion?: boolean } = {}
-    ) => {
+    applyMutation: (mutation: StateMutationResult, options: { allowSameOrLowerVersion?: boolean } = {}) => {
       const epochChanged = hasEpochChanged(state.epoch, mutation.epoch);
       const next = applyMutationResult(state, mutation, options);
       if (next !== state) {
@@ -232,17 +222,3 @@ export function createTrackerStore(
 }
 
 export const trackerStore = createTrackerStore();
-
-export function buildExportV2FromState(state: AppStateSnapshot): ZhenjiExportV2 {
-  return {
-    format: 'zhenji-export',
-    version: 2,
-    exportedAt: new Date().toISOString(),
-    settings: state.settings,
-    titles: state.titles,
-    seasonsByTitle: state.seasonsByTitle,
-    progressByTitle: state.progressByTitle,
-    lists: state.lists,
-    entriesByList: state.entriesByList,
-  };
-}

@@ -6,13 +6,7 @@ import {
   toLocalDateString,
 } from './airing.ts';
 import { computeResumeRatio } from './time.ts';
-import type {
-  ProgressDoc,
-  SeasonDoc,
-  SeasonStateCode,
-  TitleDoc,
-  TitleStatusCode,
-} from './types.ts';
+import type { ProgressDoc, SeasonDoc, SeasonStateCode, TitleDoc, TitleStatusCode } from './types.ts';
 
 export interface ComputedTitleState {
   status: TitleStatusCode;
@@ -37,14 +31,8 @@ export interface ComputedSeasonState {
   isCompleteSoFar: boolean;
 }
 
-export function isEpisodic(
-  title: Pick<TitleDoc, 'mediaType'>,
-  seasons: SeasonDoc[]
-): boolean {
-  return (
-    title.mediaType === 'tv' ||
-    seasons.some((s) => s.seasonNumber >= 1 && s.episodes.length > 0)
-  );
+export function isEpisodic(title: Pick<TitleDoc, 'mediaType'>, seasons: SeasonDoc[]): boolean {
+  return title.mediaType === 'tv' || seasons.some((s) => s.seasonNumber >= 1 && s.episodes.length > 0);
 }
 
 export function computeSeasonState(
@@ -55,14 +43,9 @@ export function computeSeasonState(
     treatAllAsAired?: boolean;
     showEnded?: boolean;
     allSeasons?: SeasonDoc[];
-  } = {}
+  } = {},
 ): ComputedSeasonState {
-  const {
-    todayStr = toLocalDateString(),
-    treatAllAsAired = false,
-    showEnded = false,
-    allSeasons,
-  } = options;
+  const { todayStr = toLocalDateString(), treatAllAsAired = false, showEnded = false, allSeasons } = options;
   const watchedMap = progress?.watched ?? {};
 
   const airedKeys = buildAiredEpisodeKeySet(allSeasons ?? [season], {
@@ -105,7 +88,7 @@ export function computeSeasonState(
 export function getTitleContinueProgressRatio(
   title: Pick<TitleDoc, 'mediaType' | 'resume'> & { runtimeMin?: number | null },
   seasons: SeasonDoc[],
-  overallProgressRatio: number
+  overallProgressRatio: number,
 ): number {
   const resume = title.resume;
   if (!resume || resume.seconds <= 0) {
@@ -129,11 +112,7 @@ export function getTitleContinueProgressRatio(
   }
 
   const effectiveRuntime =
-    epRuntime && epRuntime > 0
-      ? epRuntime
-      : title.runtimeMin && title.runtimeMin > 0
-        ? title.runtimeMin
-        : null;
+    epRuntime && epRuntime > 0 ? epRuntime : title.runtimeMin && title.runtimeMin > 0 ? title.runtimeMin : null;
 
   if (effectiveRuntime && effectiveRuntime > 0) {
     return computeResumeRatio(resume.seconds, effectiveRuntime);
@@ -142,31 +121,22 @@ export function getTitleContinueProgressRatio(
   return overallProgressRatio;
 }
 
-export function countCompletedPlaythroughs(
-  playthroughs: TitleDoc['playthroughs']
-): number {
+export function countCompletedPlaythroughs(playthroughs: TitleDoc['playthroughs']): number {
   return playthroughs.filter((p) => p.completedAt != null).length;
 }
 
-export function computeTitleState(
+function computeTitleStateUncached(
   title: Pick<
     TitleDoc,
-    | 'mediaType'
-    | 'source'
-    | 'showStatus'
-    | 'manualState'
-    | 'resume'
-    | 'playthroughs'
-    | 'activePlaythroughId'
+    'mediaType' | 'source' | 'showStatus' | 'manualState' | 'resume' | 'playthroughs' | 'activePlaythroughId'
   > & { runtimeMin?: number | null; releaseDate?: string | null },
   seasons: SeasonDoc[],
   progress: ProgressDoc | undefined,
-  options: { includeSpecials?: boolean; todayStr?: string } = {}
+  options: { includeSpecials?: boolean; todayStr?: string } = {},
 ): ComputedTitleState {
   const { includeSpecials = false, todayStr = toLocalDateString() } = options;
 
-  const activePlaythrough =
-    title.playthroughs.find((p) => p.id === title.activePlaythroughId) ??
+  const activePlaythrough = title.playthroughs.find((p) => p.id === title.activePlaythroughId) ??
     title.playthroughs[title.playthroughs.length - 1] ?? {
       id: 'p1',
       number: 1,
@@ -174,24 +144,18 @@ export function computeTitleState(
     };
 
   const completedPlaythroughCount = countCompletedPlaythroughs(title.playthroughs);
-  const isRewatching =
-    activePlaythrough.number > 1 && activePlaythrough.completedAt == null;
+  const isRewatching = activePlaythrough.number > 1 && activePlaythrough.completedAt == null;
 
   const episodic = isEpisodic(title, seasons);
 
   if (!episodic) {
     const isWatched = Boolean(
-      progress?.movieWatchedAt ||
-        (progress?.watched && Object.keys(progress.watched).length > 0)
+      progress?.movieWatchedAt || (progress?.watched && Object.keys(progress.watched).length > 0),
     );
     const hasResume = Boolean(title.resume && title.resume.seconds > 0);
     const isUnreleasedMovie =
       title.mediaType === 'movie' &&
-      Boolean(
-        title.releaseDate &&
-          title.releaseDate.trim() !== '' &&
-          title.releaseDate.trim() > todayStr
-      );
+      Boolean(title.releaseDate && title.releaseDate.trim() !== '' && title.releaseDate.trim() > todayStr);
 
     let status: TitleStatusCode;
     if (title.manualState === 'dropped') {
@@ -265,8 +229,7 @@ export function computeTitleState(
 
   const countableCount = countable.length;
   const hasResume = Boolean(title.resume && title.resume.seconds > 0);
-  const progressRatio =
-    countableCount > 0 ? Math.min(1, watchedCount / countableCount) : 0;
+  const progressRatio = countableCount > 0 ? Math.min(1, watchedCount / countableCount) : 0;
 
   if (title.manualState === 'dropped') {
     return {
@@ -355,9 +318,7 @@ export function computeTitleState(
   let hasNewEpisodes = false;
   if (watchedCount > 0 && unwatchedCountable.length > 0 && maxWatchedAt > 0) {
     const lastWatchedDateStr = toLocalDateString(new Date(maxWatchedAt));
-    hasNewEpisodes = unwatchedCountable.every(
-      (ep) => ep.airDate !== null && ep.airDate > lastWatchedDateStr
-    );
+    hasNewEpisodes = unwatchedCountable.every((ep) => ep.airDate !== null && ep.airDate > lastWatchedDateStr);
   }
 
   return {
@@ -373,4 +334,37 @@ export function computeTitleState(
     playthroughNumber: activePlaythrough.number,
     completedPlaythroughCount,
   };
+}
+
+type TitleStateInput = Parameters<typeof computeTitleStateUncached>[0];
+const titleStates = new WeakMap<
+  TitleStateInput,
+  {
+    seasons: SeasonDoc[];
+    progress: ProgressDoc | undefined;
+    includeSpecials: boolean;
+    day: string;
+    value: ComputedTitleState;
+  }
+>();
+export function computeTitleState(
+  title: TitleStateInput,
+  seasons: SeasonDoc[],
+  progress: ProgressDoc | undefined,
+  options: { includeSpecials?: boolean; todayStr?: string } = {},
+): ComputedTitleState {
+  const day = options.todayStr ?? toLocalDateString();
+  const includeSpecials = options.includeSpecials ?? false;
+  const cached = titleStates.get(title);
+  if (
+    cached &&
+    cached.seasons === seasons &&
+    cached.progress === progress &&
+    cached.includeSpecials === includeSpecials &&
+    cached.day === day
+  )
+    return cached.value;
+  const value = computeTitleStateUncached(title, seasons, progress, { includeSpecials, todayStr: day });
+  titleStates.set(title, { seasons, progress, includeSpecials, day, value });
+  return value;
 }

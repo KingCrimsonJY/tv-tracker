@@ -95,13 +95,7 @@ export function setSessionCookie(res: Response, token: string, isProduction: boo
 }
 
 export function clearSessionCookie(res: Response, isProduction: boolean): void {
-  const parts = [
-    `${SESSION_COOKIE_NAME}=`,
-    'Path=/',
-    'Max-Age=0',
-    'HttpOnly',
-    'SameSite=Lax',
-  ];
+  const parts = [`${SESSION_COOKIE_NAME}=`, 'Path=/', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax'];
   if (isProduction) {
     parts.push('Secure');
   }
@@ -136,10 +130,7 @@ export function isSameOriginRequest(req: Request): boolean {
   }
 
   const forwardedHost = req.headers['x-forwarded-host'];
-  const rawHost =
-    (typeof forwardedHost === 'string' && forwardedHost.split(',')[0]?.trim()) ||
-    req.headers.host ||
-    '';
+  const rawHost = (typeof forwardedHost === 'string' && forwardedHost.split(',')[0]?.trim()) || req.headers.host || '';
   if (!rawHost) return false;
 
   return originUrl.host.toLowerCase() === rawHost.toLowerCase();
@@ -161,7 +152,7 @@ export class LoginRateLimiter {
     maxFailures = RATE_LIMIT_MAX_FAILURES,
     globalWindowMs = GLOBAL_RATE_LIMIT_WINDOW_MS,
     globalMaxFailures = GLOBAL_RATE_LIMIT_MAX_FAILURES,
-    globalBlockDurationMs = GLOBAL_BLOCK_DURATION_MS
+    globalBlockDurationMs = GLOBAL_BLOCK_DURATION_MS,
   ) {
     this.windowMs = windowMs;
     this.maxFailures = maxFailures;

@@ -31,9 +31,7 @@ export function makeEpisodeKey(seasonNumber: number, episodeNumber: number): str
 /**
  * Parses an episode key like `s2e5` into `{ seasonNumber: 2, episodeNumber: 5 }`.
  */
-export function parseEpisodeKey(
-  key: string
-): { seasonNumber: number; episodeNumber: number } | null {
+export function parseEpisodeKey(key: string): { seasonNumber: number; episodeNumber: number } | null {
   const match = /^s(\d+)e(\d+)$/i.exec(key.trim());
   if (!match) return null;
   return {
@@ -48,7 +46,7 @@ export function parseEpisodeKey(
 export function isEpisodeAired(
   episode: Pick<EpisodeMeta, 'airDate'>,
   todayStr: string = toLocalDateString(),
-  treatAllAsAired = false
+  treatAllAsAired = false,
 ): boolean {
   if (treatAllAsAired) return true;
   if (!episode.airDate || episode.airDate.trim() === '') return false;
@@ -66,13 +64,9 @@ export function buildAiredEpisodeKeySet(
     todayStr?: string;
     treatAllAsAired?: boolean;
     showEnded?: boolean;
-  } = {}
+  } = {},
 ): Set<string> {
-  const {
-    todayStr = toLocalDateString(),
-    treatAllAsAired = false,
-    showEnded = false,
-  } = options;
+  const { todayStr = toLocalDateString(), treatAllAsAired = false, showEnded = false } = options;
 
   const airedKeys = new Set<string>();
   if (treatAllAsAired) {
@@ -112,9 +106,7 @@ export function buildAiredEpisodeKeySet(
       seenExplicitAiredAfter = true;
     } else if (!entry.hasDate) {
       const seasonAirDatePassed = Boolean(
-        entry.season.airDate &&
-          entry.season.airDate.trim() !== '' &&
-          entry.season.airDate <= todayStr
+        entry.season.airDate && entry.season.airDate.trim() !== '' && entry.season.airDate <= todayStr,
       );
       if (showEnded || seenExplicitAiredAfter || seasonAirDatePassed) {
         airedKeys.add(entry.ep.key);
@@ -127,9 +119,7 @@ export function buildAiredEpisodeKeySet(
     if (s.seasonNumber >= 1) continue;
     const sortedEps = [...s.episodes].sort((a, b) => a.number - b.number);
     let seenSpecialAiredAfter = false;
-    const seasonAirDatePassed = Boolean(
-      s.airDate && s.airDate.trim() !== '' && s.airDate <= todayStr
-    );
+    const seasonAirDatePassed = Boolean(s.airDate && s.airDate.trim() !== '' && s.airDate <= todayStr);
     for (let i = sortedEps.length - 1; i >= 0; i--) {
       const ep = sortedEps[i];
       const hasDate = Boolean(ep.airDate && ep.airDate.trim() !== '');
@@ -157,7 +147,7 @@ export function getCountableEpisodes(
     todayStr?: string;
     treatAllAsAired?: boolean;
     showEnded?: boolean;
-  } = {}
+  } = {},
 ): {
   countable: CountableEpisode[];
   allRegularEpisodesCount: number;
@@ -243,9 +233,7 @@ export function isGenericEpisodeLabel(raw: string | null | undefined): boolean {
   return false;
 }
 
-export function normalizeLocalizedSeasonName(
-  input: LocalizedText | string | null | undefined
-): LocalizedText | null {
+export function normalizeLocalizedSeasonName(input: LocalizedText | string | null | undefined): LocalizedText | null {
   if (input == null) return null;
   if (typeof input === 'string') {
     const trimmed = input.trim();
@@ -263,9 +251,7 @@ export function normalizeLocalizedSeasonName(
   };
 }
 
-export function normalizeLocalizedEpisodeName(
-  input: LocalizedText | string | null | undefined
-): LocalizedText | null {
+export function normalizeLocalizedEpisodeName(input: LocalizedText | string | null | undefined): LocalizedText | null {
   if (input == null) return null;
   if (typeof input === 'string') {
     const trimmed = input.trim();
@@ -285,7 +271,7 @@ export function normalizeLocalizedEpisodeName(
 
 export function resolveLocalizedText(
   text: LocalizedText | string | null | undefined,
-  activeLocale: UiLocale = 'zh-CN'
+  activeLocale: UiLocale = 'zh-CN',
 ): string | null {
   if (!text) return null;
   if (typeof text === 'string') {
@@ -303,7 +289,7 @@ export function resolveLocalizedText(
  */
 export function splitUploaderPrefixFromOverview(
   overview: string | undefined | null,
-  existingUploader?: string | null
+  existingUploader?: string | null,
 ): { overview: string; uploader: string | null } {
   const raw = (overview || '').trim();
   const cleanExisting = existingUploader?.trim() || null;
@@ -357,7 +343,7 @@ export function resolveDisplayTitle(
   names: TitleNames,
   titleLang: DisplayLang | null,
   defaultLang: DefaultTitleLang = 'auto',
-  activeLocale: UiLocale = 'zh-CN'
+  activeLocale: UiLocale = 'zh-CN',
 ): { primary: string; secondary: string | null } {
   let effectivePref: DisplayLang;
   if (titleLang) {
@@ -372,18 +358,14 @@ export function resolveDisplayTitle(
   if (effectivePref === 'custom' && names.custom?.trim()) {
     primary = names.custom.trim();
   } else if (effectivePref === 'original') {
-    primary =
-      names.original ||
-      (activeLocale === 'en' ? names.en || names.zh : names.zh || names.en) ||
-      '';
+    primary = names.original || (activeLocale === 'en' ? names.en || names.zh : names.zh || names.en) || '';
   } else if (effectivePref === 'en') {
     primary = names.en || names.zh || names.original || '';
   } else {
     primary = names.zh || names.en || names.original || '';
   }
 
-  const secondary =
-    names.original && names.original !== primary ? names.original : null;
+  const secondary = names.original && names.original !== primary ? names.original : null;
 
   return { primary, secondary };
 }
@@ -391,7 +373,7 @@ export function resolveDisplayTitle(
 export function resolveOverviewText(
   title: Pick<TitleDoc, 'overview' | 'displayLang' | 'source'>,
   defaultLang: DefaultTitleLang = 'auto',
-  activeLocale: UiLocale = 'zh-CN'
+  activeLocale: UiLocale = 'zh-CN',
 ): string {
   let targetLang: 'zh' | 'en';
   if (title.displayLang === 'en') {
@@ -416,28 +398,17 @@ export function resolveOverviewText(
  */
 export function pickPoster(
   title: Pick<TitleDoc, 'posterPath' | 'posters'> | null | undefined,
-  activeLocale: UiLocale = 'zh-CN'
+  activeLocale: UiLocale = 'zh-CN',
 ): string | null {
   if (!title) return null;
   const p = title.posters;
-  const clean = (v?: string | null): string | null =>
-    v && v.trim() !== '' ? v.trim() : null;
+  const clean = (v?: string | null): string | null => (v && v.trim() !== '' ? v.trim() : null);
 
   if (p) {
     if (activeLocale === 'en') {
-      return (
-        clean(p.en) ||
-        clean(p.textless) ||
-        clean(p.zh) ||
-        clean(title.posterPath)
-      );
+      return clean(p.en) || clean(p.textless) || clean(p.zh) || clean(title.posterPath);
     }
-    return (
-      clean(p.zh) ||
-      clean(p.textless) ||
-      clean(p.en) ||
-      clean(title.posterPath)
-    );
+    return clean(p.zh) || clean(p.textless) || clean(p.en) || clean(title.posterPath);
   }
   return clean(title.posterPath);
 }
@@ -447,7 +418,7 @@ export function pickPoster(
  */
 export function pickBackdrop(
   title: Pick<TitleDoc, 'backdropPath' | 'posterPath' | 'posters'> | null | undefined,
-  activeLocale: UiLocale = 'zh-CN'
+  activeLocale: UiLocale = 'zh-CN',
 ): string | null {
   if (!title) return null;
   if (title.backdropPath && title.backdropPath.trim() !== '') {
@@ -455,4 +426,3 @@ export function pickBackdrop(
   }
   return pickPoster(title, activeLocale);
 }
-

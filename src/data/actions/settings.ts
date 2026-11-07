@@ -3,9 +3,7 @@ import { getActiveCatalog } from '../../i18n/index.ts';
 import { patchSettingsApi } from '../api.ts';
 import type { TrackerActionDeps } from './types.ts';
 
-export function createSettingsActions(
-  deps: TrackerActionDeps & { triggerRefetch: () => Promise<void> }
-) {
+export function createSettingsActions(deps: TrackerActionDeps & { triggerRefetch: () => Promise<void> }) {
   const { getState, setState, applyServerMutation, showToast, triggerRefetch } = deps;
 
   async function updateSettings(partial: Partial<AppSettingsDoc>): Promise<void> {

@@ -6,10 +6,7 @@ import { Readable } from 'node:stream';
 
 export class UnsafeUrlError extends Error {
   public readonly code: 'UNSAFE_URL' | 'UNRESOLVABLE_HOST';
-  constructor(
-    message: string,
-    code: 'UNSAFE_URL' | 'UNRESOLVABLE_HOST' = 'UNSAFE_URL'
-  ) {
+  constructor(message: string, code: 'UNSAFE_URL' | 'UNRESOLVABLE_HOST' = 'UNSAFE_URL') {
     super(message);
     this.name = 'UnsafeUrlError';
     this.code = code;
@@ -25,40 +22,51 @@ const defaultLookupFn: DnsLookupFn = (h) => dns.lookup(h, { all: true, verbatim:
 const defaultFetchFn: FetchFn = async (input, init = {}) => {
   const url = await assertSafePublicUrl(input);
   return new Promise<Response>((resolve, reject) => {
-    const request = (url.protocol === 'https:' ? https.request : http.request)(url, {
-      method: init.method || 'GET',
-      headers: Object.fromEntries(new Headers(init.headers).entries()),
-      signal: init.signal ?? undefined,
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { all: true, verbatim: true }).then(records => {
-          if (!records.length || records.some(record => isPrivateOrReservedIp(record.address))) {
-            callback(new UnsafeUrlError('Connection resolved to a restricted address'), '');
-            return;
-          }
-          const candidates = options.family ? records.filter(record => record.family === options.family) : records;
-          if (!candidates.length) {
-            callback(new UnsafeUrlError('No address for requested IP family', 'UNRESOLVABLE_HOST'), '');
-            return;
-          }
-          callback(null, options.all ? candidates : candidates[0].address, candidates[0].family);
-        }, err => callback(err, ''));
+    const request = (url.protocol === 'https:' ? https.request : http.request)(
+      url,
+      {
+        method: init.method || 'GET',
+        headers: Object.fromEntries(new Headers(init.headers).entries()),
+        signal: init.signal ?? undefined,
+        lookup: (hostname, options, callback) => {
+          dns.lookup(hostname, { all: true, verbatim: true }).then(
+            (records) => {
+              if (!records.length || records.some((record) => isPrivateOrReservedIp(record.address))) {
+                callback(new UnsafeUrlError('Connection resolved to a restricted address'), '');
+                return;
+              }
+              const candidates = options.family
+                ? records.filter((record) => record.family === options.family)
+                : records;
+              if (!candidates.length) {
+                callback(new UnsafeUrlError('No address for requested IP family', 'UNRESOLVABLE_HOST'), '');
+                return;
+              }
+              callback(null, options.all ? candidates : candidates[0].address, candidates[0].family);
+            },
+            (err) => callback(err, ''),
+          );
+        },
       },
-    }, incoming => {
-      try {
-        const headers = new Headers();
-        for (const [name, value] of Object.entries(incoming.headers)) {
-          if (Array.isArray(value)) value.forEach(v => headers.append(name, v));
-          else if (value !== undefined) headers.set(name, value);
+      (incoming) => {
+        try {
+          const headers = new Headers();
+          for (const [name, value] of Object.entries(incoming.headers)) {
+            if (Array.isArray(value)) value.forEach((v) => headers.append(name, v));
+            else if (value !== undefined) headers.set(name, value);
+          }
+          const status = incoming.statusCode || 502;
+          const noBody = init.method === 'HEAD' || [204, 205, 304].includes(status);
+          if (noBody) incoming.resume();
+          resolve(
+            new Response(noBody ? null : (Readable.toWeb(incoming) as ReadableStream<Uint8Array>), { status, headers }),
+          );
+        } catch (err) {
+          incoming.destroy();
+          reject(err);
         }
-        const status = incoming.statusCode || 502;
-        const noBody = init.method === 'HEAD' || [204, 205, 304].includes(status);
-        if (noBody) incoming.resume();
-        resolve(new Response(noBody ? null : Readable.toWeb(incoming) as ReadableStream<Uint8Array>, { status, headers }));
-      } catch (err) {
-        incoming.destroy();
-        reject(err);
-      }
-    });
+      },
+    );
     request.on('error', reject);
     request.end();
   });
@@ -129,8 +137,7 @@ export function isPrivateOrReservedIp(ip: string): boolean {
     }
 
     // Only global unicast; exclude documentation and transition ranges.
-    return !/^[23][0-9a-f]{3}:/.test(cleanIp) ||
-      /^(?:2001:db8:|2001:(?:0:|:)|2002:|3fff:)/.test(cleanIp);
+    return !/^[23][0-9a-f]{3}:/.test(cleanIp) || /^(?:2001:db8:|2001:(?:0:|:)|2002:|3fff:)/.test(cleanIp);
   }
 
   return true;
@@ -140,10 +147,7 @@ export function isPrivateOrReservedIp(ip: string): boolean {
  * Validates that a URL uses http/https and that its hostname resolves
  * exclusively to public IP addresses. Throws UnsafeUrlError on violation.
  */
-export async function assertSafePublicUrl(
-  rawUrl: string,
-  lookupFn: DnsLookupFn = defaultLookupFn
-): Promise<URL> {
+export async function assertSafePublicUrl(rawUrl: string, lookupFn: DnsLookupFn = defaultLookupFn): Promise<URL> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -173,10 +177,7 @@ export async function assertSafePublicUrl(
 
   if (net.isIP(hostname) !== 0) {
     if (isPrivateOrReservedIp(hostname)) {
-      throw new UnsafeUrlError(
-        'Access to private, loopback, or link-local IP addresses is forbidden',
-        'UNSAFE_URL'
-      );
+      throw new UnsafeUrlError('Access to private, loopback, or link-local IP addresses is forbidden', 'UNSAFE_URL');
     }
     return parsed;
   }
@@ -194,10 +195,7 @@ export async function assertSafePublicUrl(
 
   for (const rec of records) {
     if (isPrivateOrReservedIp(rec.address)) {
-      throw new UnsafeUrlError(
-        'Target hostname resolved to a private or restricted IP address',
-        'UNSAFE_URL'
-      );
+      throw new UnsafeUrlError('Target hostname resolved to a private or restricted IP address', 'UNSAFE_URL');
     }
   }
 
@@ -217,10 +215,9 @@ export interface SafeFetchOptions {
 export async function safeFetchFollowingRedirects(
   initialUrl: string,
   init: RequestInit = {},
-  options: SafeFetchOptions | number = {}
+  options: SafeFetchOptions | number = {},
 ): Promise<{ response: Response; finalUrl: string }> {
-  const opts: SafeFetchOptions =
-    typeof options === 'number' ? { maxRedirects: options } : options;
+  const opts: SafeFetchOptions = typeof options === 'number' ? { maxRedirects: options } : options;
   const maxRedirects = opts.maxRedirects ?? 5;
   const lookupFn = opts.lookupFn ?? defaultLookupFn;
   const fetchFn = opts.fetchFn ?? defaultFetchFn;

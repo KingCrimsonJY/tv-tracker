@@ -9,24 +9,40 @@ const MAX_EPISODES = 2000;
 const id = z.union([z.number(), z.string()]).transform(String);
 const nullableText = z.string().nullable().optional();
 const episodeSchema = z.object({
-  id, title: z.string(), long_title: nullableText, show_title: nullableText,
-  duration: z.number().optional(), cover: nullableText, pub_time: z.number().optional(),
+  id,
+  title: z.string(),
+  long_title: nullableText,
+  show_title: nullableText,
+  duration: z.number().optional(),
+  cover: nullableText,
+  pub_time: z.number().optional(),
   section_type: z.number().optional(),
   release_date: z.union([z.string(), z.number()]).optional(),
-  playable: z.boolean().optional(), rights: z.object({ area_limit: z.number().optional() }).optional(),
+  playable: z.boolean().optional(),
+  rights: z.object({ area_limit: z.number().optional() }).optional(),
 });
 const seasonSchema = z.object({
-  title: z.string().min(1), cover: nullableText, evaluate: nullableText, subtitle: nullableText,
-  type: z.number().optional(), season_id: id,
+  title: z.string().min(1),
+  cover: nullableText,
+  evaluate: nullableText,
+  subtitle: nullableText,
+  type: z.number().optional(),
+  season_id: id,
   episodes: z.array(episodeSchema),
   publish: z.object({ pub_time: nullableText }).optional(),
   up_info: z.object({ uname: nullableText }).optional(),
   ep_count: z.number().optional(),
 });
 const archiveSchema = z.object({
-  bvid: z.string().optional(), bv_id: z.string().optional(), id: id.optional(),
-  title: z.string(), duration: z.number().optional(), pic: nullableText, cover: nullableText,
-  pubdate: z.number().optional(), pubtime: z.number().optional(),
+  bvid: z.string().optional(),
+  bv_id: z.string().optional(),
+  id: id.optional(),
+  title: z.string(),
+  duration: z.number().optional(),
+  pic: nullableText,
+  cover: nullableText,
+  pubdate: z.number().optional(),
+  pubtime: z.number().optional(),
 });
 const archivePageSchema = z.object({
   archives: z.array(archiveSchema).optional(),
@@ -46,7 +62,9 @@ function cover(raw?: string | null): string | null {
     if (!['http:', 'https:'].includes(url.protocol)) return null;
     url.protocol = 'https:';
     return url.toString().slice(0, 1000);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function minutes(seconds?: number): number | null {
@@ -56,21 +74,36 @@ function minutes(seconds?: number): number | null {
 function date(seconds?: number): string | null {
   if (!seconds || !Number.isFinite(seconds)) return null;
   const value = new Date(seconds * 1000);
-  return Number.isNaN(value.getTime()) ? null : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+  return Number.isNaN(value.getTime())
+    ? null
+    : new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(value);
 }
 
 function base(url: string, title: string): LinkImportResult {
   return {
-    kind: 'video', title: title.slice(0, 200), sourceUrl: url, posterUrl: null,
-    overview: '', uploader: null, year: null, runtimeMin: null, episodes: [],
-    fallbackUsed: 'bilibili', mediaType: 'other',
+    kind: 'video',
+    title: title.slice(0, 200),
+    sourceUrl: url,
+    posterUrl: null,
+    overview: '',
+    uploader: null,
+    year: null,
+    runtimeMin: null,
+    episodes: [],
+    fallbackUsed: 'bilibili',
+    mediaType: 'other',
   };
 }
 
 /** Metadata only: never calls playback, signed media URLs, or account endpoints. */
 export async function resolveBilibiliMetadata(
   input: string,
-  deps: SafeFetchOptions & { forceImport?: boolean } = {}
+  deps: SafeFetchOptions & { forceImport?: boolean } = {},
 ): Promise<LinkImportResult | null> {
   assertSupportedLinkType(input);
   const url = new URL(input);
@@ -80,36 +113,58 @@ export async function resolveBilibiliMetadata(
   async function api(endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
     const target = new URL(endpoint, 'https://api.bilibili.com/');
     Object.entries(params).forEach(([key, value]) => target.searchParams.set(key, value));
-    const { response } = await safeFetchFollowingRedirects(target.toString(), {
-      headers: { Referer: 'https://www.bilibili.com/', 'User-Agent': 'Zhenji/1.0 (metadata tracker)' }, signal,
-    }, deps);
+    const { response } = await safeFetchFollowingRedirects(
+      target.toString(),
+      {
+        headers: { Referer: 'https://www.bilibili.com/', 'User-Agent': 'Zhenji/1.0 (metadata tracker)' },
+        signal,
+      },
+      deps,
+    );
     if (!response.ok) {
       await response.body?.cancel();
       throw new Error('Bilibili HTTP ' + response.status);
     }
-    const payload = z.object({
-      code: z.number(), message: z.string().optional(), data: z.unknown().optional(), result: z.unknown().optional(),
-    }).parse(JSON.parse(await readResponseText(response, 4 * 1024 * 1024)));
+    const payload = z
+      .object({
+        code: z.number(),
+        message: z.string().optional(),
+        data: z.unknown().optional(),
+        result: z.unknown().optional(),
+      })
+      .parse(JSON.parse(await readResponseText(response, 4 * 1024 * 1024)));
     if (payload.code !== 0) {
-      const code = payload.code === -101 || payload.code === -403 ? 'LINK_LOGIN_REQUIRED'
-        : payload.code === -404 ? 'LINK_UNAVAILABLE'
-        : payload.code === -412 || payload.code === -352 ? 'LINK_RATE_LIMITED' : 'LINK_PARSE_FAILED';
+      const code =
+        payload.code === -101 || payload.code === -403
+          ? 'LINK_LOGIN_REQUIRED'
+          : payload.code === -404
+            ? 'LINK_UNAVAILABLE'
+            : payload.code === -412 || payload.code === -352
+              ? 'LINK_RATE_LIMITED'
+              : 'LINK_PARSE_FAILED';
       throw new LinkImportError(code, 'Bilibili metadata request failed (' + payload.code + ').');
     }
     return payload.result ?? payload.data;
   }
 
-  const videoId = /^\/video\/(BV[\da-z]+|av\d+)\/?$/i.exec(url.pathname)?.[1]
-    ?? url.searchParams.get('bvid');
+  const videoId = /^\/video\/(BV[\da-z]+|av\d+)\/?$/i.exec(url.pathname)?.[1] ?? url.searchParams.get('bvid');
   if (videoId && url.hostname === 'www.bilibili.com') {
-    const data = z.object({
-      bvid: z.string(), title: z.string().min(1), pic: nullableText, desc: nullableText,
-      pubdate: z.number().optional(), duration: z.number().optional(),
-      owner: z.object({ name: z.string() }).optional(),
-      pages: z.array(z.object({ page: z.number().int().positive(), part: z.string(), duration: z.number().optional() })),
-    }).parse(await api('/x/web-interface/view', /^av/i.test(videoId) ? { aid: videoId.slice(2) } : { bvid: videoId }));
+    const data = z
+      .object({
+        bvid: z.string(),
+        title: z.string().min(1),
+        pic: nullableText,
+        desc: nullableText,
+        pubdate: z.number().optional(),
+        duration: z.number().optional(),
+        owner: z.object({ name: z.string() }).optional(),
+        pages: z.array(
+          z.object({ page: z.number().int().positive(), part: z.string(), duration: z.number().optional() }),
+        ),
+      })
+      .parse(await api('/x/web-interface/view', /^av/i.test(videoId) ? { aid: videoId.slice(2) } : { bvid: videoId }));
     const selected = url.searchParams.get('p');
-    const part = selected ? data.pages.find(p => String(p.page) === selected) : undefined;
+    const part = selected ? data.pages.find((p) => String(p.page) === selected) : undefined;
     if (selected && !part) throw new LinkImportError('LINK_UNAVAILABLE', 'The requested video part does not exist.');
     const source = new URL('https://www.bilibili.com/video/' + data.bvid);
     if (part) source.searchParams.set('p', String(part.page));
@@ -120,12 +175,15 @@ export async function resolveBilibiliMetadata(
     result.year = date(data.pubdate) ? Number(date(data.pubdate)?.slice(0, 4)) : null;
     result.runtimeMin = minutes(part?.duration ?? data.duration);
     if (!selected && data.pages.length > 1) {
-      if (data.pages.length > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+      if (data.pages.length > MAX_EPISODES)
+        throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
       result.kind = 'playlist';
       result.runtimeMin = null;
-      result.episodes = data.pages.map(p => ({
-        name: p.part.slice(0, 300), sourceVideoId: data.bvid + '_p' + p.page,
-        runtime: minutes(p.duration), airDate: date(data.pubdate),
+      result.episodes = data.pages.map((p) => ({
+        name: p.part.slice(0, 300),
+        sourceVideoId: data.bvid + '_p' + p.page,
+        runtime: minutes(p.duration),
+        airDate: date(data.pubdate),
       }));
     }
     return result;
@@ -138,21 +196,26 @@ export async function resolveBilibiliMetadata(
     const isCourse = Boolean(cheese);
     let query = { [match[1] === 'ep' ? 'ep_id' : 'season_id']: match[2] };
     if (match[1] === 'md') {
-      const media = z.object({ media: z.object({ season_id: id }) }).parse(await api('/pgc/review/user', { media_id: match[2] }));
+      const media = z
+        .object({ media: z.object({ season_id: id }) })
+        .parse(await api('/pgc/review/user', { media_id: match[2] }));
       query = { season_id: media.media.season_id };
     }
     const data = seasonSchema.parse(await api(isCourse ? '/pugv/view/web/season' : '/pgc/view/web/season', query));
-    const selected = match[1] === 'ep' ? data.episodes.find(ep => ep.id === match[2]) : undefined;
-    if (match[1] === 'ep' && !selected) throw new LinkImportError('LINK_UNAVAILABLE', 'The requested episode is unavailable.');
+    const selected = match[1] === 'ep' ? data.episodes.find((ep) => ep.id === match[2]) : undefined;
+    if (match[1] === 'ep' && !selected)
+      throw new LinkImportError('LINK_UNAVAILABLE', 'The requested episode is unavailable.');
     // The main array can interleave trailers and bonus clips with full episodes.
     // Use the provider's section marker, not titles or duration, to avoid misnumbering.
-    const selectedEpisodes = selected ? [selected] : isCourse ? data.episodes
-      : data.episodes.filter(ep => ep.section_type === undefined || ep.section_type === 0);
+    const selectedEpisodes = selected
+      ? [selected]
+      : isCourse
+        ? data.episodes
+        : data.episodes.filter((ep) => ep.section_type === undefined || ep.section_type === 0);
     if (!selectedEpisodes.length) throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'No episodes are available.');
-    if (selectedEpisodes.length > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
-    const title = selected
-      ? isCourse ? selected.title : data.title + ' · ' + episodeName(selected)
-      : data.title;
+    if (selectedEpisodes.length > MAX_EPISODES)
+      throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+    const title = selected ? (isCourse ? selected.title : data.title + ' · ' + episodeName(selected)) : data.title;
     const result = base(input, title);
     if (selected && !isCourse) result.seriesTitle = data.title;
     result.kind = !isCourse && !deps.forceImport ? 'tmdb-suggestion' : selected ? 'video' : 'playlist';
@@ -164,14 +227,14 @@ export async function resolveBilibiliMetadata(
     const runtimeEpisode = selected ?? (!isCourse && data.type === 2 ? selectedEpisodes[0] : undefined);
     result.runtimeMin = minutes((runtimeEpisode?.duration ?? 0) / (isCourse ? 1 : 1000));
     if (!selected) {
-      result.episodes = selectedEpisodes.map(ep => ({
+      result.episodes = selectedEpisodes.map((ep) => ({
         sourceVideoId: ep.id,
         name: episodeName(ep),
         runtime: minutes((ep.duration ?? 0) / (isCourse ? 1 : 1000)),
         airDate: date(ep.pub_time ?? (typeof ep.release_date === 'number' ? ep.release_date : undefined)),
       }));
     }
-    if (selectedEpisodes.some(ep => ep.rights?.area_limit || (isCourse && ep.playable === false))) {
+    if (selectedEpisodes.some((ep) => ep.rights?.area_limit || (isCourse && ep.playable === false))) {
       result.warning = 'LINK_PLAYBACK_RESTRICTED';
     }
     if (!selected && isCourse && data.ep_count && data.ep_count > result.episodes.length) {
@@ -200,10 +263,12 @@ export async function resolveBilibiliMetadata(
       const items = data.archives ?? [];
       if (page === 1) {
         total = data.page?.total ?? items.length;
-        if (total > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+        if (total > MAX_EPISODES)
+          throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
         let meta = data.meta;
         if (series) {
-          meta = z.object({ meta: z.object({ name: z.string(), description: nullableText }) })
+          meta = z
+            .object({ meta: z.object({ name: z.string(), description: nullableText }) })
             .parse(await api('/x/series/series', { series_id: sid })).meta;
         }
         result = base(input, meta?.name || '');
@@ -219,14 +284,18 @@ export async function resolveBilibiliMetadata(
         if (!videoId || seen.has(videoId)) continue;
         seen.add(videoId);
         entries.push({
-          sourceVideoId: videoId, name: item.title.slice(0, 300),
-          runtime: minutes(item.duration), airDate: date(item.pubdate ?? item.pubtime),
+          sourceVideoId: videoId,
+          name: item.title.slice(0, 300),
+          runtime: minutes(item.duration),
+          airDate: date(item.pubdate ?? item.pubtime),
         });
       }
-      if (entries.length > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+      if (entries.length > MAX_EPISODES)
+        throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
       if (!items.length || entries.length === previousCount || (received >= total && !data.has_more)) break;
     }
-    if (!result || !entries.length) throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
+    if (!result || !entries.length)
+      throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
     result.episodes = entries;
     if (entries.length < total) result.warning = 'LINK_METADATA_INCOMPLETE';
     return result;

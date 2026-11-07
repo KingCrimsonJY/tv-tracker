@@ -37,7 +37,7 @@ export interface YtdlpExecResult {
 export type YtdlpExecFn = (
   file: string,
   args: readonly string[],
-  options: { timeout: number; maxBuffer: number }
+  options: { timeout: number; maxBuffer: number },
 ) => Promise<YtdlpExecResult>;
 
 export const defaultYtdlpExec: YtdlpExecFn = (file, args, options) =>
@@ -62,16 +62,11 @@ export const defaultYtdlpExec: YtdlpExecFn = (file, args, options) =>
             reject(new YtdlpExecutionError('yt-dlp timed out (30s)', 'YTDLP_TIMEOUT'));
             return;
           }
-          reject(
-            new YtdlpExecutionError(
-              stderr?.trim() || err.message || 'yt-dlp execution failed',
-              'YTDLP_FAILED'
-            )
-          );
+          reject(new YtdlpExecutionError(stderr?.trim() || err.message || 'yt-dlp execution failed', 'YTDLP_FAILED'));
           return;
         }
         resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
-      }
+      },
     );
   });
 
@@ -92,6 +87,7 @@ const ytdlpEntrySchema = z.object({
   duration: z.number().nullable().optional(),
   ie_key: z.string().nullable().optional(),
   live_status: z.string().nullable().optional(),
+  is_live: z.boolean().nullable().optional(),
 });
 
 export const ytdlpOutputSchema = z.object({
@@ -135,13 +131,9 @@ function isFileExecutable(filePath: string): boolean {
   }
 }
 
-export function getYtdlpBinaryPath(
-  customPathOrOptions?: string | GetYtdlpBinaryPathOptions
-): string {
+export function getYtdlpBinaryPath(customPathOrOptions?: string | GetYtdlpBinaryPathOptions): string {
   const opts: GetYtdlpBinaryPathOptions =
-    typeof customPathOrOptions === 'string'
-      ? { customPath: customPathOrOptions }
-      : (customPathOrOptions ?? {});
+    typeof customPathOrOptions === 'string' ? { customPath: customPathOrOptions } : (customPathOrOptions ?? {});
 
   const fromArg = opts.customPath?.trim();
   if (fromArg) return fromArg;
@@ -169,10 +161,14 @@ export function buildYtdlpArgs(url: string): string[] {
     ...(cookiesFile ? ['--cookies', cookiesFile] : []),
     '--ignore-config',
     '--no-cache-dir',
-    '--playlist-end', '2001',
-    '--socket-timeout', '10',
-    '--retries', '1',
-    '--extractor-retries', '1',
+    '--playlist-end',
+    '2001',
+    '--socket-timeout',
+    '10',
+    '--retries',
+    '1',
+    '--extractor-retries',
+    '1',
     '--dump-single-json',
     '--skip-download',
     '--flat-playlist',
@@ -192,10 +188,7 @@ function normalizeCoverUrl(raw: string | null | undefined): string | null {
   if (!trimmed) return null;
   if (trimmed.startsWith('//')) {
     trimmed = `https:${trimmed}`;
-  } else if (
-    trimmed.startsWith('http://') &&
-    (trimmed.includes('.hdslb.com/') || trimmed.includes('.biliimg.com/'))
-  ) {
+  } else if (trimmed.startsWith('http://') && (trimmed.includes('.hdslb.com/') || trimmed.includes('.biliimg.com/'))) {
     trimmed = `https://${trimmed.slice('http://'.length)}`;
   }
   if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
@@ -217,10 +210,7 @@ function selectBestThumbnail(parsed: YtdlpOutput): string | null {
   return null;
 }
 
-function deriveEntrySourceVideoId(
-  entry: NonNullable<z.infer<typeof ytdlpEntrySchema>>,
-  index: number
-): string {
+function deriveEntrySourceVideoId(entry: NonNullable<z.infer<typeof ytdlpEntrySchema>>, index: number): string {
   const rawId = entry.id?.trim();
   if (rawId) return rawId.slice(0, 500);
 
@@ -238,8 +228,11 @@ function deriveEntrySourceVideoId(
 function isTvOrBangumiOutput(parsed: YtdlpOutput, inputUrl: string): boolean {
   const extractor = ((parsed.extractor || '') + ' ' + (parsed.extractor_key || '')).toLowerCase();
   if (extractor.includes('cheese')) return false;
-  return extractor.includes('bangumi') || isBangumiUrl(inputUrl) ||
-    (parsed.webpage_url ? isBangumiUrl(parsed.webpage_url) : false);
+  return (
+    extractor.includes('bangumi') ||
+    isBangumiUrl(inputUrl) ||
+    (parsed.webpage_url ? isBangumiUrl(parsed.webpage_url) : false)
+  );
 }
 
 function getPlaylistEntries(parsed: YtdlpOutput) {
@@ -259,7 +252,7 @@ function getPlaylistEntries(parsed: YtdlpOutput) {
 export function mapYtdlpJsonToLinkResult(
   rawJson: unknown,
   inputUrl: string,
-  options: { forceImport?: boolean } = {}
+  options: { forceImport?: boolean } = {},
 ): LinkImportResult {
   if (rawJson === null || typeof rawJson !== 'object') {
     throw new YtdlpExecutionError('yt-dlp did not return a valid JSON object', 'YTDLP_FAILED');
@@ -271,16 +264,17 @@ export function mapYtdlpJsonToLinkResult(
 function mapParsedYtdlpResult(
   parsed: YtdlpOutput,
   inputUrl: string,
-  options: { forceImport?: boolean }
+  options: { forceImport?: boolean },
 ): LinkImportResult {
   assertSupportedLinkType(inputUrl);
   if (parsed.webpage_url) assertSupportedLinkType(parsed.webpage_url);
-  if (parsed.is_live || ['is_live', 'is_upcoming'].includes(parsed.live_status || '') || parsed.entries?.some(ep => ep && ['is_live', 'is_upcoming'].includes(ep.live_status || ''))) {
+  if (parsed.is_live || ['is_live', 'is_upcoming'].includes(parsed.live_status || '')) {
     throw new LinkImportError('LINK_LIVE_UNSUPPORTED', 'LINK_LIVE_UNSUPPORTED');
   }
-  const rawTitle = (parsed.series?.trim() && isTvOrBangumiOutput(parsed, inputUrl) && !options.forceImport
-    ? parsed.series.trim()
-    : parsed.title?.trim()) || '';
+  const rawTitle =
+    (parsed.series?.trim() && isTvOrBangumiOutput(parsed, inputUrl) && !options.forceImport
+      ? parsed.series.trim()
+      : parsed.title?.trim()) || '';
 
   if (!rawTitle) throw new LinkImportError('LINK_PARSE_FAILED', 'Video title is missing.');
   const title = rawTitle.slice(0, 200);
@@ -304,7 +298,14 @@ function mapParsedYtdlpResult(
       ? Math.max(1, Math.round(parsed.duration / 60))
       : null;
 
-  const validEntries = getPlaylistEntries(parsed);
+  const allEntries = getPlaylistEntries(parsed);
+  const validEntries = allEntries.filter(
+    (entry) => !entry.is_live && !['is_live', 'is_upcoming'].includes(entry.live_status || ''),
+  );
+  const skippedCount = allEntries.length - validEntries.length;
+  if (allEntries.length && !validEntries.length) {
+    throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'LINK_EMPTY_PLAYLIST');
+  }
   const episodes: LinkImportEpisodeSeed[] = validEntries.map((entry, idx) => {
     const rawEpTitle = entry.title?.trim() || null;
     const epTitle = rawEpTitle && !isGenericEpisodeLabel(rawEpTitle) ? rawEpTitle.slice(0, 300) : null;
@@ -321,8 +322,13 @@ function mapParsedYtdlpResult(
 
   const metadata = {
     mediaType: 'other' as const,
-    ...((parsed.playlist_count != null && parsed.playlist_count > validEntries.length) || validEntries.some(entry => !entry.title || (!entry.duration && !['is_live', 'is_upcoming'].includes(entry.live_status || '')))
-      ? { warning: 'LINK_METADATA_INCOMPLETE' } : {}),
+    skippedCount,
+    ...((parsed.playlist_count != null && parsed.playlist_count > allEntries.length) ||
+    validEntries.some(
+      (entry) => !entry.title || (!entry.duration && !['is_live', 'is_upcoming'].includes(entry.live_status || '')),
+    )
+      ? { warning: 'LINK_METADATA_INCOMPLETE' }
+      : {}),
   } satisfies Partial<LinkImportResult>;
 
   if (!options.forceImport && isTvOrBangumiOutput(parsed, inputUrl)) {
@@ -341,8 +347,7 @@ function mapParsedYtdlpResult(
     };
   }
 
-  const isPlaylist =
-    episodes.length > 0 || parsed._type === 'playlist' || parsed._type === 'multi_video';
+  const isPlaylist = episodes.length > 0 || parsed._type === 'playlist' || parsed._type === 'multi_video';
 
   return {
     ...metadata,
@@ -367,10 +372,7 @@ export interface RunYtdlpOptions {
   forceImport?: boolean;
 }
 
-export async function resolveWithYtdlp(
-  rawUrl: string,
-  options: RunYtdlpOptions = {}
-): Promise<LinkImportResult> {
+export async function resolveWithYtdlp(rawUrl: string, options: RunYtdlpOptions = {}): Promise<LinkImportResult> {
   assertSupportedLinkType(rawUrl);
   const safeUrl = await assertSafePublicUrl(rawUrl, options.lookupFn);
   const binaryPath = getYtdlpBinaryPath(options.binaryPath);
@@ -399,16 +401,22 @@ export async function resolveWithYtdlp(
   // Reject empty/oversized playlists before spending requests on optional enrichment.
   getPlaylistEntries(parsed);
   const result = mapParsedYtdlpResult(parsed, safeUrl.toString(), { forceImport: options.forceImport });
-  if (result.kind === 'playlist' && /(?:^|\.)youtube\.com$/.test(safeUrl.hostname) &&
-      !(parsed.playlist_count && parsed.playlist_count > result.episodes.length) &&
-      result.episodes.some(ep => !ep.name || ep.runtime == null)) result.warning = 'LINK_METADATA_PENDING';
+  if (
+    result.kind === 'playlist' &&
+    /(?:^|\.)youtube\.com$/.test(safeUrl.hostname) &&
+    !(parsed.playlist_count && parsed.playlist_count > result.episodes.length + (result.skippedCount || 0)) &&
+    result.episodes.some((ep) => !ep.name || ep.runtime == null)
+  )
+    result.warning = 'LINK_METADATA_PENDING';
   return result;
 }
 
-export async function getYtdlpVersion(options: {
-  binaryPath?: string;
-  execFn?: YtdlpExecFn;
-} = {}): Promise<string | null> {
+export async function getYtdlpVersion(
+  options: {
+    binaryPath?: string;
+    execFn?: YtdlpExecFn;
+  } = {},
+): Promise<string | null> {
   const binaryPath = getYtdlpBinaryPath(options.binaryPath);
   const execFn = options.execFn ?? defaultYtdlpExec;
   try {
@@ -423,10 +431,12 @@ export async function getYtdlpVersion(options: {
   }
 }
 
-export async function updateYtdlpBinary(options: {
-  binaryPath?: string;
-  execFn?: YtdlpExecFn;
-} = {}): Promise<{ ok: boolean; output: string }> {
+export async function updateYtdlpBinary(
+  options: {
+    binaryPath?: string;
+    execFn?: YtdlpExecFn;
+  } = {},
+): Promise<{ ok: boolean; output: string }> {
   const binaryPath = getYtdlpBinaryPath(options.binaryPath);
   const execFn = options.execFn ?? defaultYtdlpExec;
   try {

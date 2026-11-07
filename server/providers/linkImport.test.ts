@@ -12,11 +12,7 @@ import {
   resolveLinkMetadata,
   YTDLP_MISSING_WARNING,
 } from './linkImport.ts';
-import {
-  type YtdlpExecFn,
-  YtdlpExecutionError,
-  YtdlpNotInstalledError,
-} from './ytdlp.ts';
+import { type YtdlpExecFn, YtdlpExecutionError, YtdlpNotInstalledError } from './ytdlp.ts';
 
 const mockPublicDns: DnsLookupFn = async (hostname) => {
   if (hostname === 'internal.corp') {
@@ -46,7 +42,7 @@ const FIXTURE_YT_PLAYLIST = {
   description: 'Official Google Home mini-series.',
   uploader: 'Google',
   webpage_url: 'https://www.youtube.com/playlist?list=PL590L5WQmH8eYTXiTTjzo4YnK7vkCqZTI',
-   thumbnails: [
+  thumbnails: [
     { url: 'https://i.ytimg.com/vi/15_DCzw_vHU/default.jpg', width: 120, height: 90 },
     { url: 'https://i.ytimg.com/vi/15_DCzw_vHU/hqdefault.jpg', width: 480, height: 360 },
   ],
@@ -262,10 +258,11 @@ test('2. YouTube playlist via yt-dlp maps one episode per entry with sourceVideo
     stderr: '',
   });
 
-  const result = await resolveLinkMetadata(
-    'https://www.youtube.com/playlist?list=PL590L5WQmH8eYTXiTTjzo4YnK7vkCqZTI',
-    { lookupFn: mockPublicDns, fetchFn: mockFetch, execFn }
-  );
+  const result = await resolveLinkMetadata('https://www.youtube.com/playlist?list=PL590L5WQmH8eYTXiTTjzo4YnK7vkCqZTI', {
+    lookupFn: mockPublicDns,
+    fetchFn: mockFetch,
+    execFn,
+  });
 
   assert.equal(result.kind, 'playlist');
   assert.equal(result.title, 'This Is Google Home');
@@ -328,16 +325,17 @@ test('4. Bilibili 合集 (collection/season) maps entries with BV ids as sourceV
     stderr: '',
   });
 
-  const result = await resolveLinkMetadata(
-    'https://space.bilibili.com/37754047/lists/1853488?type=season',
-    { lookupFn: mockPublicDns, fetchFn: mockFetch, execFn }
-  );
+  const result = await resolveLinkMetadata('https://space.bilibili.com/37754047/lists/1853488?type=season', {
+    lookupFn: mockPublicDns,
+    fetchFn: mockFetch,
+    execFn,
+  });
 
   assert.equal(result.kind, 'playlist');
   assert.equal(result.title, '合集·独立游戏深度评测');
   assert.equal(
     result.posterUrl,
-    'https://archive.biliimg.com/bfs/archive/719f0dbcf4c307c85a95b84a6b2aeebec9341081.jpg'
+    'https://archive.biliimg.com/bfs/archive/719f0dbcf4c307c85a95b84a6b2aeebec9341081.jpg',
   );
   assert.equal(result.episodes.length, 2);
   assert.equal(result.episodes[0]?.sourceVideoId, 'BV1hZ4y1h7PV');
@@ -447,7 +445,7 @@ test('6. Refresh playlist appends only new entries by sourceVideoId without alte
         { name: '第三期：空洞骑士 Hollow Knight', sourceVideoId: 'BV1NewEp003', runtime: 28 },
         { name: '第四期：蔚蓝 Celeste', sourceVideoId: 'BV1NewEp004', runtime: 22 },
       ],
-      now + 5000
+      now + 5000,
     );
 
     assert.equal(refreshRes.addedCount, 2);
@@ -534,15 +532,18 @@ test('8. yt-dlp timeout reports partial Open Graph metadata and throws when no m
   assert.equal(ogFallback.warning, 'YTDLP_TIMEOUT');
   assert.equal(ogFallback.title, "飞向太空 Solaris's & Co. 🎬");
 
-  await assert.rejects(resolveLinkMetadata('https://example.com/unlisted-video-404', {
-    lookupFn: mockPublicDns, fetchFn: mockFetch, execFn: execTimeout,
-  }), { code: 'YTDLP_TIMEOUT' });
-
+  await assert.rejects(
+    resolveLinkMetadata('https://example.com/unlisted-video-404', {
+      lookupFn: mockPublicDns,
+      fetchFn: mockFetch,
+      execFn: execTimeout,
+    }),
+    { code: 'YTDLP_TIMEOUT' },
+  );
 });
 
 test('9. Share-text extraction strips Bilibili tracking parameters without altering the content', async () => {
-  const shareText =
-    '【这就是全网吹的1000以内音质吊打的oppo enco x3啊？-哔哩哔哩】 https://b23.tv/AbCdEf 快来看！';
+  const shareText = '【这就是全网吹的1000以内音质吊打的oppo enco x3啊？-哔哩哔哩】 https://b23.tv/AbCdEf 快来看！';
   assert.equal(extractFirstHttpUrl(shareText), 'https://b23.tv/AbCdEf');
 
   const longQuery = 'a'.repeat(400);
@@ -577,7 +578,12 @@ test('10. Contract test: every path in src/data/api.ts exists on the Express ser
 
     // Extract registered routes from Express 4 router stack
     const registeredRoutes: Array<{ method: string; path: string; regex: RegExp }> = [];
-    const stack = (app as unknown as { _router?: { stack?: Array<{ route?: { path: string; methods: Record<string, boolean> }; regexp?: RegExp }> } })._router?.stack || [];
+    const stack =
+      (
+        app as unknown as {
+          _router?: { stack?: Array<{ route?: { path: string; methods: Record<string, boolean> }; regexp?: RegExp }> };
+        }
+      )._router?.stack || [];
     for (const layer of stack) {
       if (layer.route && layer.route.path) {
         const routePath = layer.route.path;
@@ -606,7 +612,7 @@ test('10. Contract test: every path in src/data/api.ts exists on the Express ser
       const matched = registeredRoutes.some((r) => r.regex.test(concretePath));
       assert.ok(
         matched,
-        `Path "${rawTemplate}" (concrete: "${concretePath}") in src/data/api.ts is not registered on the Express server!`
+        `Path "${rawTemplate}" (concrete: "${concretePath}") in src/data/api.ts is not registered on the Express server!`,
       );
     }
 
@@ -631,7 +637,7 @@ test('10. Contract test: every path in src/data/api.ts exists on the Express ser
       assert.equal(
         /\bapiJson\b/.test(content),
         false,
-        `File ${path.relative(srcRoot, file)} must not reference apiJson directly; use typed functions from src/data/api.ts`
+        `File ${path.relative(srcRoot, file)} must not reference apiJson directly; use typed functions from src/data/api.ts`,
       );
     }
   } finally {
@@ -666,7 +672,7 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
       getYtdlpBinaryPath({
         checkExecutable: (p) => p === '/opt/yt-dlp/yt-dlp',
       }),
-      '/opt/yt-dlp/yt-dlp'
+      '/opt/yt-dlp/yt-dlp',
     );
 
     process.env.YTDLP_PATH = '   ';
@@ -674,7 +680,7 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
       getYtdlpBinaryPath({
         checkExecutable: (p) => p === '/opt/yt-dlp/yt-dlp',
       }),
-      '/opt/yt-dlp/yt-dlp'
+      '/opt/yt-dlp/yt-dlp',
     );
 
     // Falls back to ./.bin/yt-dlp when /opt/yt-dlp/yt-dlp is absent
@@ -682,7 +688,7 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
       getYtdlpBinaryPath({
         checkExecutable: (p) => p === localBin,
       }),
-      localBin
+      localBin,
     );
 
     // Falls back to yt-dlp on PATH when neither file exists
@@ -690,7 +696,7 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
       getYtdlpBinaryPath({
         checkExecutable: () => false,
       }),
-      'yt-dlp'
+      'yt-dlp',
     );
 
     process.env.YTDLP_PATH = '/custom/yt-dlp';
@@ -710,13 +716,11 @@ test('13. buildYtdlpArgs includes --use-extractors default,-generic and getYtdlp
   ].join('\n');
   assert.equal(
     parseExpectedSha256(sampleSums, 'yt-dlp_linux'),
-    '767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795'
+    '767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795',
   );
   assert.equal(
     parseExpectedSha256(sampleSums, 'yt-dlp_linux_aarch64'),
-    '2222222222222222222222222222222222222222222222222222222222222222'
+    '2222222222222222222222222222222222222222222222222222222222222222',
   );
   assert.equal(parseExpectedSha256(sampleSums, 'nonexistent'), null);
 });
-
-

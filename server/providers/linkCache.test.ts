@@ -9,8 +9,15 @@ import { resolveBilibiliMetadata } from './bilibili.ts';
 import { resolveLinkMetadata } from './linkImport.ts';
 
 const result: LinkImportResult = {
-  kind: 'video', title: 'Public video', sourceUrl: 'https://example.com/video',
-  posterUrl: null, overview: '', year: 2024, runtimeMin: 10, episodes: [], fallbackUsed: 'bilibili',
+  kind: 'video',
+  title: 'Public video',
+  sourceUrl: 'https://example.com/video',
+  posterUrl: null,
+  overview: '',
+  year: 2024,
+  runtimeMin: 10,
+  episodes: [],
+  fallbackUsed: 'bilibili',
 };
 test('cached metadata is isolated from caller changes and explicit refresh bypasses it', async () => {
   const provider = vi.mocked(resolveBilibiliMetadata).mockResolvedValue(result);
@@ -25,7 +32,12 @@ test('cached metadata is isolated from caller changes and explicit refresh bypas
 test('concurrent previews share one pending provider request', async () => {
   const provider = vi.mocked(resolveBilibiliMetadata).mockClear();
   let complete!: (value: LinkImportResult) => void;
-  provider.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+  provider.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
   const first = resolveLinkMetadata('https://example.com/pending');
   const second = resolveLinkMetadata('https://example.com/pending');
   await vi.waitFor(() => expect(provider).toHaveBeenCalledTimes(1));

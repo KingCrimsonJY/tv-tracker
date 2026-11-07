@@ -25,19 +25,13 @@
           var saved = localStorage.getItem('zhenji_resolved_theme');
           if (saved === 'light' || saved === 'dark') {
             mode = saved;
-          } else if (
-            window.matchMedia &&
-            window.matchMedia('(prefers-color-scheme: light)').matches
-          ) {
+          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
             mode = 'light';
           }
           var savedLocale = localStorage.getItem('zhenji_resolved_locale');
           if (savedLocale === 'en' || savedLocale === 'zh-CN') {
             locale = savedLocale;
-          } else if (
-            navigator.language &&
-            navigator.language.toLowerCase().indexOf('en') === 0
-          ) {
+          } else if (navigator.language && navigator.language.toLowerCase().indexOf('en') === 0) {
             locale = 'en';
           }
         } catch (e) {}

@@ -45,9 +45,7 @@ export const SortableSectionRow: React.FC<{
         </Button>
         <div className="min-w-0">
           <div className="text-sm font-medium text-[var(--foreground)] truncate">{sectionLabel}</div>
-          <div className="text-xs text-[var(--muted)] truncate">
-            {t.home.sectionDescriptions[section.id]}
-          </div>
+          <div className="text-xs text-[var(--muted)] truncate">{t.home.sectionDescriptions[section.id]}</div>
         </div>
       </div>
 

@@ -69,14 +69,8 @@ export const AboutSection: React.FC = () => {
         </div>
 
         <div className="pt-3 border-t border-[var(--border)] flex flex-row items-center gap-3">
-          <img
-            src="/tmdb-logo.svg"
-            alt="TMDB"
-            className="h-3.5 w-auto shrink-0 opacity-90"
-          />
-          <p className="text-xs text-[var(--muted)] leading-relaxed min-w-0 flex-1">
-            {t.settings.about.tmdbNotice}
-          </p>
+          <img src="/tmdb-logo.svg" alt="TMDB" className="h-3.5 w-auto shrink-0 opacity-90" />
+          <p className="text-xs text-[var(--muted)] leading-relaxed min-w-0 flex-1">{t.settings.about.tmdbNotice}</p>
         </div>
       </Card.Content>
     </Card>

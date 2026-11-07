@@ -18,14 +18,7 @@ import type {
   UiLocale,
 } from './types';
 
-export {
-  isEpisodic,
-  pickBackdrop,
-  pickPoster,
-  resolveDisplayTitle,
-  resolveLocalizedText,
-  resolveOverviewText,
-};
+export { isEpisodic, pickBackdrop, pickPoster, resolveDisplayTitle, resolveLocalizedText, resolveOverviewText };
 
 /**
  * Generates a fractional rank key to append at the end of a sorted list of ranks.
@@ -46,7 +39,7 @@ export function getNextRank(existingRanks: string[]): string {
 export function computeMovedRank<T extends { rank: string }>(
   sortedItems: T[],
   activeIndex: number,
-  overIndex: number
+  overIndex: number,
 ): string | null {
   if (
     activeIndex === overIndex ||
@@ -85,7 +78,7 @@ export function sortListEntries(
   kind: 'ordered' | 'collection',
   collectionSort: CollectionSort,
   defaultLang: DefaultTitleLang = 'auto',
-  activeLocale: UiLocale = 'zh-CN'
+  activeLocale: UiLocale = 'zh-CN',
 ): HydratedListEntry[] {
   const copy = [...items];
 
@@ -122,7 +115,7 @@ export function computeListProgress(
   orderedEntries: HydratedListEntry[],
   seasonsByTitle: Record<string, SeasonDoc[]>,
   progressByTitle: Record<string, ProgressDoc | undefined>,
-  options: { includeSpecials?: boolean; todayStr?: string } = {}
+  options: { includeSpecials?: boolean; todayStr?: string } = {},
 ): {
   totalCount: number;
   completedCount: number;

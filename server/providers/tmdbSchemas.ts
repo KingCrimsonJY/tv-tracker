@@ -63,9 +63,7 @@ export const tmdbDetailResponseSchema = z.object({
       backdrops: z.array(tmdbImageItemSchema).optional(),
     })
     .optional(),
-  seasons: z
-    .array(z.object({ season_number: z.number(), name: z.string().optional() }))
-    .optional(),
+  seasons: z.array(z.object({ season_number: z.number(), name: z.string().optional() })).optional(),
 });
 
 export const tmdbSeasonResponseSchema = z.object({
@@ -82,7 +80,7 @@ export const tmdbSeasonResponseSchema = z.object({
         runtime: z.number().nullable().optional(),
         still_path: z.string().nullable().optional(),
         overview: z.string().optional(),
-      })
+      }),
     )
     .optional(),
 });

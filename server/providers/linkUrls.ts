@@ -2,14 +2,18 @@ import { assertSafePublicUrl, safeFetchFollowingRedirects, type SafeFetchOptions
 import { LinkImportError } from './linkErrors.ts';
 
 export function isBilibiliUrl(url: URL): boolean {
-  return ['www.bilibili.com', 'bilibili.com', 'm.bilibili.com', 'space.bilibili.com', 'live.bilibili.com'].includes(url.hostname);
+  return ['www.bilibili.com', 'bilibili.com', 'm.bilibili.com', 'space.bilibili.com', 'live.bilibili.com'].includes(
+    url.hostname,
+  );
 }
 
 export function isBangumiUrl(raw: string): boolean {
   try {
     const url = new URL(raw);
     return isBilibiliUrl(url) && /\/(?:bangumi)\/(?:play|media)\//.test(url.pathname);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 function canonicalizeLinkUrl(input: URL): URL {
@@ -21,7 +25,8 @@ function canonicalizeLinkUrl(input: URL): URL {
     const collection = /^\/list\/(\d+)\/?$/.exec(url.pathname);
     const sid = url.searchParams.get('sid');
     if (collection && sid && /^\d+$/.test(sid)) {
-      url.hostname = 'space.bilibili.com'; url.pathname = `/${collection[1]}/lists/${sid}`;
+      url.hostname = 'space.bilibili.com';
+      url.pathname = `/${collection[1]}/lists/${sid}`;
     }
     url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
     // Share tracking parameters may contain identifiers; retain only content selectors.
@@ -40,10 +45,14 @@ export async function normalizeLinkUrl(raw: string, deps: SafeFetchOptions = {})
       const targetPath = /^(?:ss|ep)/i.test(alias) ? 'bangumi/play' : 'video';
       url = new URL('https://www.bilibili.com/' + targetPath + '/' + alias + url.search);
     } else {
-      const { response, finalUrl } = await safeFetchFollowingRedirects(url.toString(), {
-        signal: AbortSignal.timeout(10_000),
-        headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' },
-      }, deps);
+      const { response, finalUrl } = await safeFetchFollowingRedirects(
+        url.toString(),
+        {
+          signal: AbortSignal.timeout(10_000),
+          headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' },
+        },
+        deps,
+      );
       await response.body?.cancel();
       url = new URL(finalUrl);
       if (!response.ok || !isBilibiliUrl(url)) {

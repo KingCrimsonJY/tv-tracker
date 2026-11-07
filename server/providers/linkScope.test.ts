@@ -22,20 +22,36 @@ test.each([
   ['https://youtube.com/user/creator', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/playlist?list=UUabc', 'LINK_FEED_UNSUPPORTED'],
 ])('rejects %s before any provider call', async (url, code) => {
-  const fetchFn = vi.fn(); const execFn = vi.fn();
+  const fetchFn = vi.fn();
+  const execFn = vi.fn();
   await expect(resolveLinkMetadata(url, { lookupFn, fetchFn, execFn })).rejects.toMatchObject({ code });
-  expect(fetchFn).not.toHaveBeenCalled(); expect(execFn).not.toHaveBeenCalled();
+  expect(fetchFn).not.toHaveBeenCalled();
+  expect(execFn).not.toHaveBeenCalled();
 });
 
-test.each(['is_live', 'is_upcoming'])('rejects YouTube %s metadata, including live playlist entries', status => {
-  expect(() => mapYtdlpJsonToLinkResult({ title: 'Live', live_status: status }, 'https://youtube.com/watch?v=abcdefghijk')).toThrow('LINK_LIVE_UNSUPPORTED');
-  expect(() => mapYtdlpJsonToLinkResult({ title: 'Playlist', entries: [{ id: 'abcdefghijk', live_status: status }] }, 'https://youtube.com/playlist?list=PLabc')).toThrow('LINK_LIVE_UNSUPPORTED');
+test.each(['is_live', 'is_upcoming'])('rejects a YouTube %s single video and an entirely live playlist', (status) => {
+  expect(() =>
+    mapYtdlpJsonToLinkResult({ title: 'Live', live_status: status }, 'https://youtube.com/watch?v=abcdefghijk'),
+  ).toThrow('LINK_LIVE_UNSUPPORTED');
+  expect(() =>
+    mapYtdlpJsonToLinkResult(
+      { title: 'Playlist', entries: [{ id: 'abcdefghijk', live_status: status }] },
+      'https://youtube.com/playlist?list=PLabc',
+    ),
+  ).toThrow('LINK_EMPTY_PLAYLIST');
 });
 
 test.each([
-  'https://youtube.com/watch?v=abcdefghijk', 'https://youtu.be/abcdefghijk',
-  'https://youtube.com/shorts/abcdefghijk', 'https://youtube.com/live/abcdefghijk',
-  'https://youtube.com/playlist?list=PLabc', 'https://www.bilibili.com/video/BV1bK411W797?p=2',
-  'https://space.bilibili.com/123/lists/456?type=season', 'https://space.bilibili.com/123/channel/seriesdetail?sid=456',
-  'https://www.bilibili.com/cheese/play/ss123', 'https://www.bilibili.com/bangumi/play/ss123',
-])('keeps supported content URL %s', url => { expect(() => assertSupportedLinkType(url)).not.toThrow(); });
+  'https://youtube.com/watch?v=abcdefghijk',
+  'https://youtu.be/abcdefghijk',
+  'https://youtube.com/shorts/abcdefghijk',
+  'https://youtube.com/live/abcdefghijk',
+  'https://youtube.com/playlist?list=PLabc',
+  'https://www.bilibili.com/video/BV1bK411W797?p=2',
+  'https://space.bilibili.com/123/lists/456?type=season',
+  'https://space.bilibili.com/123/channel/seriesdetail?sid=456',
+  'https://www.bilibili.com/cheese/play/ss123',
+  'https://www.bilibili.com/bangumi/play/ss123',
+])('keeps supported content URL %s', (url) => {
+  expect(() => assertSupportedLinkType(url)).not.toThrow();
+});

@@ -29,6 +29,7 @@ interface TitleMenuProps {
   onRefreshMetadata: () => void;
   onRefreshPlaylist?: () => void;
   onDelete: () => void;
+  onToggleStructureLock?: () => void;
 }
 
 export const TitleMenu: React.FC<TitleMenuProps> = ({
@@ -43,6 +44,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
   onRefreshMetadata,
   onRefreshPlaylist,
   onDelete,
+  onToggleStructureLock,
 }) => {
   const { t } = useI18n();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -79,6 +81,9 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
         break;
       case 'refreshPlaylist':
         onRefreshPlaylist?.();
+        break;
+      case 'structureLock':
+        onToggleStructureLock?.();
         break;
       case 'delete':
         onDelete();
@@ -153,9 +158,22 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                   </Button>
                 )}
                 {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
-                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('refreshPlaylist')}>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onPress={() => handleAction('refreshPlaylist')}
+                  >
                     <RefreshCw className="w-4 h-4 mr-3" />
                     {t.detail.menu.refreshPlaylist}
+                  </Button>
+                )}
+                {titleState.isEpisodic && onToggleStructureLock && (
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onPress={() => handleAction('structureLock')}
+                  >
+                    {title.structureLocked ? t.upstream.unlock : t.upstream.lock}
                   </Button>
                 )}
                 <Button variant="danger-soft" className="w-full justify-start" onPress={() => handleAction('delete')}>
@@ -170,12 +188,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
 
       <div className="hidden sm:block">
         <Dropdown>
-          <Button
-            variant="secondary"
-            size="lg"
-            isIconOnly
-            aria-label={t.detail.moreActionsAria}
-          >
+          <Button variant="secondary" size="lg" isIconOnly aria-label={t.detail.moreActionsAria}>
             <MoreHorizontal className="w-5 h-5" />
           </Button>
           <Dropdown.Popover>
@@ -229,6 +242,11 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                 <Dropdown.Item id="refreshPlaylist">
                   <RefreshCw className="w-4 h-4 mr-2" />
                   <Label>{t.detail.menu.refreshPlaylist}</Label>
+                </Dropdown.Item>
+              )}
+              {titleState.isEpisodic && onToggleStructureLock && (
+                <Dropdown.Item id="structureLock">
+                  <Label>{title.structureLocked ? t.upstream.unlock : t.upstream.lock}</Label>
                 </Dropdown.Item>
               )}
               <Dropdown.Item id="delete" variant="danger">

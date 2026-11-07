@@ -14,9 +14,9 @@ export function resolveSeasonSelection(
   if (episodeLink !== previous.appliedLink && linkedSeason && seasonNumbers.includes(linkedSeason)) {
     return { seasonNumber: linkedSeason, appliedLink: episodeLink };
   }
-  const seasonNumber = seasonNumbers.includes(previous.seasonNumber)
-    ? previous.seasonNumber : seasonNumbers[0] ?? 1;
+  const seasonNumber = seasonNumbers.includes(previous.seasonNumber) ? previous.seasonNumber : (seasonNumbers[0] ?? 1);
   const appliedLink = episodeLink ? previous.appliedLink : null;
   return seasonNumber === previous.seasonNumber && appliedLink === previous.appliedLink
-    ? previous : { seasonNumber, appliedLink };
+    ? previous
+    : { seasonNumber, appliedLink };
 }
