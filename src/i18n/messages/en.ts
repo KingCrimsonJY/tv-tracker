@@ -466,7 +466,7 @@ export const en: MessageCatalog = {
       importJson: 'Import JSON',
       refreshAllMetadata: 'Refresh All Metadata',
       refreshingAllToast: (done: number | string, total: number | string) => `Refreshing bilingual metadata (${done}/${total})…`,
-      refreshAllSuccessToast: (count: number | string) => `Refreshed bilingual metadata for ${count} titles`,
+      refreshAllSummary: (updated: number, partial: number, failed: number, skipped: number) => `Updated: ${updated} · Partial: ${partial} · Failed: ${failed} · Skipped: ${skipped}`,
       refreshAllEmptyToast: 'No TMDB titles in library to refresh',
       refreshAllFailedToast: 'Metadata refresh failed. Check your TMDB token or connection.',
       importConfirmTitle: 'Overwrite Library Data?',

@@ -34,6 +34,8 @@ import type {
   ListEntryDoc,
   ListKind,
   ManualState,
+  MetadataRefreshStatus,
+  MetadataRefreshCounts,
   ProgressDoc,
   SeasonDoc,
   StateMutationResult,
@@ -78,8 +80,8 @@ export interface TrackerContextValue {
   ) => Promise<void>;
   setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
   fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
-  refreshTitleMetadata: (titleId: string) => Promise<void>;
-  refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<number>;
+  refreshTitleMetadata: (titleId: string) => Promise<MetadataRefreshStatus>;
+  refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<MetadataRefreshCounts>;
   refreshLinkTitlePlaylist: (titleId: string) => Promise<number>;
   tmdbGenres: { zh: Record<number, string>; en: Record<number, string> } | null;
   removeTitle: (titleId: string) => Promise<void>;

@@ -1,3 +1,4 @@
+import { refreshMetadata } from './metadataRepo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -451,6 +452,10 @@ export class TrackerRepository {
 
   public deleteTitle(id: string): StateMutationResult {
     return deleteTitle(this.ctx, id);
+  }
+
+  public refreshMetadata(id: string, data: import('../../src/domain/types.ts').TmdbDetails, now = Date.now()): StateMutationResult {
+    return refreshMetadata(this.ctx, id, data, now);
   }
 
   public replaceSeasons(titleId: string, seasons: SeasonDoc[]): StateMutationResult {

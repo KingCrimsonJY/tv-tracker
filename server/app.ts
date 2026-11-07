@@ -49,13 +49,11 @@ export function sendApiError(
   res: Response,
   status: number,
   code: ServerErrorCode,
-  message: string,
+  _message: string,
   extra?: Record<string, unknown>
 ): void {
   res.status(status).json({
     code,
-    message,
-    error: message,
     ...(extra || {}),
   });
 }

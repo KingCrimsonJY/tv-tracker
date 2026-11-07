@@ -146,6 +146,25 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     }
   });
 
+  app.post('/api/titles/:id/refresh-metadata', async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const title = repo.getTitle(id);
+      if (!title) throw new NotFoundError('TITLE_NOT_FOUND');
+      if (title.source !== 'tmdb' || !title.sourceId || title.mediaType === 'other') {
+        res.json({ version: repo.getVersion(), upserts: {}, deletes: {}, status: 'skipped' });
+        return;
+      }
+      if (!isTmdbConfigured()) { sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_NOT_CONFIGURED'); return; }
+      const data = await fetchTmdbTitleDetails(title.mediaType, title.sourceId);
+      const mutation = broadcastMutation(repo.refreshMetadata(id, data, nowFn()));
+      res.json({ ...mutation, status: data.failedSeasons?.length ? 'partial' : 'updated' });
+    } catch (error) {
+      if (error instanceof NotFoundError) { next(error); return; }
+      sendApiError(res, 502, 'TMDB_UNAVAILABLE', 'TMDB_UNAVAILABLE');
+    }
+  });
+
   app.get('/api/ratings', async (req, res) => {
     const imdbId = String(req.query.imdbId || '').trim();
     const result = await fetchCombinedRatings({ imdbId });

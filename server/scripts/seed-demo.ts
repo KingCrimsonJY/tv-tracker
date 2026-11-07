@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { createDemoDirectory } from './demoDirectory.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateKeyBetween } from 'fractional-indexing';
@@ -75,16 +76,7 @@ function loadYtdlpFixture(filename: string, inputUrl: string) {
 }
 
 async function main() {
-  const targetDir = path.resolve(process.env.DATA_DIR || './data-demo');
-  const prodDataDir = path.resolve('./data');
-  if (targetDir === prodDataDir) {
-    console.error('Refusing to run seed:demo against ./data. Use DATA_DIR=./data-demo.');
-    process.exit(1);
-  }
-
-  if (fs.existsSync(targetDir)) {
-    fs.rmSync(targetDir, { recursive: true, force: true });
-  }
+  const targetDir = createDemoDirectory();
 
   const repo = new TrackerRepository({ dataDir: targetDir });
   const now = Date.now();

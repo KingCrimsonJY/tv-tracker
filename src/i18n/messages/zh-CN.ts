@@ -446,7 +446,7 @@ export const zhCN = {
       importJson: '导入数据 (JSON)',
       refreshAllMetadata: '刷新全部元数据',
       refreshingAllToast: (done: number | string, total: number | string) => `正在刷新双语元数据 (${done}/${total})…`,
-      refreshAllSuccessToast: (count: number | string) => `已完成 ${count} 部作品的双语元数据刷新`,
+      refreshAllSummary: (updated: number, partial: number, failed: number, skipped: number) => `已更新 ${updated} · 部分更新 ${partial} · 失败 ${failed} · 跳过 ${skipped}`,
       refreshAllEmptyToast: '当前片库中没有需要刷新的 TMDB 作品',
       refreshAllFailedToast: '刷新元数据失败，请检查 TMDB 配置或网络连接',
       importConfirmTitle: '确认导入并覆盖数据',

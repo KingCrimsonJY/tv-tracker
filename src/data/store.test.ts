@@ -451,8 +451,7 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
       },
     });
 
-    vi.spyOn(api, 'fetchTmdbDetailsApi').mockResolvedValue({
-      title: {
+    const refreshedTitle: TitleDoc = {
         ...title,
         source: 'tmdb',
         sourceId: '1',
@@ -474,34 +473,12 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
         showStatus: 'Returning Series',
         externalIds: { imdb: 'tt11280740' },
         ratings: { tmdb: '8.4' },
-      },
-      seasons: snapshot.seasonsByTitle['tmdb_tv_1'],
-    });
-
-    const patchSpy = vi
-      .spyOn(api, 'patchTitleApi')
-      .mockImplementation(async (titleId, patch) => ({
-        epoch: 'epoch-1',
-        version: 2,
-        upserts: {
-          titles: {
-            [titleId]: {
-              ...store.getState().titles[titleId],
-              ...patch,
-            },
-          },
-        },
-        deletes: {},
-      }));
-    vi.spyOn(api, 'putSeasonsApi').mockResolvedValue({
-      epoch: 'epoch-1',
-      version: 3,
-      upserts: {
-        seasonsByTitle: {
-          tmdb_tv_1: snapshot.seasonsByTitle['tmdb_tv_1'],
-        },
-      },
-      deletes: {},
+      };
+    const refreshSpy = vi.spyOn(api, 'refreshMetadataApi').mockResolvedValue({
+      version: 2, status: 'updated', upserts: {
+        titles: { [title.id]: refreshedTitle },
+        seasonsByTitle: snapshot.seasonsByTitle,
+      }, deletes: {},
     });
 
     const actions = createTrackerActions({
@@ -514,7 +491,7 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     });
 
     await actions.refreshTitleMetadata('tmdb_tv_1');
-    expect(patchSpy).toHaveBeenCalledTimes(1);
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
     const refreshed = store.getState().titles['tmdb_tv_1'];
     expect(refreshed.releaseDate).toBe('2022-02-18');
     expect(refreshed.posters).toEqual({

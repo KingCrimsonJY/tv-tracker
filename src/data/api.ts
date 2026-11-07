@@ -417,3 +417,7 @@ export async function fetchSystemInfoApi(): Promise<SystemInfoResponse> {
   return apiJson<SystemInfoResponse>('/api/system/info');
 }
 
+
+export function refreshMetadataApi(titleId: string): Promise<import('../domain/types.ts').MetadataRefreshResult> {
+  return apiJson(`/api/titles/${encodeURIComponent(titleId)}/refresh-metadata`, { method: 'POST' });
+}

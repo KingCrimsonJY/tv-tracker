@@ -402,7 +402,7 @@ export async function fetchTmdbTitleDetails(
   mediaType: 'movie' | 'tv',
   sourceId: string,
   options: TmdbFetchOptions = {}
-): Promise<{ title: TitleDoc; seasons: SeasonDoc[] }> {
+): Promise<import('../../src/domain/types.ts').TmdbDetails> {
   const fetchFn = options.fetchFn || fetch;
   const [rawDetailZh, rawDetailEn] = await Promise.all([
     fetchTmdbRawJson(
@@ -527,6 +527,7 @@ export async function fetchTmdbTitleDetails(
   };
 
   const seasons: SeasonDoc[] = [];
+  const failedSeasons: number[] = [];
 
   if (mediaType === 'tv' && Array.isArray(detail.seasons)) {
     const rawSeasons = detail.seasons.filter((s) => s.season_number >= 0);
@@ -595,6 +596,7 @@ export async function fetchTmdbTitleDetails(
             episodes,
           } satisfies SeasonDoc;
         } catch (err) {
+          failedSeasons.push(s.season_number);
           console.warn(`Failed to fetch season ${s.season_number}:`, err);
           return null;
         }
@@ -605,7 +607,7 @@ export async function fetchTmdbTitleDetails(
     }
   }
 
-  return { title: titleDoc, seasons };
+  return { title: titleDoc, seasons, failedSeasons };
 }
 
 export async function fetchCombinedRatings(params: {

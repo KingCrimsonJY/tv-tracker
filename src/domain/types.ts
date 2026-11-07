@@ -316,3 +316,14 @@ export interface ZhenjiExportV2 {
   lists: Record<string, WatchListDoc>;
   entriesByList: Record<string, ListEntryDoc[]>;
 }
+
+export type MetadataRefreshStatus = 'updated' | 'partial' | 'failed' | 'skipped';
+export type MetadataRefreshCounts = Record<MetadataRefreshStatus, number>;
+export interface MetadataRefreshResult extends StateMutationResult {
+  status: MetadataRefreshStatus;
+}
+export interface TmdbDetails {
+  title: TitleDoc;
+  seasons: SeasonDoc[];
+  failedSeasons?: number[];
+}

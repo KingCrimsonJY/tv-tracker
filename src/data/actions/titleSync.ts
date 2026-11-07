@@ -1,15 +1,15 @@
 import type {
   ListEntryDoc,
   Ratings,
-  TitleDoc,
+  MetadataRefreshStatus,
+  MetadataRefreshCounts,
 } from '../../domain/types.ts';
 import { getActiveCatalog, translateErrorObject } from '../../i18n/index.ts';
 import {
   deleteTitleApi,
   fetchRatingsApi,
-  fetchTmdbDetailsApi,
+  refreshMetadataApi,
   patchTitleApi,
-  putSeasonsApi,
   refreshLinkPlaylistApi,
 } from '../api.ts';
 import type { TrackerActionDeps } from './types.ts';
@@ -97,163 +97,38 @@ export function createTitleSyncActions(
     }
   }
 
-  async function refreshTitleMetadata(titleId: string): Promise<void> {
+  async function refreshTitleMetadata(titleId: string): Promise<MetadataRefreshStatus> {
     const current = getState().titles[titleId];
-    if (!current || current.source !== 'tmdb' || !current.sourceId) return;
-    if (current.mediaType !== 'movie' && current.mediaType !== 'tv') return;
-
+    if (!current || current.source !== 'tmdb' || !current.sourceId || current.mediaType === 'other') return 'skipped';
     try {
-      const data = await fetchTmdbDetailsApi(current.mediaType, current.sourceId);
-      const latest = getState().titles[titleId];
-      if (!latest) return;
-      const prevSeasons = getState().seasonsByTitle[titleId] || [];
-
-      const now = Date.now();
-      const nextZh =
-        data.title.names.zh && data.title.names.zh !== data.title.names.original
-          ? data.title.names.zh
-          : latest.names.zh || data.title.names.zh;
-      const nextNames = {
-        ...latest.names,
-        original: data.title.names.original,
-        zh: nextZh,
-        en: data.title.names.en || latest.names.en,
-      };
-      const nextRatings: Ratings = {
-        ...latest.ratings,
-        ...(data.title.ratings?.tmdb ? { tmdb: data.title.ratings.tmdb } : {}),
-        ...(data.title.ratings?.tmdbVotes !== undefined
-          ? { tmdbVotes: data.title.ratings.tmdbVotes }
-          : {}),
-      };
-      const patch: Partial<Omit<TitleDoc, 'id'>> = {
-        names: nextNames,
-        year: data.title.year ?? latest.year,
-        releaseDate: data.title.releaseDate ?? latest.releaseDate ?? null,
-        runtimeMin: data.title.runtimeMin ?? latest.runtimeMin,
-        genres: data.title.genres.length > 0 ? data.title.genres : latest.genres,
-        ...(data.title.genreIds && data.title.genreIds.length > 0
-          ? { genreIds: data.title.genreIds }
-          : {}),
-        posterPath: data.title.posterPath || latest.posterPath,
-        ...(data.title.posters || latest.posters
-          ? {
-              posters: {
-                ...(latest.posters || {}),
-                ...(data.title.posters || {}),
-              },
-            }
-          : {}),
-        backdropPath: data.title.backdropPath || latest.backdropPath,
-        overview: {
-          zh: data.title.overview.zh || latest.overview.zh,
-          en: data.title.overview.en || latest.overview.en,
-        },
-        showStatus: data.title.showStatus || latest.showStatus,
-        ratings: nextRatings,
-        metaFetchedAt: now,
-        updatedAt: now,
-      };
-
-      setState((prev) =>
-        prev.titles[titleId]
-          ? {
-              ...prev,
-              titles: {
-                ...prev.titles,
-                [titleId]: { ...prev.titles[titleId], ...patch, id: titleId },
-              },
-              seasonsByTitle: {
-                ...prev.seasonsByTitle,
-                [titleId]: data.seasons,
-              },
-            }
-          : prev
-      );
-
-      try {
-        const tMut = await patchTitleApi(titleId, patch);
-        applyServerMutation(tMut);
-        const sMut = await putSeasonsApi(titleId, data.seasons);
-        applyServerMutation(sMut);
-      } catch {
-        setState((curr) =>
-          curr.titles[titleId]
-            ? {
-                ...curr,
-                titles: {
-                  ...curr.titles,
-                  [titleId]: {
-                    ...curr.titles[titleId],
-                    names: latest.names,
-                    year: latest.year,
-                    releaseDate: latest.releaseDate,
-                    runtimeMin: latest.runtimeMin,
-                    genres: latest.genres,
-                    genreIds: latest.genreIds,
-                    posterPath: latest.posterPath,
-                    posters: latest.posters,
-                    backdropPath: latest.backdropPath,
-                    overview: latest.overview,
-                    showStatus: latest.showStatus,
-                    metaFetchedAt: latest.metaFetchedAt,
-                    updatedAt: latest.updatedAt,
-                  },
-                },
-                seasonsByTitle: {
-                  ...curr.seasonsByTitle,
-                  [titleId]: prevSeasons,
-                },
-              }
-            : curr
-        );
-        showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
-        await triggerRefetch();
-      }
+      const result = await refreshMetadataApi(titleId);
+      applyServerMutation(result);
+      return result.status;
     } catch {
-      // Ignore silent background metadata refresh failure
+      return 'failed';
     }
   }
 
   async function refreshAllTmdbMetadata(
     onProgress?: (done: number, total: number) => void
-  ): Promise<number> {
-    const tmdbTitles = Object.values(getState().titles).filter(
-      (t) =>
-        t.source === 'tmdb' &&
-        Boolean(t.sourceId) &&
-        (t.mediaType === 'movie' || t.mediaType === 'tv')
-    );
-    const total = tmdbTitles.length;
-    const cat = getActiveCatalog();
-    if (total === 0) {
-      showToast(cat.settings.dataManagement.refreshAllEmptyToast, 'default');
-      return 0;
-    }
-
-    showToast(cat.settings.dataManagement.refreshingAllToast(String(0), String(total)), 'accent');
-    onProgress?.(0, total);
-
-    const CONCURRENCY = 4;
+  ): Promise<MetadataRefreshCounts> {
+    const targets = Object.values(getState().titles);
+    const counts: MetadataRefreshCounts = { updated: 0, partial: 0, failed: 0, skipped: 0 };
     let index = 0;
-    let doneCount = 0;
-
-    const worker = async (): Promise<void> => {
-      while (index < total) {
-        const target = tmdbTitles[index];
-        index += 1;
-        if (!target) continue;
-        await refreshTitleMetadata(target.id);
-        doneCount += 1;
-        onProgress?.(doneCount, total);
+    let done = 0;
+    onProgress?.(0, targets.length);
+    const worker = async () => {
+      while (index < targets.length) {
+        const title = targets[index++];
+        if (!title) continue;
+        counts[await refreshTitleMetadata(title.id)]++;
+        onProgress?.(++done, targets.length);
       }
     };
-
-    const workers = Array.from({ length: Math.min(CONCURRENCY, total) }, () => worker());
-    await Promise.all(workers);
-
-    showToast(getActiveCatalog().settings.dataManagement.refreshAllSuccessToast(String(doneCount)), 'success');
-    return doneCount;
+    await Promise.all(Array.from({ length: Math.min(4, targets.length) }, worker));
+    showToast(getActiveCatalog().settings.dataManagement.refreshAllSummary(counts.updated, counts.partial, counts.failed, counts.skipped),
+      counts.failed || counts.partial ? 'warning' : counts.updated ? 'success' : 'default');
+    return counts;
   }
 
   async function refreshLinkTitlePlaylist(titleId: string): Promise<number> {
