@@ -20,8 +20,10 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   priority = false,
   compact = false,
 }) => {
-  const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [imageState, setImageState] = useState<{ src: typeof src; status: 'loaded' | 'failed' } | null>(null);
+  // A failed old URL must not suppress a replacement image after metadata refresh.
+  const failed = imageState?.src === src && imageState?.status === 'failed';
+  const loaded = imageState?.src === src && imageState?.status === 'loaded';
 
   const aspectClass =
     aspect === 'poster'
@@ -70,8 +72,8 @@ export const MediaImage: React.FC<MediaImageProps> = ({
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         referrerPolicy="no-referrer"
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
+        onLoad={() => setImageState({ src, status: 'loaded' })}
+        onError={() => setImageState({ src, status: 'failed' })}
         className={`w-full h-full object-cover transition-opacity duration-200 ${
           loaded ? 'opacity-100' : 'opacity-90'
         }`}

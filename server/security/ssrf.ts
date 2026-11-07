@@ -1,5 +1,8 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
+import { Readable } from 'node:stream';
 
 export class UnsafeUrlError extends Error {
   public readonly code: 'UNSAFE_URL' | 'UNRESOLVABLE_HOST';
@@ -17,7 +20,49 @@ export type DnsLookupFn = (hostname: string) => Promise<Array<{ address: string 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 const defaultLookupFn: DnsLookupFn = (h) => dns.lookup(h, { all: true, verbatim: true });
-const defaultFetchFn: FetchFn = (input, init) => fetch(input, init);
+// Resolve and validate inside the socket lookup itself: a second DNS answer
+// cannot redirect a previously validated public hostname into the local network.
+const defaultFetchFn: FetchFn = async (input, init = {}) => {
+  const url = await assertSafePublicUrl(input);
+  return new Promise<Response>((resolve, reject) => {
+    const request = (url.protocol === 'https:' ? https.request : http.request)(url, {
+      method: init.method || 'GET',
+      headers: Object.fromEntries(new Headers(init.headers).entries()),
+      signal: init.signal ?? undefined,
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { all: true, verbatim: true }).then(records => {
+          if (!records.length || records.some(record => isPrivateOrReservedIp(record.address))) {
+            callback(new UnsafeUrlError('Connection resolved to a restricted address'), '');
+            return;
+          }
+          const candidates = options.family ? records.filter(record => record.family === options.family) : records;
+          if (!candidates.length) {
+            callback(new UnsafeUrlError('No address for requested IP family', 'UNRESOLVABLE_HOST'), '');
+            return;
+          }
+          callback(null, options.all ? candidates : candidates[0].address, candidates[0].family);
+        }, err => callback(err, ''));
+      },
+    }, incoming => {
+      try {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (Array.isArray(value)) value.forEach(v => headers.append(name, v));
+          else if (value !== undefined) headers.set(name, value);
+        }
+        const status = incoming.statusCode || 502;
+        const noBody = init.method === 'HEAD' || [204, 205, 304].includes(status);
+        if (noBody) incoming.resume();
+        resolve(new Response(noBody ? null : Readable.toWeb(incoming) as ReadableStream<Uint8Array>, { status, headers }));
+      } catch (err) {
+        incoming.destroy();
+        reject(err);
+      }
+    });
+    request.on('error', reject);
+    request.end();
+  });
+};
 
 /**
  * Checks whether an IPv4 or IPv6 address is loopback, private, link-local,
@@ -27,7 +72,8 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   const trimmed = ip.trim().toLowerCase();
 
   // Handle IPv6 zone index (e.g. fe80::1%eth0)
-  const cleanIp = trimmed.split('%')[0];
+  let cleanIp = trimmed.split('%')[0];
+  if (net.isIP(cleanIp) === 6) cleanIp = new URL('http://[' + cleanIp + ']').hostname.slice(1, -1);
 
   const version = net.isIP(cleanIp);
   if (version === 4) {
@@ -65,15 +111,6 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   }
 
   if (version === 6) {
-    if (
-      cleanIp === '::1' ||
-      cleanIp === '::' ||
-      cleanIp === '0:0:0:0:0:0:0:1' ||
-      cleanIp === '0:0:0:0:0:0:0:0'
-    ) {
-      return true;
-    }
-
     if (cleanIp.startsWith('::ffff:')) {
       const v4Part = cleanIp.slice('::ffff:'.length);
       if (net.isIP(v4Part) === 4) {
@@ -91,24 +128,9 @@ export function isPrivateOrReservedIp(ip: string): boolean {
       return true;
     }
 
-    if (cleanIp.startsWith('fc') || cleanIp.startsWith('fd')) {
-      return true;
-    }
-
-    if (
-      cleanIp.startsWith('fe8') ||
-      cleanIp.startsWith('fe9') ||
-      cleanIp.startsWith('fea') ||
-      cleanIp.startsWith('feb')
-    ) {
-      return true;
-    }
-
-    if (cleanIp.startsWith('ff')) {
-      return true;
-    }
-
-    return false;
+    // Only global unicast; exclude documentation and transition ranges.
+    return !/^[23][0-9a-f]{3}:/.test(cleanIp) ||
+      /^(?:2001:db8:|2001:(?:0:|:)|2002:|3fff:)/.test(cleanIp);
   }
 
   return true;
@@ -213,6 +235,7 @@ export async function safeFetchFollowingRedirects(
 
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
+      await response.body?.cancel();
       if (!location) {
         throw new UnsafeUrlError('Redirect response missing Location header', 'UNSAFE_URL');
       }
@@ -228,4 +251,26 @@ export async function safeFetchFollowingRedirects(
   }
 
   throw new UnsafeUrlError('Too many redirects', 'UNSAFE_URL');
+}
+
+/** Bound bytes while streaming, rather than buffering an entire untrusted response. */
+export async function readResponseText(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let bytes = 0;
+  try {
+    while (bytes < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = value.subarray(0, maxBytes - bytes);
+      bytes += chunk.length;
+      text += decoder.decode(chunk, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    await reader.cancel();
+    reader.releaseLock();
+  }
 }

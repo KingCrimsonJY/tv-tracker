@@ -43,7 +43,7 @@ function buildCustomSeasons(
       number: epNum,
       key: makeEpisodeKey(1, epNum),
       name: normalizeLocalizedEpisodeName(seed?.name),
-      airDate: '2020-01-01',
+      airDate: seed?.airDate ?? null,
       runtime: seed?.runtime ?? runtimeMin,
       stillPath: null,
       overview: {},
@@ -159,7 +159,8 @@ export function createTitleActions(
       backdropPath: posterUrl,
       overview: { zh: input.overview?.trim() || '' },
       ...(uploader ? { uploader } : {}),
-      showStatus: 'Ended',
+      ...(input.liveStatus ? { liveStatus: input.liveStatus } : {}),
+      showStatus: input.liveStatus === 'live' || input.liveStatus === 'upcoming' ? null : 'Ended',
       externalIds: {},
       ratings: {},
       manualState: null,
@@ -172,7 +173,7 @@ export function createTitleActions(
       lastActivityAt: now,
     };
 
-    const seasons = buildCustomSeasons(epCount, input.runtimeMin || null, [], seedEpisodes);
+    const seasons = buildCustomSeasons(input.mediaType === 'movie' ? 0 : epCount, input.runtimeMin || null, [], input.mediaType === 'movie' ? undefined : seedEpisodes);
     const initialProgress: ProgressDoc = { playthroughId: 'p1', watched: {} };
 
     setState((prev) => ({

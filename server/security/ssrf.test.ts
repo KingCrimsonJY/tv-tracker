@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, expect, vi } from 'vitest';
+import http from 'node:http';
+import { Readable } from 'node:stream';
+import { EventEmitter } from 'node:events';
 import { resolveLinkMetadata } from '../providers/linkImport.ts';
 import { type YtdlpExecFn, YtdlpExecutionError } from '../providers/ytdlp.ts';
 import {
@@ -119,4 +122,26 @@ test('3. safeFetchFollowingRedirects and resolveLinkMetadata reject private/loop
     },
     (err: unknown) => err instanceof UnsafeUrlError
   );
+});
+
+test('an unsupported upstream HTTP status rejects without an uncaught response callback error', async () => {
+  const incoming = new Readable({ read() {} }) as http.IncomingMessage;
+  incoming.statusCode = 600;
+  incoming.headers = {};
+  const request = new EventEmitter() as http.ClientRequest;
+  const spy = vi.spyOn(http, 'request').mockImplementation((...args) => {
+    const callback = args.at(-1) as (response: http.IncomingMessage) => void;
+    request.end = (() => {
+      queueMicrotask(() => callback(incoming));
+      return request;
+    }) as typeof request.end;
+    return request;
+  });
+  try {
+    await expect(safeFetchFollowingRedirects('http://93.184.216.34/')).rejects.toThrow();
+    expect(incoming.destroyed).toBe(true);
+  } finally {
+    spy.mockRestore();
+    incoming.destroy();
+  }
 });

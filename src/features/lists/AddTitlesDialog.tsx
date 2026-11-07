@@ -88,6 +88,8 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                         </div>
                       </div>
                       <Button
+                        aria-label={t.lists.addTitlesToList + ": " + displayTitle}
+                        isIconOnly
                         size="sm"
                         variant={inList ? 'tertiary' : 'secondary'}
                         isDisabled={inList}

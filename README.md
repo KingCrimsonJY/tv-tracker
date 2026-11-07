@@ -4,7 +4,7 @@
 
 **个人自托管的电影与剧集观看进度追踪应用 —— 影院级界面、单目录便携存储、多设备实时同步。**
 
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.13-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![HeroUI v3](https://img.shields.io/badge/HeroUI-v3-006FEE)](https://heroui.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.x_Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -126,18 +126,26 @@
 - **实时同步与分数索引排序**：服务端通过 Server-Sent Events (`/api/events`) 推送增量变更与进程 `epoch`，断线重连或切回前台时自动校验快照；列表拖拽基于 `fractional-indexing` 与 `@dnd-kit`，每次调整仅写入单行排序键。
 - **安全防护**：基于 `node:crypto` `scrypt` 随机盐哈希与 `timingSafeEqual` 校验单用户密码，配合首次启动一次性设置码 (`SETUP_CODE`)、`HttpOnly; SameSite=Lax` 365 天滑动会话、CSRF `Origin` 校验、按 IP 与全局双重登录限流、以及外链抓取 SSRF 内网地址拦截。
 
+## 链接导入支持
+
+B站的 BV/AV、移动端、短链接、分P、合集、系列、番剧、电影、课堂及直播优先读取公开元数据；YouTube 单视频、Shorts、播放列表与频道页通过 yt-dlp 解析。导入前可核对类型、年份、时长和分集信息，刷新时保留观看记录并补齐缺失元数据。
+
+- 空列表、失效链接、登录／年龄／地区限制会明确提示；网页降级结果不会伪装成完整解析。
+- 单次最多 2000 条。分集补全有并发和时间限制；未取得的字段保持未知并提示，不生成虚假日期。
+- 元数据可读不代表具有播放权限；本应用不下载视频，也不绕过付费、会员或地区限制。
+
 ## 已知限制
 
 - **仅限单用户使用**：专为个人片库设计，使用单一访问密码保护，不包含多账号系统或社交分享功能。
 - **不支持离线使用**：为彻底避免多设备离线修改引发合并冲突，当与服务器断开连接超过 5 秒时会全屏提示「无法连接到服务器」并暂停编辑操作。
 - **云服务器 IP 可能受限于部分视频站点**：YouTube 等平台常对数据中心（VPS）IP 触发人机验证拦截 `yt-dlp`，因此「通过链接添加」功能在家庭宽带自托管环境（如家用 Linux 主机 + 内网穿透隧道）下效果最佳。
 - **无豆瓣评分**：由于豆瓣没有公开稳定的官方 API，应用不抓取豆瓣评分，提供 TMDB、IMDb、烂番茄与 Metacritic 评分。
-- **API 密钥要求**：需要申请一个免费的 **TMDB Read Access Token** 才能使用影视搜索与元数据自动更新；**OMDb API Key** 为可选配置（仅用于补充 IMDb / 烂番茄 / Metacritic 评分）。
+- **API 密钥要求**：需要申请一个免费的 **TMDB Read Access Token 或 v3 API Key** 才能使用影视搜索与元数据自动更新；**OMDb API Key** 为可选配置（仅用于补充 IMDb / 烂番茄 / Metacritic 评分）。
 
 ## 快速开始（本地开发）
 
 ### 环境要求
-- **Node.js `>= 22.13.0`**（推荐使用 **Node.js 24 LTS**；内置 `node:sqlite` 模块开箱即用）
+- **Node.js `>= 22.18.0`**（推荐使用 **Node.js 24 LTS**；内置 `node:sqlite` 模块开箱即用）
 - **npm `>= 10`**
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)**（可选但推荐，用于「通过链接添加」解析视频、合集与播放列表；可通过 `npm run setup:ytdlp` 一键下载至 `./.bin/yt-dlp`，Docker 镜像已内置至 `/opt/yt-dlp/yt-dlp`）
 
@@ -152,7 +160,7 @@ cd tv-tracker
 cp .env.example .env
 
 # 3. 安装依赖
-npm install
+npm ci
 
 # 4. 启动开发服务器（默认监听 http://localhost:3000）
 npm run dev
@@ -175,7 +183,7 @@ npm run dev
 
 | 变量名 | 必填 | 默认值 | 用途说明 | 获取方式 / 备注 |
 | :--- | :---: | :--- | :--- | :--- |
-| `TMDB_READ_TOKEN` | **必填** | 空 | TMDB API v4 读访问令牌（Bearer 认证），用于搜索影视与获取分季分集元数据 | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
+| `TMDB_READ_TOKEN` | **必填** | 空 | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据 | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
 | `OMDB_API_KEY` | 可选 | 空 | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天） | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天） |
 | `DATA_DIR` | 可选 | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录 | Docker 容器内固定为 `/data` |
 | `YTDLP_PATH` | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置） | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp` |

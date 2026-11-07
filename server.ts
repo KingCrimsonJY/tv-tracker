@@ -78,6 +78,26 @@ async function startServer(): Promise<void> {
     });
   }
 
+  // Node runs as PID 1 in the production image; handle container stop explicitly.
+  let stopping = false;
+  const shutdown = () => {
+    if (stopping) return;
+    stopping = true;
+    clearInterval(maintenanceTimer);
+    const finish = () => {
+      repo.close();
+      process.exit(0);
+    };
+    httpServer.close(finish);
+    // SSE clients can otherwise keep the server open indefinitely.
+    setTimeout(() => {
+      httpServer.closeAllConnections();
+      finish();
+    }, 5_000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });

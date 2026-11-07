@@ -11,6 +11,7 @@ import type {
   AppSettingsDoc,
   AppStateSnapshot,
   LinkImportEpisodeSeed,
+  LinkImportResult,
   ListEntryDoc,
   PlaylistRefreshResult,
   ProgressDoc,
@@ -459,9 +460,10 @@ export class TrackerRepository {
   public appendPlaylistEpisodes(
     titleId: string,
     incomingEpisodes: LinkImportEpisodeSeed[],
-    now = Date.now()
+    now = Date.now(),
+    metadata?: LinkImportResult
   ): PlaylistRefreshResult {
-    return appendPlaylistEpisodes(this.ctx, titleId, incomingEpisodes, now);
+    return appendPlaylistEpisodes(this.ctx, titleId, incomingEpisodes, now, metadata);
   }
 
   public applyTitleAtomicAction(

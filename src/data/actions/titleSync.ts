@@ -264,6 +264,7 @@ export function createTitleSyncActions(
       const res = await refreshLinkPlaylistApi(titleId);
       applyServerMutation(res);
       const cat = getActiveCatalog();
+      if (res.warning) showToast(translateErrorObject({ code: res.warning }, cat), 'warning');
       showToast(
         res.addedCount > 0
           ? cat.detail.menu.refreshPlaylistAddedToast(String(res.addedCount))
