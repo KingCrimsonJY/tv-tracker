@@ -88,7 +88,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             {tmdbSuggestion && (
               <div className="p-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] space-y-2.5">
                 <div className="text-sm font-medium text-[var(--foreground)] break-words">
-                  {t.search.linkImport.tmdbSuggestionTitle(tmdbSuggestion.title)}
+                  {t.search.linkImport.tmdbSuggestionTitle(tmdbSuggestion.seriesTitle || tmdbSuggestion.title)}
                 </div>
                 <p className="text-xs text-[var(--muted)]">
                   {t.search.linkImport.tmdbSuggestionDescription}
@@ -110,13 +110,13 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
                     className="h-auto min-h-9 whitespace-normal text-left break-words"
                     variant="primary"
                     onPress={() => {
-                      const q = tmdbSuggestion.title;
+                      const q = tmdbSuggestion.seriesTitle || tmdbSuggestion.title;
                       setTmdbSuggestion(null);
                       setUrl('');
                       onSearchTmdb(q);
                     }}
                   >
-                    {t.search.linkImport.searchTmdbButton(tmdbSuggestion.title)}
+                    {t.search.linkImport.searchTmdbButton(tmdbSuggestion.seriesTitle || tmdbSuggestion.title)}
                   </Button>
                   <Button
                     size="sm"
