@@ -139,10 +139,10 @@ export const ListDetailPage: React.FC = () => {
             onChange={() => void togglePinList(list.id)}
             size="sm"
           >
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
             <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
               <Label className="text-xs flex items-center gap-1">
                 <Pin className="w-3.5 h-3.5" />
                 {list.pinned ? t.lists.pinnedBadge : t.lists.pinAction}

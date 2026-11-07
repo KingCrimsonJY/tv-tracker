@@ -41,7 +41,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <Modal.CloseTrigger aria-label={t.app.close} />
           <Modal.Header>
             <Modal.Heading>{t.lists.addTitlesToList}</Modal.Heading>
           </Modal.Header>
@@ -50,7 +50,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
               <SearchField.Group>
                 <SearchField.SearchIcon />
                 <SearchField.Input placeholder={t.lists.searchLibraryPlaceholder} />
-                <SearchField.ClearButton />
+                <SearchField.ClearButton aria-label={t.search.clearSearchAria} />
               </SearchField.Group>
             </SearchField>
 

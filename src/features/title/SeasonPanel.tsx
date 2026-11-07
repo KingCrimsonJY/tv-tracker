@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, Select, ListBox, Button, ProgressBar, Disclosure, Label } from '@heroui/react';
-import { CheckCheck, RotateCcw, ChevronDown } from 'lucide-react';
+import { CheckCheck, RotateCcw } from 'lucide-react';
 import { ProgressDoc, SeasonDoc, TitleDoc } from '../../domain/types';
 import { makeEpisodeKey, parseEpisodeKey } from '../../domain/airing';
 import { computeSeasonState } from '../../domain/status';
@@ -44,10 +44,11 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
       if (parsed && parsed.seasonNumber > 0) {
         setSelectedSeasonNum(parsed.seasonNumber);
       }
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         const el = document.getElementById(`episode-${highlightEpKey}`);
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 150);
+      return () => clearTimeout(timeout);
     } else if (seasons.length > 0 && !seasons.some((s) => s.seasonNumber === selectedSeasonNum)) {
       setSelectedSeasonNum(seasons[0].seasonNumber);
     }
@@ -57,11 +58,13 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
     return null;
   }
 
+  const allSeasons = specialSeason ? [...seasons, specialSeason] : seasons;
+
   const renderSeasonBlock = (season: SeasonDoc) => {
     const sState = computeSeasonState(season, activeProgress, {
       todayStr: today,
       treatAllAsAired: title.source !== 'tmdb',
-      allSeasons: seasons,
+      allSeasons,
     });
     const pct =
       sState.airedCount > 0 ? Math.round((sState.watchedCount / sState.airedCount) * 100) : 0;
@@ -148,6 +151,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
     ? computeSeasonState(specialSeason, activeProgress, {
         todayStr: today,
         treatAllAsAired: title.source !== 'tmdb',
+        allSeasons,
       })
     : null;
 
@@ -161,7 +165,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             selectedKey={String(currentSeason.seasonNumber)}
             onSelectionChange={(k) => setSelectedSeasonNum(Number(k))}
           >
-            <Tabs.ListContainer className="mb-4 overflow-x-auto">
+            <Tabs.ListContainer className="mb-4">
               <Tabs.List aria-label={t.detail.seasons.selectAria}>
                 {seasons.map((s) => (
                   <Tabs.Tab key={s.seasonNumber} id={String(s.seasonNumber)}>
@@ -180,7 +184,6 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
         ) : (
           <div className="space-y-4">
             <Select
-              aria-label={t.detail.seasons.selectAria}
               selectedKey={String(currentSeason.seasonNumber)}
               onSelectionChange={(k) => k && setSelectedSeasonNum(Number(k))}
               className="max-w-xs"
@@ -217,15 +220,15 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
       {specialSeason && specialSeason.episodes.length > 0 && specialState && (
         <Disclosure className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
           <Disclosure.Heading>
-            <Button variant="ghost" className="w-full justify-between">
+            <Disclosure.Trigger className="w-full justify-between">
               <span>
                 {t.detail.seasons.specialsCollapsedTitle(
                   specialState.watchedCount,
                   specialState.airedCount
                 )}
               </span>
-              <ChevronDown className="w-4 h-4" />
-            </Button>
+              <Disclosure.Indicator />
+            </Disclosure.Trigger>
           </Disclosure.Heading>
           <Disclosure.Content className="pt-3">
             {renderSeasonBlock(specialSeason)}

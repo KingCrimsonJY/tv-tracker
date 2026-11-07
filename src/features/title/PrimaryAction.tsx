@@ -68,13 +68,14 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
   const hasResume = Boolean(resume && resume.seconds > 0);
   const resumeNode =
     hasResume && resume ? (
-      <button
-        type="button"
-        onClick={() => onOpenResume(resume.episodeKey ?? undefined)}
+      <Button
+        variant="ghost"
+        size="sm"
+        onPress={() => onOpenResume(resume.episodeKey ?? undefined)}
         className="text-xs sm:text-sm text-muted hover:text-foreground transition-colors tabular-nums cursor-pointer px-1 py-1"
       >
         {t.detail.primaryAction.stoppedAt(formatSeconds(resume.seconds))}
-      </button>
+      </Button>
     ) : null;
 
   if (!episodic) {

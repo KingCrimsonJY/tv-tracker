@@ -3,6 +3,7 @@ import {
   Modal,
   TextField,
   Label,
+  Description,
   Input,
   Select,
   ListBox,
@@ -85,9 +86,9 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container size="sm">
+      <Modal.Container size="sm" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <Modal.CloseTrigger aria-label={t.app.close} />
           <Modal.Header>
             <Modal.Heading>{t.detail.resumeModal.title}</Modal.Heading>
           </Modal.Header>
@@ -126,9 +127,9 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
               <Label>{t.detail.resumeModal.timeLabel}</Label>
               <Input placeholder={t.detail.resumeModal.timePlaceholder} />
               {currentRuntime && (
-                <p className="text-xs text-[var(--muted)] mt-1">
+                <Description className="text-xs text-muted mt-1">
                   {t.detail.resumeModal.runtimeHint(currentRuntime)}
-                </p>
+                </Description>
               )}
               {error && <FieldError>{error}</FieldError>}
             </TextField>

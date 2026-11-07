@@ -249,7 +249,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* iOS PWA Install Guide Modal */}
       <Modal.Backdrop isOpen={showIosGuide} onOpenChange={setShowIosGuide} isDismissable>
-        <Modal.Container size="sm" placement="center">
+        <Modal.Container size="sm" placement="center" scroll="inside">
           <Modal.Dialog>
             <Modal.Header>
               <Modal.Heading>{t.app.installIosGuideTitle}</Modal.Heading>

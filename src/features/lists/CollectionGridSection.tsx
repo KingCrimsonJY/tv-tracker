@@ -49,7 +49,7 @@ const SortablePosterItem: React.FC<{
   onRemove: () => void;
 }> = ({ item, isSorting, defaultLang, includeSpecials, onRemove }) => {
   const { t, locale } = useI18n();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: item.entry.id,
     disabled: !isSorting,
   });
@@ -79,15 +79,18 @@ const SortablePosterItem: React.FC<{
       />
       {isSorting && (
         <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
-          <button
+          <Button
+            variant="ghost"
+            isIconOnly
+            ref={setActivatorNodeRef}
             type="button"
-            {...attributes}
-            {...listeners}
+            // Let dnd-kit own handle events while HeroUI supplies button styling.
+            render={(props) => <button {...props} {...attributes} {...listeners} />}
             aria-label={t.lists.dragHandleAria(displayTitle)}
             className="w-9 h-9 rounded-full bg-black/75 text-white flex items-center justify-center touch-none cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-4 h-4" />
-          </button>
+          </Button>
           <Button
             size="sm"
             variant="danger"

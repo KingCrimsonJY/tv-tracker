@@ -5,9 +5,11 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Button,
+  ScrollShadow,
   AlertDialog,
   toast,
   Label,
+  Description,
 } from '@heroui/react';
 import {
   DndContext,
@@ -30,7 +32,6 @@ import { useTracker } from '../context/TrackerContext';
 import { AppSettingsDoc, DefaultTitleLang, HomeSectionConfig, UiLangSetting } from '../domain/types';
 import { SortableSectionRow } from '../features/settings/SortableSectionRow';
 import { AboutSection } from '../features/settings/AboutSection';
-import { ScrollableFilterRow } from '../components/ScrollableFilterRow';
 import { useI18n } from '../i18n';
 
 export const SettingsPage: React.FC = () => {
@@ -156,7 +157,7 @@ export const SettingsPage: React.FC = () => {
           <Card.Description className="text-xs">{t.settings.uiLang.description}</Card.Description>
         </Card.Header>
         <Card.Content>
-          <ScrollableFilterRow>
+          <ScrollShadow orientation="horizontal" hideScrollBar size={28} className="max-w-full">
             <ToggleButtonGroup
               selectionMode="single"
               disallowEmptySelection
@@ -178,7 +179,7 @@ export const SettingsPage: React.FC = () => {
                 {t.settings.uiLang.en}
               </ToggleButton>
             </ToggleButtonGroup>
-          </ScrollableFilterRow>
+          </ScrollShadow>
         </Card.Content>
       </Card>
 
@@ -188,7 +189,7 @@ export const SettingsPage: React.FC = () => {
           <Card.Description className="text-xs">{t.settings.defaultTitleLang.description}</Card.Description>
         </Card.Header>
         <Card.Content>
-          <ScrollableFilterRow>
+          <ScrollShadow orientation="horizontal" hideScrollBar size={28} className="max-w-full">
             <ToggleButtonGroup
               selectionMode="single"
               disallowEmptySelection
@@ -214,7 +215,7 @@ export const SettingsPage: React.FC = () => {
                 {t.settings.defaultTitleLang.en}
               </ToggleButton>
             </ToggleButtonGroup>
-          </ScrollableFilterRow>
+          </ScrollShadow>
         </Card.Content>
       </Card>
 
@@ -223,17 +224,15 @@ export const SettingsPage: React.FC = () => {
           <Switch
             isSelected={settings.includeSpecials}
             onChange={(includeSpecials) => void updateSettings({ includeSpecials })}
-            className="w-full justify-between"
+            className="w-full"
           >
-            <Switch.Content>
-              <div className="flex flex-col gap-0.5">
-                <Label className="text-sm font-medium">{t.settings.includeSpecials.label}</Label>
-                <span className="text-xs text-[var(--muted)]">{t.settings.includeSpecials.description}</span>
-              </div>
+            <Switch.Content className="w-full justify-between">
+              <Label className="text-sm font-medium">{t.settings.includeSpecials.label}</Label>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
             </Switch.Content>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
+            <Description className="text-xs ps-0">{t.settings.includeSpecials.description}</Description>
           </Switch>
         </Card.Content>
       </Card>
@@ -244,7 +243,7 @@ export const SettingsPage: React.FC = () => {
           <Card.Description className="text-xs">{t.settings.theme.description}</Card.Description>
         </Card.Header>
         <Card.Content>
-          <ScrollableFilterRow>
+          <ScrollShadow orientation="horizontal" hideScrollBar size={28} className="max-w-full">
             <ToggleButtonGroup
               selectionMode="single"
               disallowEmptySelection
@@ -266,7 +265,7 @@ export const SettingsPage: React.FC = () => {
                 {t.settings.theme.system}
               </ToggleButton>
             </ToggleButtonGroup>
-          </ScrollableFilterRow>
+          </ScrollShadow>
         </Card.Content>
       </Card>
 

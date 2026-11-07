@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Input,
+  I18nProvider,
   Label,
   Skeleton,
   Spinner,
@@ -242,12 +243,15 @@ const AppRoutes: React.FC = () => {
 };
 
 export default function App() {
+  const { locale } = useI18n();
   return (
-    <BrowserRouter>
-      <TrackerProvider>
-        <Toast.Provider placement="bottom" />
-        <AppRoutes />
-      </TrackerProvider>
-    </BrowserRouter>
+    <I18nProvider locale={locale}>
+      <BrowserRouter>
+        <TrackerProvider>
+          <Toast.Provider placement="bottom" />
+          <AppRoutes />
+        </TrackerProvider>
+      </BrowserRouter>
+    </I18nProvider>
   );
 }
