@@ -600,7 +600,7 @@ test('10. Contract test: every path in src/data/api.ts exists on the Express ser
     assert.ok(pathMatches.length >= 15, 'Should find all /api/* paths in src/data/api.ts');
 
     for (const m of pathMatches) {
-      const rawTemplate = m[1]!;
+      const rawTemplate = m[1];
       // Replace template expressions `${...}` with a sample path segment
       const concretePath = rawTemplate.replace(/\$\{[^}]+\}/g, '123');
       const matched = registeredRoutes.some((r) => r.regex.test(concretePath));

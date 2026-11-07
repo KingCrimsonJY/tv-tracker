@@ -23,7 +23,7 @@ export function parseExpectedSha256(sumsText: string, binaryName: string): strin
     if (!line) continue;
     const match = line.match(/^([0-9a-fA-F]{64})\s+\*?(\S+)$/);
     if (match && match[2] === binaryName) {
-      return match[1]!.toLowerCase();
+      return match[1].toLowerCase();
     }
   }
   return null;

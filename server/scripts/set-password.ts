@@ -66,7 +66,7 @@ function promptTwoHiddenLines(
       } else if (answers.length === 2) {
         finished = true;
         rl.close();
-        resolve([answers[0]!, answers[1]!]);
+        resolve([answers[0], answers[1]]);
       }
     });
 

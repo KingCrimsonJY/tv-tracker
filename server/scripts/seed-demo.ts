@@ -421,7 +421,7 @@ async function main() {
     const rank = generateKeyBetween(prevRank, null);
     prevRank = rank;
     repo.putListEntry(mcuListId, `entry_mcu_${i + 1}`, {
-      titleId: mcuTitleIds[i]!,
+      titleId: mcuTitleIds[i],
       rank,
       addedAt: now - (25 - i) * dayMs,
     });
@@ -451,7 +451,7 @@ async function main() {
     const rank = generateKeyBetween(wPrevRank, null);
     wPrevRank = rank;
     repo.putListEntry(watchlistId, `entry_watch_${i + 1}`, {
-      titleId: watchlistTitleIds[i]!,
+      titleId: watchlistTitleIds[i],
       rank,
       addedAt: now - (10 - i) * dayMs,
     });

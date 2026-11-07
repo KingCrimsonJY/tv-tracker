@@ -222,11 +222,11 @@ describe('yt-dlp mapping and refresh', () => {
       const incoming = [{ sourceVideoId: 'one', name: 'First', runtime: 2 }, { sourceVideoId: 'two', name: 'Provider', runtime: 3 }, { sourceVideoId: 'three', name: 'New', runtime: 4 }];
       const result = repo.appendPlaylistEpisodes(title.id, incoming);
       expect(result.addedCount).toBe(1);
-      const episodes = result.upserts.seasonsByTitle![title.id][0].episodes;
+      const episodes = repo.getState().seasonsByTitle[title.id][0].episodes;
       expect(episodes[0]).toMatchObject({ key: 's1e1', name: { zh: 'First' }, runtime: 2 });
       expect(episodes[1]).toMatchObject({ name: { zh: 'Custom' }, runtime: 30 });
       expect(episodes[2].airDate).toBeNull();
-      expect(result.upserts.titles![title.id].mediaType).toBe('other');
+      expect(result.upserts.titles?.[title.id]?.mediaType).toBe('other');
       expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 1234 });
       expect(repo.appendPlaylistEpisodes(title.id, incoming).addedCount).toBe(0);
     } finally { repo.close(); }
