@@ -48,6 +48,10 @@ export interface DbContext {
 
 export function serializeTitleData(title: TitleDoc): string {
   const { id: _id, ...rest } = title;
+  if (rest.upstreamChange) {
+    const { seasons: _seasons, ...header } = rest.upstreamChange;
+    return JSON.stringify({ ...rest, upstreamChange: header });
+  }
   return JSON.stringify(rest);
 }
 

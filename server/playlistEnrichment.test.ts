@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createPlaylistEnricher } from './playlistEnrichment.ts';
 import { TrackerRepository } from './db/repository.ts';
@@ -113,4 +116,68 @@ test('anti-bot restrictions stop further detail requests while preserving all en
   queue.stop();
   expect(loadVideo).toHaveBeenCalledTimes(1);
   expect(repo.getState()).toEqual(before);
+});
+
+test('incomplete successful metadata backs off across worker restarts and batches its broadcast', async () => {
+  const { repo, title } = setup();
+  const loadVideo = vi.fn().mockResolvedValue({ ...detail, runtimeMin: null });
+  const broadcast = vi.fn();
+  let now = 1000;
+  const run = async () => {
+    const queue = createPlaylistEnricher({ repo, loadVideo, broadcast, now: () => now });
+    queue.schedule(title.id);
+    await queue.idle();
+    queue.stop();
+  };
+  await run();
+  expect(loadVideo).toHaveBeenCalledTimes(2);
+  expect(broadcast).toHaveBeenCalledTimes(1);
+  await run();
+  expect(loadVideo).toHaveBeenCalledTimes(2);
+  now += 3600_001;
+  await run();
+  expect(loadVideo).toHaveBeenCalledTimes(4);
+  now += 3600_001;
+  await run();
+  expect(loadVideo).toHaveBeenCalledTimes(4);
+});
+test('an anti-bot cooldown survives a new worker and blocks other entries too', async () => {
+  const { repo, title } = setup();
+  const loadVideo = vi.fn().mockRejectedValue(new LinkImportError('LINK_LOGIN_REQUIRED', 'blocked'));
+  for (let restart = 0; restart < 2; restart++) {
+    const queue = createPlaylistEnricher({ repo, loadVideo, broadcast: vi.fn() });
+    queue.schedule(title.id);
+    await queue.idle();
+    queue.stop();
+  }
+  expect(loadVideo).toHaveBeenCalledTimes(1);
+});
+
+test('retry timestamps persist after closing and reopening the SQLite repository', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'enrichment-restart-'));
+  const fixture = setup();
+  let repo = new TrackerRepository({ dataDir: root });
+  try {
+    repo.importData(fixture.repo.exportData());
+    const loadVideo = vi.fn().mockResolvedValue({ ...detail, runtimeMin: null });
+    let now = 1000;
+    const run = async () => {
+      const worker = createPlaylistEnricher({ repo, loadVideo, broadcast: vi.fn(), now: () => now });
+      worker.schedule(fixture.title.id);
+      await worker.idle();
+      worker.stop();
+    };
+    await run();
+    expect(loadVideo).toHaveBeenCalledTimes(2);
+    repo.close();
+    repo = new TrackerRepository({ dataDir: root });
+    await run();
+    expect(loadVideo).toHaveBeenCalledTimes(2);
+    now += 3600_001;
+    await run();
+    expect(loadVideo).toHaveBeenCalledTimes(4);
+  } finally {
+    repo.close();
+    rmSync(root, { recursive: true });
+  }
 });

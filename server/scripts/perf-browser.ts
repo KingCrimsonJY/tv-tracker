@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { chromium, type Page, type Request } from 'playwright';
 import { gzipSync } from 'node:zlib';
 import { PERF_FIRST_TITLE, PERF_LONG_TITLE } from './perf-fixture.ts';
@@ -57,9 +58,11 @@ export async function measureBrowser(baseUrl: string, token: string) {
   const errors: string[] = [];
   const requests: { url: string; method: string }[] = [];
   const activeStateReads = new Set<Request>();
+  const activeDetailReads = new Set<Request>();
   let lastStateActivity = Date.now();
   const isStateRead = (request: Request) => new URL(request.url()).pathname === '/api/state';
   const finishStateRead = (request: Request) => {
+    activeDetailReads.delete(request);
     if (activeStateReads.delete(request)) lastStateActivity = Date.now();
   };
   page.on('requestfinished', finishStateRead);
@@ -79,6 +82,7 @@ export async function measureBrowser(baseUrl: string, token: string) {
   });
   page.on('request', (request) => {
     requests.push({ url: request.url(), method: request.method() });
+    if (/\/api\/titles\/[^/]+\/details$/.test(new URL(request.url()).pathname)) activeDetailReads.add(request);
     if (isStateRead(request)) {
       activeStateReads.add(request);
       lastStateActivity = Date.now();
@@ -130,11 +134,21 @@ export async function measureBrowser(baseUrl: string, token: string) {
     await page.getByRole('heading', { name: 'Long archive', exact: true }).waitFor();
     await page.getByRole('checkbox', { name: 'Mark Season 1 Episode 1 watched', exact: true }).waitFor();
     await settled(page);
+    const detailDeadline = Date.now() + 30_000;
+    while (activeDetailReads.size) {
+      if (Date.now() > detailDeadline) throw new Error('Title details did not settle');
+      await page.waitForTimeout(100);
+    }
+    await settled(page);
     const longTitleOpenMs = (await timestamp()) - openStart;
     const longTitleLongTaskMs = await longestTask(openStart);
     const episodeRows = await page.locator('[id^="episode-"]').count();
 
     console.log('Measuring episode toggle...');
+    if (process.env.PERF_PROFILE) {
+      await session.send('Profiler.enable');
+      await session.send('Profiler.start');
+    }
     const toggleStart = await timestamp();
     const requestStart = requests.length;
     await Promise.all([
@@ -144,6 +158,10 @@ export async function measureBrowser(baseUrl: string, token: string) {
     await page.getByRole('checkbox', { name: 'Unmark Season 1 Episode 1 watched', exact: true }).waitFor();
     await page.waitForTimeout(600);
     await waitForStateQuiet();
+    if (process.env.PERF_PROFILE) {
+      const { profile } = await session.send('Profiler.stop');
+      writeFileSync(process.env.PERF_PROFILE, JSON.stringify(profile));
+    }
     const toggleRequests = requests.slice(requestStart).filter((request) => request.url.includes('/api/'));
     return {
       homeInteractiveMs,
@@ -153,12 +171,26 @@ export async function measureBrowser(baseUrl: string, token: string) {
       longTitleLongTaskMs,
       episodeRows,
       toggleLongTaskMs: await longestTask(toggleStart),
+      toggleTasks: await page.evaluate(
+        (start) => window.perfLongTasks.filter((task) => task.start >= start),
+        toggleStart,
+      ),
       toggleInput: await page.evaluate(() => window.perfInput),
       togglePosts: toggleRequests.filter((request) => request.method === 'POST').length,
       toggleStateGets: toggleRequests.filter(
         (request) => request.method === 'GET' && new URL(request.url).pathname === '/api/state',
       ).length,
       errors,
+      resources: await page.evaluate(() =>
+        performance
+          .getEntriesByType('resource')
+          .filter((entry) => entry.name.includes('/api/'))
+          .map((entry) => ({
+            name: new URL(entry.name).pathname,
+            start: entry.startTime,
+            end: entry.startTime + entry.duration,
+          })),
+      ),
     };
   } catch (error) {
     console.error(

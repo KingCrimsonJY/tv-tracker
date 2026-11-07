@@ -1,3 +1,4 @@
+import { tmdbFilePath } from '../../src/domain/images.ts';
 export class TmdbRequestError extends Error {
   readonly status: number;
   constructor(status: number) {
@@ -7,7 +8,6 @@ export class TmdbRequestError extends Error {
 }
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p';
 const TMDB_TIMEOUT_MS = 10_000;
 
 export interface TmdbFetchOptions {
@@ -48,13 +48,8 @@ export function isTmdbConfigured(): boolean {
   return Boolean(getTmdbToken());
 }
 
-export function tmdbImageUrl(
-  filePath: string | null | undefined,
-  size: 'w300' | 'w342' | 'w500' | 'w1280',
-): string | null {
-  if (!filePath) return null;
-  if (filePath.startsWith('http') || filePath.startsWith('data:')) return filePath;
-  return `${TMDB_IMG_BASE}/${size}${filePath}`;
+export function tmdbImagePath(path: string | null | undefined): string | null {
+  return tmdbFilePath(path);
 }
 
 export async function fetchTmdbRawJson(

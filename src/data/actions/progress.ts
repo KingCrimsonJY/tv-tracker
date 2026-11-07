@@ -151,6 +151,7 @@ export function createProgressActions(
           const revertedMovieWatchedAt = hadMovieWatchedAtChange ? prevMovieWatchedAt : currProg.movieWatchedAt;
 
           nextProgMap[playthroughId] = {
+            ...currProg,
             playthroughId,
             watched: revertedWatched,
             ...(revertedMovieWatchedAt !== undefined ? { movieWatchedAt: revertedMovieWatchedAt } : {}),

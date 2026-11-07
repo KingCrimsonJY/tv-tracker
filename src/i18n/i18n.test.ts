@@ -509,18 +509,18 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       const { title } = await fetchTmdbTitleDetails('movie', '438631', { fetchFn: mockFetch });
       expect(title.releaseDate).toBe('2021-10-22');
       expect(title.posters).toEqual({
-        zh: 'https://image.tmdb.org/t/p/w500/zh_cn.jpg',
-        en: 'https://image.tmdb.org/t/p/w500/en_high.jpg',
-        textless: 'https://image.tmdb.org/t/p/w500/clean.jpg',
+        zh: '/zh_cn.jpg',
+        en: '/en_high.jpg',
+        textless: '/clean.jpg',
       });
-      expect(title.backdropPath).toBe('https://image.tmdb.org/t/p/w1280/textless_bd.jpg');
+      expect(title.backdropPath).toBe('/textless_bd.jpg');
 
       // When images.posters has no iso_639_1 'zh' or 'en' entries, posters.zh and posters.en are not filled from detail.poster_path
       const { title: fallbackTitle } = await fetchTmdbTitleDetails('movie', '999999', {
         fetchFn: mockFetch,
       });
       expect(fallbackTitle.posters).toEqual({});
-      expect(fallbackTitle.posterPath).toBe('https://image.tmdb.org/t/p/w500/fallback_default.jpg');
+      expect(fallbackTitle.posterPath).toBe('/fallback_default.jpg');
     } finally {
       if (prevToken === undefined) {
         delete process.env.TMDB_READ_TOKEN;

@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { EPISODE_RANGE_SIZE, initialEpisodeRange } from './episodeRanges';
+import { useStableCallback } from './useStableCallback';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, Select, ListBox, Button, ProgressBar, Disclosure, Label } from '@heroui/react';
 import { CheckCheck, RotateCcw } from 'lucide-react';
 import { ProgressDoc, SeasonDoc, TitleDoc } from '../../domain/types';
@@ -36,6 +38,22 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
   onOpenResumeForEpisode,
 }) => {
   const { t, locale } = useI18n();
+  const toggleEpisode = useStableCallback(onToggleEpisode);
+  const markUpTo = useStableCallback(onMarkUpTo);
+  const openResume = useStableCallback(onOpenResumeForEpisode);
+  const [ranges, setRanges] = useState<Record<number, number>>(() =>
+    Object.fromEntries(
+      [...seasons, ...(specialSeason ? [specialSeason] : [])].map((season) => [
+        season.seasonNumber,
+        initialEpisodeRange(
+          [...season.episodes].sort((a, b) => a.number - b.number),
+          activeProgress?.watched || {},
+          highlightEpKey,
+        ),
+      ]),
+    ),
+  );
+  const appliedRangeLink = useRef(highlightEpKey);
   const restoringScroll = useRestoringScroll();
   const [selection, setSelection] = useState(() =>
     resolveSeasonSelection(
@@ -49,6 +67,19 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
   };
 
   useEffect(() => {
+    if (highlightEpKey && highlightEpKey !== appliedRangeLink.current) {
+      const season = seasons.find((item) => item.episodes.some((episode) => episode.key === highlightEpKey));
+      if (season)
+        setRanges((previous) => ({
+          ...previous,
+          [season.seasonNumber]: initialEpisodeRange(
+            [...season.episodes].sort((a, b) => a.number - b.number),
+            {},
+            highlightEpKey,
+          ),
+        }));
+    }
+    appliedRangeLink.current = highlightEpKey;
     setSelection((previous) =>
       resolveSeasonSelection(
         previous,
@@ -87,6 +118,18 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
       showEnded,
       allSeasons,
     });
+    const sortedEpisodes = [...season.episodes].sort((a, b) => a.number - b.number);
+    const range = Math.min(
+      ranges[season.seasonNumber] ?? initialEpisodeRange(sortedEpisodes, activeProgress?.watched || {}, highlightEpKey),
+      Math.max(0, Math.ceil(sortedEpisodes.length / EPISODE_RANGE_SIZE) - 1),
+    );
+    const groups = Array.from({ length: Math.ceil(sortedEpisodes.length / EPISODE_RANGE_SIZE) }, (_, index) => ({
+      id: String(index),
+      label:
+        (sortedEpisodes[index * EPISODE_RANGE_SIZE]?.number ?? 1) +
+        '–' +
+        (sortedEpisodes[Math.min((index + 1) * EPISODE_RANGE_SIZE, sortedEpisodes.length) - 1]?.number ?? 1),
+    }));
     const pct = sState.airedCount > 0 ? Math.round((sState.watchedCount / sState.airedCount) * 100) : 0;
     const allAiredWatched = sState.airedCount > 0 && sState.watchedCount >= sState.airedCount;
     const resolvedSeasonName =
@@ -135,28 +178,51 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
           )}
         </div>
 
+        {groups.length > 1 && (
+          <Select
+            selectedKey={String(range)}
+            onSelectionChange={(key) =>
+              key !== null && setRanges((current) => ({ ...current, [season.seasonNumber]: Number(key) }))
+            }
+            className="max-w-xs"
+          >
+            <Label>{t.detail.seasons.episodeRange}</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {groups.map((group) => (
+                  <ListBox.Item key={group.id} id={group.id} textValue={group.label}>
+                    {group.label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+        )}
         <div className="space-y-2">
-          {[...season.episodes]
-            .sort((a, b) => a.number - b.number)
-            .map((ep) => {
-              const epKey = makeEpisodeKey(season.seasonNumber, ep.number);
-              const isWatched = Boolean(activeProgress?.watched[epKey]);
-              const resumeSeconds = title.resume && title.resume.episodeKey === epKey ? title.resume.seconds : null;
-              return (
-                <EpisodeRow
-                  key={epKey}
-                  seasonNumber={season.seasonNumber}
-                  episode={ep}
-                  isWatched={isWatched}
-                  resumeSeconds={resumeSeconds}
-                  aired={airedKeys.has(epKey)}
-                  isHighlighted={highlightEpKey === epKey}
-                  onToggle={() => onToggleEpisode(epKey)}
-                  onMarkUpToHere={() => onMarkUpTo(epKey)}
-                  onRecordTime={() => onOpenResumeForEpisode(epKey)}
-                />
-              );
-            })}
+          {sortedEpisodes.slice(range * EPISODE_RANGE_SIZE, (range + 1) * EPISODE_RANGE_SIZE).map((ep) => {
+            const epKey = makeEpisodeKey(season.seasonNumber, ep.number);
+            const isWatched = Boolean(activeProgress?.watched[epKey]);
+            const resumeSeconds = title.resume && title.resume.episodeKey === epKey ? title.resume.seconds : null;
+            return (
+              <EpisodeRow
+                key={epKey}
+                seasonNumber={season.seasonNumber}
+                episode={ep}
+                isWatched={isWatched}
+                resumeSeconds={resumeSeconds}
+                aired={airedKeys.has(epKey)}
+                isHighlighted={highlightEpKey === epKey}
+                onToggle={toggleEpisode}
+                onMarkUpToHere={markUpTo}
+                onRecordTime={openResume}
+              />
+            );
+          })}
         </div>
       </div>
     );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { Alert, Button, Card, Input, I18nProvider, Label, Skeleton, Spinner, TextField, Toast } from '@heroui/react';
@@ -7,15 +7,21 @@ import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
 import { useI18n } from './i18n/index.ts';
 import { HomePage } from './pages/HomePage.tsx';
-import { LibraryPage } from './pages/LibraryPage.tsx';
-import { ListDetailPage } from './pages/ListDetailPage.tsx';
-import { ListsPage } from './pages/ListsPage.tsx';
-import { SearchPage } from './pages/SearchPage.tsx';
-import { SettingsPage } from './pages/SettingsPage.tsx';
-import { TitleDetailPage } from './pages/TitleDetailPage.tsx';
+const LibraryPage = lazy(() => import('./pages/LibraryPage.tsx').then((module) => ({ default: module.LibraryPage })));
+const ListDetailPage = lazy(() =>
+  import('./pages/ListDetailPage.tsx').then((module) => ({ default: module.ListDetailPage })),
+);
+const ListsPage = lazy(() => import('./pages/ListsPage.tsx').then((module) => ({ default: module.ListsPage })));
+const SearchPage = lazy(() => import('./pages/SearchPage.tsx').then((module) => ({ default: module.SearchPage })));
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage.tsx').then((module) => ({ default: module.SettingsPage })),
+);
+const TitleDetailPage = lazy(() =>
+  import('./pages/TitleDetailPage.tsx').then((module) => ({ default: module.TitleDetailPage })),
+);
 
 const AuthScreen: React.FC = () => {
-  const { needsSetup, setupPassword, loginWithPassword } = useTracker();
+  const { needsSetup, setupPassword, loginWithPassword } = useTracker(() => null);
   const { t, translateError } = useI18n();
   const [setupCode, setSetupCode] = useState('');
   const [password, setPassword] = useState('');
@@ -126,7 +132,7 @@ const AuthScreen: React.FC = () => {
 };
 
 const OfflineScreen: React.FC = () => {
-  const { retryConnection } = useTracker();
+  const { retryConnection } = useTracker(() => null);
   const { t } = useI18n();
   const [retrying, setRetrying] = useState(false);
 
@@ -166,7 +172,8 @@ const OfflineScreen: React.FC = () => {
 };
 
 const AppRoutes: React.FC = () => {
-  const { authReady, authenticated, serverUnreachable } = useTracker();
+  const { t } = useI18n();
+  const { authReady, authenticated, serverUnreachable } = useTracker(() => null);
 
   if (serverUnreachable) {
     return <OfflineScreen />;
@@ -193,16 +200,18 @@ const AppRoutes: React.FC = () => {
 
   return (
     <AppShell>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/library" element={<LibraryPage />} />
-        <Route path="/lists" element={<ListsPage />} />
-        <Route path="/lists/:listId" element={<ListDetailPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/title/:titleId" element={<TitleDetailPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<Spinner aria-label={t.app.loading} />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/lists" element={<ListsPage />} />
+          <Route path="/lists/:listId" element={<ListDetailPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/title/:titleId" element={<TitleDetailPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </AppShell>
   );
 };

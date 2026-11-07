@@ -1,3 +1,4 @@
+import { readUpstream } from './upstreamStorage.ts';
 import {
   migrateWatched,
   planStructure,
@@ -22,7 +23,7 @@ export function previewStructure(ctx: DbContext, id: string): StructurePreview {
   if (!title) throw new NotFoundError('TITLE_NOT_FOUND');
   if (!title.upstreamChange) throw new ConflictError('STRUCTURE_CONFLICT', 'STRUCTURE_CONFLICT');
   const local = readSeasons(ctx, id);
-  const incoming = title.upstreamChange.seasons;
+  const incoming = readUpstream(ctx, id);
   const plan = planStructure(local, incoming);
   const progress = Object.values(readProgress(ctx, id)).map((doc) => migrateWatched(doc, local, incoming));
   return {
@@ -66,7 +67,7 @@ export function decideStructure(
       throw new ConflictError('STRUCTURE_CONFLICT', 'STRUCTURE_CONFLICT');
     }
     const local = readSeasons(ctx, id);
-    const target = decision === 'adopt' ? change.seasons : local;
+    const target = decision === 'adopt' ? readUpstream(ctx, id) : local;
     const progress = Object.fromEntries(
       Object.entries(readProgress(ctx, id)).map(([key, doc]) => [
         key,

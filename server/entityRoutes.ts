@@ -24,6 +24,14 @@ export function registerEntityRoutes(
   broadcastMutation: (mutation: StateMutationResult) => StateMutationResult,
   scheduleEnrichment: (id: string) => void = () => {},
 ): void {
+  app.get('/api/titles/:id/details', (req, res) => {
+    if (!repo.getTitle(String(req.params.id))) {
+      res.status(404).json({ code: 'TITLE_NOT_FOUND' });
+      return;
+    }
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.json({ seasons: repo.getSeasons(String(req.params.id)) });
+  });
   app.put('/api/titles/:id', (req, res, next) => {
     try {
       const id = String(req.params.id);

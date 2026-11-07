@@ -123,7 +123,7 @@ export interface TitleNames {
 
 export interface UpstreamChange {
   signature: string;
-  seasons: SeasonDoc[];
+  seasons?: SeasonDoc[];
   fetchedAt: number;
 }
 export interface ArchivedWatch {
@@ -132,6 +132,7 @@ export interface ArchivedWatch {
 }
 
 export interface TitleDoc {
+  episodeDetailsVersion?: number;
   structureLocked?: boolean;
   sourceUnavailable?: boolean;
   upstreamChange?: UpstreamChange | null;
@@ -282,6 +283,7 @@ export interface StateDeletes {
 }
 
 export interface StateMutationResult {
+  checkpoint?: boolean;
   replace?: boolean;
   version: number;
   epoch?: string;

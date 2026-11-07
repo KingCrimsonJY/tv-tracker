@@ -1,3 +1,5 @@
+import { normalizeTmdbImages } from '../../src/domain/images.ts';
+import { readUpstream, saveUpstream } from './upstreamStorage.ts';
 import { cleanLegacySeasons, cleanLegacyProgress } from './legacyLinkData.ts';
 import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
 import { splitUploaderPrefixFromOverview } from '../../src/domain/progress.ts';
@@ -119,6 +121,9 @@ export function getState(ctx: DbContext): AppStateSnapshot {
 
 export function exportData(ctx: DbContext, exportedAt = new Date().toISOString()): ZhenjiExportV2 {
   const state = getState(ctx);
+  for (const title of Object.values(state.titles)) {
+    if (title.upstreamChange) title.upstreamChange = { ...title.upstreamChange, seasons: readUpstream(ctx, title.id) };
+  }
   return {
     format: 'zhenji-export',
     version: 2,
@@ -137,7 +142,7 @@ export function importData(
   rawInput: unknown,
   options: { skipBackup?: boolean; now?: Date } = {},
 ): StateMutationResult {
-  const parsed = importPayloadSchema.parse(rawInput);
+  const parsed = importPayloadSchema.parse(normalizeTmdbImages(rawInput));
 
   if (!options.skipBackup) {
     createSafetyBackup(ctx, 'pre-import', options.now);
@@ -189,6 +194,7 @@ export function importData(
       }
       titles[id] = titleDoc;
       insertTitle.run(id, serializeTitleData(titleDoc), titleDoc.addedAt, titleDoc.updatedAt);
+      saveUpstream(ctx, titleDoc);
     }
 
     const insertSeason = ctx.db.prepare('INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)');

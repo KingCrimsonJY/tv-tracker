@@ -7,7 +7,7 @@ import { usePWAInstall } from '../hooks/usePWAInstall.ts';
 import { useI18n } from '../i18n/index.ts';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { lists, signOut } = useTracker();
+  const { lists, signOut } = useTracker((state) => state.lists);
   const { t } = useI18n();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);

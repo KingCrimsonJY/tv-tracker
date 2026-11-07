@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { TitleDoc } from '../../src/domain/types.ts';
-import { tmdbImageUrl } from './tmdbClient.ts';
+import { tmdbImagePath } from './tmdbClient.ts';
 import { tmdbImageItemSchema } from './tmdbSchemas.ts';
 
 type TmdbImageItem = z.infer<typeof tmdbImageItemSchema>;
@@ -44,9 +44,9 @@ export function selectBestTmdbImages(
   );
   const bestTextlessItem = [...textlessCandidates].sort(compareByVotesDesc)[0] ?? null;
 
-  const zhPoster = tmdbImageUrl(bestZhItem?.file_path ?? null, 'w500');
-  const enPoster = tmdbImageUrl(bestEnItem?.file_path ?? null, 'w500');
-  const textlessPoster = tmdbImageUrl(bestTextlessItem?.file_path ?? null, 'w500');
+  const zhPoster = tmdbImagePath(bestZhItem?.file_path ?? null);
+  const enPoster = tmdbImagePath(bestEnItem?.file_path ?? null);
+  const textlessPoster = tmdbImagePath(bestTextlessItem?.file_path ?? null);
 
   const posters: NonNullable<TitleDoc['posters']> = {
     ...(zhPoster ? { zh: zhPoster } : {}),
@@ -55,7 +55,7 @@ export function selectBestTmdbImages(
   };
 
   const defaultPosterPath =
-    zhPoster || textlessPoster || enPoster || tmdbImageUrl(fallbacks.zhPosterPath || fallbacks.enPosterPath, 'w500');
+    zhPoster || textlessPoster || enPoster || tmdbImagePath(fallbacks.zhPosterPath || fallbacks.enPosterPath);
 
   // Backdrops: prefer textless (iso_639_1: null), then highest voted, then fallback
   const textlessBackdrops = backdropsList.filter(
@@ -66,7 +66,7 @@ export function selectBestTmdbImages(
       ? [...textlessBackdrops].sort(compareByVotesDesc)[0]
       : [...backdropsList].sort(compareByVotesDesc)[0]) ?? null;
 
-  const backdropPath = tmdbImageUrl(bestBackdropItem?.file_path ?? fallbacks.backdropPath ?? null, 'w1280');
+  const backdropPath = tmdbImagePath(bestBackdropItem?.file_path ?? fallbacks.backdropPath ?? null);
 
   return {
     posters,

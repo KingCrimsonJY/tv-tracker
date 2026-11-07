@@ -1,3 +1,4 @@
+import { useTitleEpisodes } from './useTitleEpisodes';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@heroui/react';
@@ -16,7 +17,12 @@ export function useTitleDetail() {
   const navigate = useNavigate();
   const highlightEpKey = searchParams.get('ep');
 
-  const tracker = useTracker();
+  const tracker = useTracker((state) => [
+    id ? state.titles[id] : null,
+    id ? state.seasonsByTitle[id] : null,
+    id ? state.progressByTitle[id] : null,
+    state.settings,
+  ]);
   const { t, locale, translateError } = useI18n();
   const {
     titles,
@@ -39,7 +45,11 @@ export function useTitleDetail() {
   const [deletePlaythroughId, setDeletePlaythroughId] = useState<string | null>(null);
 
   const title = id ? titles[id] : undefined;
-  const seasons = useMemo(() => (id ? (seasonsByTitle[id] ?? []) : []), [id, seasonsByTitle]);
+  const seasons = useTitleEpisodes(
+    id,
+    id ? seasonsByTitle[id] : undefined,
+    title?.episodeDetailsVersion ?? title?.metaFetchedAt,
+  );
   const activeProgress = title ? getActiveProgress(title) : undefined;
   const today = toLocalDateString();
 

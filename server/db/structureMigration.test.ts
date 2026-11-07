@@ -1,3 +1,4 @@
+import { seedLegacyTitle } from './migrationFixtures.ts';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,8 +18,8 @@ test('migration initializes upstream controls while preserving legacy library an
   const title = makeBaseTvTitle();
   const seasons = makeSampleSeasons();
   const old = new TrackerRepository({ dataDir, migrationsDir: migrations });
-  old.putTitle(title.id, { title, seasons, progress: { p1: { playthroughId: 'p1', watched: { s1e1: 42 } } } });
   old.close();
+  seedLegacyTitle(path.join(dataDir, 'tracker.db'), title, seasons, { s1e1: 42 });
   const upgraded = new TrackerRepository({ dataDir });
   try {
     expect(upgraded.getTitle(title.id)).toMatchObject({ structureLocked: false, sourceUnavailable: false });

@@ -1,4 +1,6 @@
-import { fillEpisodeMetadata } from './enrichmentRepo.ts';
+import { normalizeTmdbImages } from '../../src/domain/images.ts';
+import { migrateImages } from './imageMigration.ts';
+import { fillEpisodeMetadataBatch, enrichmentDue, claimEnrichment } from './enrichmentRepo.ts';
 import { runMigration002InTx, runMigration003InTx, runMigration004InTx } from './legacyMigrations.ts';
 import { appendPlaylistEpisodes } from './linkMetadataRepo.ts';
 import { previewStructure, decideStructure, convertToManual } from './structureRepo.ts';
@@ -158,6 +160,7 @@ export class TrackerRepository {
         if (migration.version === 3) {
           runMigration003InTx(this.db);
         }
+        if (migration.version === 8) migrateImages(this.db);
         if (migration.version === 4) {
           runMigration004InTx(this.db);
         }
@@ -239,19 +242,29 @@ export class TrackerRepository {
       progress?: Record<string, ProgressDoc>;
     },
   ): StateMutationResult {
-    return putTitle(this.ctx, id, input);
+    return putTitle(this.ctx, id, normalizeTmdbImages(input));
   }
 
   public patchTitle(id: string, patch: Partial<Omit<TitleDoc, 'id'>>): StateMutationResult {
-    return patchTitle(this.ctx, id, patch);
+    return patchTitle(this.ctx, id, normalizeTmdbImages(patch));
   }
 
   public deleteTitle(id: string): StateMutationResult {
     return deleteTitle(this.ctx, id);
   }
 
-  public fillEpisodeMetadata(id: string, sourceUrl: string, videoId: string, detail: LinkImportResult) {
-    return fillEpisodeMetadata(this.ctx, id, sourceUrl, videoId, detail);
+  public fillEpisodeMetadataBatch(
+    id: string,
+    sourceUrl: string,
+    entries: Array<{ videoId: string; detail: LinkImportResult }>,
+  ) {
+    return fillEpisodeMetadataBatch(this.ctx, id, sourceUrl, entries);
+  }
+  public enrichmentDue(id: string, sourceUrl: string, videoId: string, now = Date.now()) {
+    return enrichmentDue(this.ctx, id, sourceUrl, videoId, now);
+  }
+  public claimEnrichment(id: string, sourceUrl: string, videoId: string, now = Date.now()) {
+    return claimEnrichment(this.ctx, id, sourceUrl, videoId, now);
   }
 
   public previewStructure(id: string) {

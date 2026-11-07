@@ -171,6 +171,7 @@ export function applyInFlightOpsToState(
       }
 
       titleProgMap[ptId] = {
+        ...existingProg,
         playthroughId: ptId,
         watched,
         ...(movieWatchedAt !== undefined ? { movieWatchedAt } : {}),

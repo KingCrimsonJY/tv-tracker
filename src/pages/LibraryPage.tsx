@@ -12,7 +12,7 @@ type TypeFilter = 'all' | 'movie' | 'tv' | 'other';
 type SortMode = 'recent' | 'added' | 'year' | 'name';
 
 export const LibraryPage: React.FC = () => {
-  const { loadingData, titles, seasonsByTitle, settings, getActiveProgress } = useTracker();
+  const { loadingData, titles, seasonsByTitle, settings, progressByTitle } = useTracker();
   const { locale, t } = useI18n();
   const navigate = useNavigate();
 
@@ -23,7 +23,7 @@ export const LibraryPage: React.FC = () => {
   const items = useMemo(() => {
     const all = Object.values(titles).map((title) => {
       const seasons = seasonsByTitle[title.id] || [];
-      const progress = getActiveProgress(title);
+      const progress = progressByTitle[title.id]?.[title.activePlaythroughId];
       const state = computeTitleState(title, seasons, progress, {
         includeSpecials: settings.includeSpecials,
       });
@@ -66,7 +66,7 @@ export const LibraryPage: React.FC = () => {
   }, [
     titles,
     seasonsByTitle,
-    getActiveProgress,
+    progressByTitle,
     settings.includeSpecials,
     settings.defaultTitleLang,
     locale,

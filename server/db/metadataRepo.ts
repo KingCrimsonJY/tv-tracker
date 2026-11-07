@@ -1,3 +1,4 @@
+import { saveUpstream } from './upstreamStorage.ts';
 import type { SeasonDoc, StateMutationResult, TitleDoc, TmdbDetails } from '../../src/domain/types.ts';
 import { restoreArchivedWatched, planStructure, structureSignature } from '../../src/domain/structure.ts';
 import type { ProgressDoc } from '../../src/domain/types.ts';
@@ -66,9 +67,11 @@ export function writeMetadata(
   seasons: SeasonDoc[],
   progress?: Record<string, ProgressDoc>,
 ): StateMutationResult {
+  title = { ...title, episodeDetailsVersion: ctx.getVersion() + 1 };
   ctx.db
     .prepare('UPDATE titles SET data = ?, updated_at = ? WHERE id = ?')
     .run(serializeTitleData(title), title.updatedAt, title.id);
+  saveUpstream(ctx, title);
   ctx.db.prepare('DELETE FROM seasons WHERE title_id = ?').run(title.id);
   const write = ctx.db.prepare('INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)');
   for (const season of seasons) write.run(title.id, season.seasonNumber, JSON.stringify(season));

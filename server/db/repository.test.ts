@@ -22,8 +22,8 @@ function makeSampleTitle(id = 'tmdb_tv_100', name = '人生切割术'): TitleDoc
     year: 2022,
     runtimeMin: 50,
     genres: ['剧情', '科幻'],
-    posterPath: 'https://image.tmdb.org/t/p/w500/poster.jpg',
-    backdropPath: 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+    posterPath: '/poster.jpg',
+    backdropPath: '/backdrop.jpg',
     overview: {
       zh: '卢蒙工业的员工接受了记忆切割手术。',
       en: 'Mark leads a team of office workers whose memories have been surgically divided.',

@@ -1,4 +1,5 @@
-import { DEFAULT_APP_SETTINGS } from '../domain/schemas.ts';
+import { shareJson } from './structuralSharing.ts';
+import { DEFAULT_APP_SETTINGS } from '../domain/defaultSettings.ts';
 import type {
   AppStateSnapshot,
   ListEntryDoc,
@@ -7,7 +8,6 @@ import type {
   StateMutationResult,
   TitleDoc,
   WatchListDoc,
-  ZhenjiExportV2,
 } from '../domain/types.ts';
 
 export type StateUpdater = AppStateSnapshot | ((prev: AppStateSnapshot) => AppStateSnapshot);
@@ -52,10 +52,10 @@ export function applyStateSnapshot(
   if (incomingSnapshot.version < currentState.version) {
     return currentState;
   }
-  return {
+  return shareJson(currentState, {
     ...incomingSnapshot,
-    epoch: incomingSnapshot.epoch ?? currentState.epoch,
-  };
+    ...((incomingSnapshot.epoch ?? currentState.epoch) ? { epoch: incomingSnapshot.epoch ?? currentState.epoch } : {}),
+  });
 }
 
 export function applyMutationResult(
@@ -157,7 +157,7 @@ export function applyMutationResult(
     settings = upserts.settings;
   }
 
-  return {
+  return shareJson(currentState, {
     version: Math.max(currentState.version, mutation.version),
     epoch: mutation.epoch ?? currentState.epoch,
     titles,
@@ -166,7 +166,7 @@ export function applyMutationResult(
     lists,
     entriesByList,
     settings,
-  };
+  });
 }
 
 export function createTrackerStore(initialState: AppStateSnapshot = createInitialAppState()): TrackerStore {
@@ -222,17 +222,3 @@ export function createTrackerStore(initialState: AppStateSnapshot = createInitia
 }
 
 export const trackerStore = createTrackerStore();
-
-export function buildExportV2FromState(state: AppStateSnapshot): ZhenjiExportV2 {
-  return {
-    format: 'zhenji-export',
-    version: 2,
-    exportedAt: new Date().toISOString(),
-    settings: state.settings,
-    titles: state.titles,
-    seasonsByTitle: state.seasonsByTitle,
-    progressByTitle: state.progressByTitle,
-    lists: state.lists,
-    entriesByList: state.entriesByList,
-  };
-}

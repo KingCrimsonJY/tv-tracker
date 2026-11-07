@@ -26,6 +26,7 @@ export function useSseEventStream(params: {
   useEffect(() => {
     if (!authenticated) return;
     let cancelled = false;
+    let connected = false;
     let abortController: AbortController | null = null;
     let offlineTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -87,7 +88,8 @@ export function useSseEventStream(params: {
 
         clearOfflineCountdown();
         resetWatchdog();
-        await refreshStateFromServer();
+        if (connected || reconnectTrigger > 0) await refreshStateFromServer();
+        connected = true;
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');

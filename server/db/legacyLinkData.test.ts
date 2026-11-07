@@ -1,3 +1,4 @@
+import { seedLegacyTitle } from './migrationFixtures.ts';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,8 +18,8 @@ test('migration removes retired live status and placeholder dates without deleti
   const seasons = makeSampleSeasons();
   seasons[0].episodes[0].airDate = '2020-01-01';
   const title = { ...makeBaseTvTitle({ source: 'url' }), liveStatus: 'live' };
-  old.putTitle(title.id, { title, seasons, progress: { p1: { playthroughId: 'p1', watched: { s0e1: 99 } } } });
   old.close();
+  seedLegacyTitle(path.join(dataDir, 'tracker.db'), title, seasons, { s0e1: 99 });
   const upgraded = new TrackerRepository({ dataDir });
   try {
     expect(upgraded.getTitle(title.id)).not.toHaveProperty('liveStatus');

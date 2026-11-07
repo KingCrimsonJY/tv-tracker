@@ -1,3 +1,4 @@
+import { responsiveImage } from '../../domain/images';
 import React from 'react';
 import { Button, Chip } from '@heroui/react';
 import { ArrowLeft } from 'lucide-react';
@@ -37,7 +38,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
         {backdropUrl ? (
           <img
             referrerPolicy="no-referrer"
-            src={backdropUrl}
+            {...responsiveImage(backdropUrl, 'backdrop')}
             alt=""
             className="w-full h-full object-cover object-top"
             loading="eager"

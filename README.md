@@ -278,20 +278,21 @@ npm run seed:demo
 
 本项目基于 [MIT License](./LICENSE) 开源，Copyright (c) 2026 KingCrimsonJY。
 
-## Performance checks
+## 性能与界面验收
 
-Run inside the development container:
+在开发容器内执行：
 
 ```sh
 npx playwright install --with-deps chromium
 npm run build
 npm run perf
+npm run qa
 ```
 
-The benchmark creates its own temporary SQLite database; it never reads or replaces `DATA_DIR`.
-It seeds 300 deterministic titles (40-episode series, a 150-episode show, a 564-entry archive, and 12 movies)
-and measures the production frontend at 390 × 844 with 4× CPU throttling, 150 ms latency, 1.6 Mbps down,
-and 750 Kbps up. Browser cache and service workers are disabled for a cold load.
-Bilingual episode text varies deterministically; artwork uses local fixture images so upstream latency
-and availability cannot skew the application benchmark. External image delivery is outside this measurement.
-Use `PERF_OUTPUT_DIR` to select a directory inside the container for the JSON report.
+性能脚本使用独立的临时 SQLite 数据库，不读取或覆盖 `DATA_DIR`。夹具包含 300 部作品：普通 40 集剧集、150 集剧集、564 集合集和 12 部电影。浏览器采用 390 × 844 视口、4 倍 CPU 降速、150ms 延迟、1.6Mbps 下行和 750Kbps 上行，并关闭缓存与 Service Worker，测量冷启动。
+
+双语文本由固定种子生成，图片使用本地夹具；不需要 API Key，也不请求上游服务。结果不包含 Cloudflare Tunnel 或外部图片服务的额外延迟。性能报告逐项列出预算是否达标；设置 `PERF_ENFORCE_BUDGETS=1` 可在超标时返回失败。`PERF_OUTPUT_DIR` 指定容器内的报告目录。可选的 `PERF_PROFILE` 指定 CPU 采样文件路径，仅用于诊断；正式对比时不要开启。
+
+片库索引不传输单集名称、简介和剧照；进入详情页后按需加载并缓存。导出始终读取服务端完整资料，保持 v2 备份格式。
+
+界面验收脚本生成 320、390、1280px 下的中英文电影页、上游变更页、预览弹窗和集数范围选择截图，同时检查双设备同步、详情缓存和备份替换。`QA_OUTPUT_DIR` 指定容器内的截图与报告目录；未指定时创建独立临时目录。截图和运行数据不提交到仓库。

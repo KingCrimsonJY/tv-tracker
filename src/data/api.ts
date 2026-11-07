@@ -135,11 +135,12 @@ async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchAuthStatus(): Promise<{
+export async function fetchAuthStatus(includeState = false): Promise<{
   needsSetup: boolean;
   authenticated: boolean;
+  state?: AppStateSnapshot;
 }> {
-  return apiJson('/api/auth/status');
+  return apiJson('/api/auth/status' + (includeState ? '?state=1' : ''));
 }
 
 export async function setupPasswordApi(password: string, setupCode: string): Promise<void> {
@@ -412,4 +413,11 @@ export function changeTitleSourceApi(
   input: { action: 'manual' } | { action: 'relink'; sourceId: string; mediaType: 'movie' | 'tv' },
 ): Promise<StateMutationResult> {
   return apiJson(`/api/titles/${encodeURIComponent(titleId)}/source`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function fetchTitleDetailsApi(id: string): Promise<{ seasons: SeasonDoc[] }> {
+  return apiJson(`/api/titles/${encodeURIComponent(id)}/details`);
+}
+export function exportDataApi(): Promise<import('../domain/types.ts').ZhenjiExportV2> {
+  return apiJson('/api/export');
 }

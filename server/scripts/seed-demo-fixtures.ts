@@ -4,7 +4,7 @@ import {
   normalizeLocalizedSeasonName,
 } from '../../src/domain/progress.ts';
 import type { EpisodeMeta, RatingsBlock, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
-import { tmdbImageUrl } from '../providers/tmdb.ts';
+import { tmdbImagePath } from '../providers/tmdb.ts';
 
 export interface DemoRatingsSpec {
   tmdb?: string;
@@ -537,7 +537,7 @@ export function buildFallbackTitleAndSeasons(
     冷港: 'Cold Harbor',
   };
 
-  const posterUrl = tmdbImageUrl(spec.posterHash, 'w500');
+  const posterUrl = tmdbImagePath(spec.posterHash);
   const firstSeasonEpDate = spec.seasons?.[0]?.episodes?.[0]?.airDate;
   const releaseDate = firstSeasonEpDate || `${spec.year}-01-01`;
 
@@ -554,7 +554,7 @@ export function buildFallbackTitleAndSeasons(
     genres: spec.genres,
     posterPath: posterUrl,
     ...(posterUrl ? { posters: { zh: posterUrl, en: posterUrl } } : {}),
-    backdropPath: tmdbImageUrl(spec.backdropHash, 'w1280'),
+    backdropPath: tmdbImagePath(spec.backdropHash),
     overview: {
       zh: spec.overviewZh,
       ...(EN_OVERVIEWS[spec.sourceId] ? { en: EN_OVERVIEWS[spec.sourceId] } : {}),
@@ -584,7 +584,7 @@ export function buildFallbackTitleAndSeasons(
       }),
       airDate: ep.airDate,
       runtime: ep.runtime,
-      stillPath: tmdbImageUrl(ep.stillHash || spec.backdropHash, 'w300'),
+      stillPath: tmdbImagePath(ep.stillHash || spec.backdropHash),
       overview: { zh: ep.overview || '' },
     })),
   }));

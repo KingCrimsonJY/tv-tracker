@@ -49,6 +49,19 @@ try {
     stateGzipBytes: gzipSync(state).length,
     ...(await measureBrowser(baseUrl, token)),
   };
+  const budgets = {
+    state: report.stateGzipBytes <= 300_000,
+    initialJs: report.homeJsGzipBytes <= 250_000,
+    homeInteractive: report.homeInteractiveMs <= 3000,
+    optimisticNextFrame: Boolean(
+      report.toggleInput?.updatedFrame && report.toggleInput.updatedFrame === report.toggleInput.firstFrame,
+    ),
+    toggle: report.togglePosts === 1 && report.toggleStateGets === 0 && report.toggleLongTaskMs <= 50,
+    longTitle: report.longTitleLongTaskMs <= 100,
+    libraryScroll: report.libraryScrollLongTaskMs <= 100,
+  };
+  Object.assign(report, { budgets });
+  if (process.env.PERF_ENFORCE_BUDGETS === '1' && Object.values(budgets).some((pass) => !pass)) process.exitCode = 1;
   const output = path.resolve(process.env.PERF_OUTPUT_DIR || runDir);
   mkdirSync(output, { recursive: true });
   writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');

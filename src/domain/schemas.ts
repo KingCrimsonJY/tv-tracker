@@ -1,3 +1,5 @@
+import { DEFAULT_APP_SETTINGS } from './defaultSettings.ts';
+export { DEFAULT_APP_SETTINGS } from './defaultSettings.ts';
 import { z } from 'zod';
 import { normalizeLocalizedEpisodeName, normalizeLocalizedSeasonName } from './airing.ts';
 import type {
@@ -92,7 +94,7 @@ const upstreamFields = {
     .object({
       signature: z.string(),
       fetchedAt: z.number().nonnegative(),
-      seasons: z.array(z.lazy(() => seasonDocSchema)),
+      seasons: z.array(z.lazy(() => seasonDocSchema)).optional(),
     })
     .nullable()
     .optional(),
@@ -100,6 +102,7 @@ const upstreamFields = {
 
 const baseTitleFields = {
   ...upstreamFields,
+  episodeDetailsVersion: z.number().nonnegative().optional(),
   source: titleSourceSchema,
   sourceId: z.string().nullable(),
   mediaType: mediaTypeSchema,
@@ -349,20 +352,6 @@ export const homeSectionConfigSchema: z.ZodType<HomeSectionConfig> = z.object({
   id: homeSectionIdSchema,
   enabled: z.boolean(),
 });
-
-export const DEFAULT_APP_SETTINGS: AppSettingsDoc = {
-  uiLang: 'system',
-  defaultTitleLang: 'auto',
-  includeSpecials: false,
-  homeSections: [
-    { id: 'continue_watching', enabled: true },
-    { id: 'new_episodes', enabled: true },
-    { id: 'pinned_lists', enabled: true },
-    { id: 'recently_added', enabled: false },
-    { id: 'watchlist', enabled: false },
-  ],
-  theme: 'dark',
-};
 
 export const appSettingsDocSchema: z.ZodType<AppSettingsDoc> = z.object({
   uiLang: uiLangSettingSchema.optional().default('system'),

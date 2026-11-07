@@ -10,7 +10,9 @@ import { useI18n } from '../../i18n';
 
 export function UpstreamPanel({ title }: { title: TitleDoc }) {
   const { t, locale, translateError } = useI18n();
-  const { resolveStructure, changeTitleSource, progressByTitle } = useTracker();
+  const { resolveStructure, changeTitleSource, progressByTitle } = useTracker(
+    (state) => state.progressByTitle[title.id],
+  );
   const [preview, setPreview] = useState<StructurePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [pickingSource, setPickingSource] = useState(false);

@@ -240,3 +240,13 @@ test('locked new IDs sharing an air date are never mistaken for an existing loca
   refresh([incoming]);
   expect(repo.getSeasons(title.id)[0].episodes.map((ep) => ep.tmdbEpisodeId)).toEqual([1, 2]);
 });
+test('pending structures live outside title docs and survive a complete v2 export/import', () => {
+  const { repo, title, refresh } = setup();
+  refresh([season(2, [1, 2])]);
+  expect(repo.getTitle(title.id)?.upstreamChange?.seasons).toBeUndefined();
+  const backup = repo.exportData();
+  expect(backup.titles[title.id].upstreamChange?.seasons).toHaveLength(1);
+  repo.importData(backup);
+  expect(repo.getTitle(title.id)?.upstreamChange?.seasons).toBeUndefined();
+  expect(repo.previewStructure(title.id).sourceSeasons).toBe(1);
+});

@@ -1,3 +1,4 @@
+import { saveUpstream } from './upstreamStorage.ts';
 import { titleDocSchema } from '../../src/domain/schemas.ts';
 import type {
   ProgressDoc,
@@ -27,7 +28,7 @@ export function putTitle(
   },
 ): StateMutationResult {
   return ctx.runInTransaction(() => {
-    const titleDoc: TitleDoc = { ...input.title, id };
+    const titleDoc: TitleDoc = { ...input.title, id, episodeDetailsVersion: ctx.getVersion() + 1 };
     const dataJson = serializeTitleData(titleDoc);
 
     ctx.db
@@ -41,6 +42,7 @@ export function putTitle(
       )
       .run(id, dataJson, titleDoc.addedAt, titleDoc.updatedAt);
 
+    saveUpstream(ctx, titleDoc);
     let sortedSeasons: SeasonDoc[] | undefined;
     if (input.seasons !== undefined) {
       ctx.db.prepare('DELETE FROM seasons WHERE title_id = ?').run(id);
@@ -106,6 +108,7 @@ export function patchTitle(ctx: DbContext, id: string, patch: Partial<Omit<Title
     ctx.db
       .prepare('UPDATE titles SET data = ?, added_at = ?, updated_at = ? WHERE id = ?')
       .run(dataJson, merged.addedAt, merged.updatedAt, id);
+    saveUpstream(ctx, merged);
 
     const version = ctx.bumpVersionInTx();
     return {
@@ -148,8 +151,8 @@ export function deleteTitle(ctx: DbContext, id: string): StateMutationResult {
 
 export function replaceSeasons(ctx: DbContext, titleId: string, seasons: SeasonDoc[]): StateMutationResult {
   return ctx.runInTransaction(() => {
-    const exists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(titleId);
-    if (!exists) {
+    const title = getTitle(ctx, titleId);
+    if (!title) {
       throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
@@ -161,9 +164,12 @@ export function replaceSeasons(ctx: DbContext, titleId: string, seasons: SeasonD
     }
 
     const version = ctx.bumpVersionInTx();
+    const updated = { ...title, episodeDetailsVersion: version };
+    ctx.db.prepare('UPDATE titles SET data = ? WHERE id = ?').run(serializeTitleData(updated), titleId);
     return {
       version,
       upserts: {
+        titles: { [titleId]: updated },
         seasonsByTitle: {
           [titleId]: sortedSeasons,
         },
@@ -285,6 +291,7 @@ export function applyTitleAtomicAction(
       ctx.db
         .prepare('UPDATE titles SET data = ?, added_at = ?, updated_at = ? WHERE id = ?')
         .run(dataJson, validated.addedAt, validated.updatedAt, titleId);
+      saveUpstream(ctx, validated);
 
       upserts.titles = {
         [titleId]: validated,

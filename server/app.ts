@@ -1,3 +1,4 @@
+import { clientSnapshot, clientMutation } from './clientState.ts';
 import { LinkImportError } from './providers/linkErrors.ts';
 import { createPlaylistEnricher } from './playlistEnrichment.ts';
 import { resolveWithYtdlp } from './providers/ytdlp.ts';
@@ -112,6 +113,7 @@ export function createApp(options: CreateAppOptions): Express {
   const sseClients = new Set<SseClient>();
 
   function broadcastMutation(mutation: StateMutationResult): StateMutationResult {
+    mutation = clientMutation(mutation);
     const stamped: StateMutationResult = { ...mutation, epoch };
     const payload = `data: ${JSON.stringify(stamped)}\n\n`;
     for (const client of sseClients) {
@@ -177,7 +179,12 @@ export function createApp(options: CreateAppOptions): Express {
     const activeHash = getActivePasswordHash();
     const needsSetup = !activeHash;
     const { authenticated } = isSessionAuthenticated(req);
-    res.json({ needsSetup, authenticated });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      needsSetup,
+      authenticated,
+      ...(authenticated && req.query.state === '1' ? { state: { ...clientSnapshot(repo.getState()), epoch } } : {}),
+    });
   });
 
   app.post('/api/auth/setup', (req, res, next) => {
@@ -271,7 +278,7 @@ export function createApp(options: CreateAppOptions): Express {
   });
 
   app.get('/api/state', (_req, res) => {
-    res.json({ ...repo.getState(), epoch });
+    res.json({ ...clientSnapshot(repo.getState()), epoch });
   });
 
   app.get('/api/events', (req, res) => {
@@ -281,7 +288,11 @@ export function createApp(options: CreateAppOptions): Express {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
-    res.write(': connected\n\n');
+    res.write(
+      'data: ' +
+        JSON.stringify({ checkpoint: true, version: repo.getVersion(), epoch, upserts: {}, deletes: {} }) +
+        '\n\n',
+    );
 
     let closed = false;
     const heartbeat = setInterval(() => {

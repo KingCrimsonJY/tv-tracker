@@ -125,7 +125,7 @@ export function countCompletedPlaythroughs(playthroughs: TitleDoc['playthroughs'
   return playthroughs.filter((p) => p.completedAt != null).length;
 }
 
-export function computeTitleState(
+function computeTitleStateUncached(
   title: Pick<
     TitleDoc,
     'mediaType' | 'source' | 'showStatus' | 'manualState' | 'resume' | 'playthroughs' | 'activePlaythroughId'
@@ -334,4 +334,37 @@ export function computeTitleState(
     playthroughNumber: activePlaythrough.number,
     completedPlaythroughCount,
   };
+}
+
+type TitleStateInput = Parameters<typeof computeTitleStateUncached>[0];
+const titleStates = new WeakMap<
+  TitleStateInput,
+  {
+    seasons: SeasonDoc[];
+    progress: ProgressDoc | undefined;
+    includeSpecials: boolean;
+    day: string;
+    value: ComputedTitleState;
+  }
+>();
+export function computeTitleState(
+  title: TitleStateInput,
+  seasons: SeasonDoc[],
+  progress: ProgressDoc | undefined,
+  options: { includeSpecials?: boolean; todayStr?: string } = {},
+): ComputedTitleState {
+  const day = options.todayStr ?? toLocalDateString();
+  const includeSpecials = options.includeSpecials ?? false;
+  const cached = titleStates.get(title);
+  if (
+    cached &&
+    cached.seasons === seasons &&
+    cached.progress === progress &&
+    cached.includeSpecials === includeSpecials &&
+    cached.day === day
+  )
+    return cached.value;
+  const value = computeTitleStateUncached(title, seasons, progress, { includeSpecials, todayStr: day });
+  titleStates.set(title, { seasons, progress, includeSpecials, day, value });
+  return value;
 }

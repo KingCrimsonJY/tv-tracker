@@ -21,6 +21,7 @@
     "seed:demo": "node server/scripts/seed-demo.ts",
     "setup:ytdlp": "node server/scripts/setup-ytdlp.ts",
     "perf": "node server/scripts/perf.ts",
+    "qa": "node server/scripts/qa.ts",
     "format": "prettier --ignore-path .prettierignore --write .",
     "format:check": "prettier --ignore-path .prettierignore --check ."
   },

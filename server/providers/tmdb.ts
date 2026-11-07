@@ -16,9 +16,15 @@ import {
   tmdbDetailResponseSchema,
   tmdbSeasonResponseSchema,
 } from './tmdbSchemas.ts';
-import { fetchTmdbRawJson, tmdbImageUrl, getOmdbKey, isTmdbConfigured, type TmdbFetchOptions } from './tmdbClient.ts';
+import { fetchTmdbRawJson, tmdbImagePath, getOmdbKey, isTmdbConfigured, type TmdbFetchOptions } from './tmdbClient.ts';
 import { selectBestTmdbImages } from './tmdbImages.ts';
-export { tmdbImageUrl, getTmdbToken, isTmdbConfigured, TmdbRequestError, type TmdbFetchOptions } from './tmdbClient.ts';
+export {
+  tmdbImagePath,
+  getTmdbToken,
+  isTmdbConfigured,
+  TmdbRequestError,
+  type TmdbFetchOptions,
+} from './tmdbClient.ts';
 export { selectBestTmdbImages } from './tmdbImages.ts';
 
 let cachedGenres: {
@@ -121,7 +127,7 @@ export async function searchTmdb(
       const titleOriginal = (mediaType === 'movie' ? r.original_title : r.original_name) || localizedTitle;
       const dateStr = (mediaType === 'movie' ? r.release_date : r.first_air_date) || '';
       const year = dateStr ? parseInt(dateStr.slice(0, 4), 10) || null : null;
-      const posterPath = tmdbImageUrl(r.poster_path, 'w342');
+      const posterPath = tmdbImagePath(r.poster_path);
       const resolvedLocalized = localizedTitle || titleOriginal;
       const isEn = lang === 'en-US';
 
@@ -306,7 +312,7 @@ export async function fetchTmdbTitleDetails(
                   name: normalizedEpName,
                   airDate: epZh.air_date || epEn?.air_date || null,
                   runtime: epZh.runtime || epEn?.runtime || runtimeMin || null,
-                  stillPath: tmdbImageUrl(epZh.still_path || epEn?.still_path, 'w300'),
+                  stillPath: tmdbImagePath(epZh.still_path || epEn?.still_path),
                   overview: {
                     ...(zhEpOverview ? { zh: zhEpOverview } : {}),
                     ...(enEpOverview ? { en: enEpOverview } : {}),
@@ -325,7 +331,7 @@ export async function fetchTmdbTitleDetails(
             seasonNumber: s.season_number,
             name: normalizedSeasonName,
             airDate: sDetailZh.air_date || sDetailEn?.air_date || null,
-            posterPath: tmdbImageUrl(sDetailZh.poster_path || sDetailEn?.poster_path, 'w342'),
+            posterPath: tmdbImagePath(sDetailZh.poster_path || sDetailEn?.poster_path),
             episodes,
           } satisfies SeasonDoc;
         } catch (err) {

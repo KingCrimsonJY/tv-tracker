@@ -1,3 +1,4 @@
+import { responsiveImage } from '../domain/images';
 import React, { useState } from 'react';
 import { Film, Tv } from 'lucide-react';
 
@@ -61,7 +62,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   return (
     <div className={`relative overflow-hidden bg-[var(--surface)] ${aspectClass} ${className}`}>
       <img
-        src={src}
+        {...responsiveImage(src, aspect)}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         referrerPolicy="no-referrer"

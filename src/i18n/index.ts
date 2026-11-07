@@ -115,6 +115,18 @@ export function translateTimeParseError(
   return catalog.timeErrors[err.code];
 }
 
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+function dateFormatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = locale + JSON.stringify(options);
+  let formatter = dateFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    if (dateFormatters.size >= 32) dateFormatters.clear();
+    dateFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function useI18n() {
   const uiLang = useSyncExternalStore(
     trackerStore.subscribe,
@@ -147,7 +159,7 @@ export function useI18n() {
             ? new Date(`${value.trim()}T00:00:00`)
             : new Date(value);
       if (Number.isNaN(date.getTime())) return String(value);
-      return new Intl.DateTimeFormat(locale, options).format(date);
+      return dateFormatter(locale, options).format(date);
     },
     [locale],
   );

@@ -10,7 +10,7 @@ import type {
   TitleDoc,
 } from '../../domain/types.ts';
 import { getActiveCatalog } from '../../i18n/index.ts';
-import { fetchTmdbDetailsApi, patchTitleApi, putSeasonsApi, putTitleApi } from '../api.ts';
+import { fetchTitleDetailsApi, fetchTmdbDetailsApi, patchTitleApi, putSeasonsApi, putTitleApi } from '../api.ts';
 import type { CustomTitleInput, TrackerActionDeps, UpdateTitleDetailsInput } from './types.ts';
 
 function buildCustomSeasons(
@@ -235,7 +235,11 @@ export function createTitleActions(
     let updatedSeasons: SeasonDoc[] | undefined = undefined;
     if ((prevTitle.source === 'custom' || prevTitle.source === 'url') && input.episodeCount !== undefined) {
       const epCount = input.episodeCount && input.episodeCount > 0 ? Math.min(2000, Math.floor(input.episodeCount)) : 0;
-      updatedSeasons = buildCustomSeasons(epCount, updatedTitle.runtimeMin || null, prevSeasons);
+      updatedSeasons = buildCustomSeasons(
+        epCount,
+        updatedTitle.runtimeMin || null,
+        (await fetchTitleDetailsApi(titleId)).seasons,
+      );
     }
 
     const patch: Partial<Omit<TitleDoc, 'id'>> = { updatedAt: now, lastActivityAt: now };

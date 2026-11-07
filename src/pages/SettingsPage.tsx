@@ -75,9 +75,9 @@ export const SettingsPage: React.FC = () => {
     void updateSettings({ homeSections: next });
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      const jsonStr = exportAllDataJson();
+      const jsonStr = await exportAllDataJson();
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
