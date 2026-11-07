@@ -128,7 +128,7 @@
 
 ## Link import support
 
-Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, bangumi, films, courses and live rooms use public metadata where available. YouTube videos, Shorts, playlists and channel tabs use yt-dlp. Review the type, year, runtime and episodes before saving; refresh preserves watch history and fills missing metadata.
+Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, bangumi, films, courses and live replays use public metadata where available. YouTube videos, Shorts, playlists and live replays use yt-dlp. Live rooms, active streams, favorites, Watch Later and channel upload pages cannot be imported. Bangumi imports automatically look for TMDB matches and remain importable as links when no match is found. YouTube playlists save their entries first, then fill missing titles and runtimes in the background. Refresh preserves local structure and watch history; review removals, season splits and renumbering on the title page before adopting them, or lock the structure.
 
 - Empty lists, expired links, login, age and regional restrictions are reported explicitly. Basic webpage fallbacks are labelled as incomplete.
 - Imports are limited to 2,000 entries. Metadata enrichment has concurrency and time limits; unavailable fields remain unknown, without fabricated dates.

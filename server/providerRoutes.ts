@@ -1,3 +1,5 @@
+import { toTmdbSearchItem } from './providers/tmdbSearchItem.ts';
+import { suggestBangumiMatches } from './providers/bangumi.ts';
 import { registerMetadataRoutes } from './metadataRoutes.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -5,7 +7,7 @@ import type { Express } from 'express';
 import { linkImportRequestSchema } from '../src/domain/schemas.ts';
 import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
 import { sendApiError } from './app.ts';
-import { NotFoundError, type TrackerRepository } from './db/repository.ts';
+import { ConflictError, NotFoundError, type TrackerRepository } from './db/repository.ts';
 import { type LinkImportDependencies, resolveLinkMetadata } from './providers/linkImport.ts';
 import {
   fetchCombinedRatings,
@@ -39,6 +41,7 @@ export interface ProviderRoutesOptions {
   broadcastMutation: (mutation: StateMutationResult) => StateMutationResult;
   nowFn?: () => number;
   linkDeps?: LinkImportDependencies;
+  scheduleEnrichment?: (id: string) => void;
 }
 
 function classifyProviderError(err: unknown, fallbackCode: ServerErrorCode): {
@@ -102,7 +105,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     }
     try {
       const results = await searchTmdb(query, lang);
-      res.json({ results });
+      res.json({ results: results.map(item => toTmdbSearchItem(item, lang)) });
     } catch (error) {
       sendApiError(
         res,
@@ -165,7 +168,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         ...linkDeps,
         forceImport: parsed.data.force,
       });
-      res.json(data);
+      res.json(await suggestBangumiMatches(data));
     } catch (err) {
       const classified = classifyProviderError(err, 'LINK_PARSE_FAILED');
       sendApiError(res, 400, classified.code, classified.message);
@@ -173,6 +176,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
   });
 
   app.post('/api/titles/:id/refresh-link', async (req, res, next) => {
+    let requestedSource: string | null = null;
     try {
       const id = String(req.params.id || '');
       const title = repo.getTitle(id);
@@ -189,6 +193,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         return;
       }
 
+      requestedSource = title.sourceId;
       const resolved = await resolveLinkMetadata(title.sourceId, {
         ...linkDeps,
         forceImport: true,
@@ -198,7 +203,12 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         throw new LinkImportError('REFRESH_LINK_FAILED', 'Only basic page metadata was available.');
       }
 
+      const current = repo.getTitle(id);
+      if (current?.source !== 'url' || current.sourceId !== requestedSource) {
+        throw new ConflictError('STRUCTURE_CONFLICT', 'STRUCTURE_CONFLICT');
+      }
       const refreshResult = repo.appendPlaylistEpisodes(id, resolved.episodes, nowFn(), resolved);
+      options.scheduleEnrichment?.(id);
       const broadcasted = broadcastMutation({
         version: refreshResult.version,
         upserts: refreshResult.upserts,
@@ -210,7 +220,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         ...(resolved.warning ? { warning: resolved.warning } : {}),
       });
     } catch (err) {
-      if (err instanceof NotFoundError) {
+      if (err instanceof NotFoundError || err instanceof ConflictError) {
         next(err);
         return;
       }
@@ -218,7 +228,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
       if (classified.code === 'LINK_UNAVAILABLE') {
         const id = String(req.params.id);
         const current = repo.getTitle(id);
-        if (current?.source === 'url') broadcastMutation(repo.patchTitle(id, { sourceUnavailable: true, updatedAt: nowFn() }));
+        if (requestedSource && current?.source === 'url' && current.sourceId === requestedSource) broadcastMutation(repo.patchTitle(id, { sourceUnavailable: true, updatedAt: nowFn() }));
       }
       sendApiError(res, 400, classified.code, classified.message);
     }

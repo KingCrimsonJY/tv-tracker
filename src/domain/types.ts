@@ -60,7 +60,10 @@ export type ServerErrorCode =
   | 'LINK_PAYMENT_REQUIRED'
   | 'LINK_LOGIN_REQUIRED'
   | 'LINK_UNAVAILABLE'
-  | 'LINK_NOT_LIVE'
+  | 'LINK_LIVE_UNSUPPORTED'
+  | 'LINK_FAVORITES_UNSUPPORTED'
+  | 'LINK_WATCH_LATER_UNSUPPORTED'
+  | 'LINK_FEED_UNSUPPORTED'
   | 'LINK_RATE_LIMITED'
   | 'LINK_EMPTY_PLAYLIST'
   | 'LINK_PLAYLIST_TOO_LARGE'
@@ -132,8 +135,6 @@ export interface TitleNames {
   custom?: string;
 }
 
-export type LinkLiveStatus = 'live' | 'upcoming' | 'ended' | 'offline';
-
 export interface UpstreamChange {
   signature: string;
   seasons: SeasonDoc[];
@@ -161,7 +162,6 @@ export interface TitleDoc {
   genres: string[];
   genreIds?: number[];
   uploader?: string | null;
-  liveStatus?: LinkLiveStatus;
   posterPath: string | null;
   posters?: LocalizedPosters;
   backdropPath: string | null;
@@ -256,12 +256,12 @@ export interface LinkImportEpisodeSeed {
 }
 
 export interface LinkImportResult {
+  tmdbMatches?: TmdbSearchItem[];
   kind: 'video' | 'playlist' | 'tmdb-suggestion';
   title: string;
   posterUrl: string | null;
   overview: string;
   uploader?: string | null;
-  liveStatus?: LinkLiveStatus;
   sourceUrl: string;
   year: number | null;
   runtimeMin: number | null;

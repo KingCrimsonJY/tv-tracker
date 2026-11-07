@@ -18,6 +18,11 @@ function canonicalizeLinkUrl(input: URL): URL {
   if (isBilibiliUrl(url)) {
     if (url.hostname === 'm.bilibili.com' || url.hostname === 'bilibili.com') url.hostname = 'www.bilibili.com';
     url.protocol = 'https:';
+    const collection = /^\/list\/(\d+)\/?$/.exec(url.pathname);
+    const sid = url.searchParams.get('sid');
+    if (collection && sid && /^\d+$/.test(sid)) {
+      url.hostname = 'space.bilibili.com'; url.pathname = `/${collection[1]}/lists/${sid}`;
+    }
     url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
     // Share tracking parameters may contain identifiers; retain only content selectors.
     const keep = new Set(['p', 'bvid', 'aid', 'sid', 'type', 'fid', 'business', 'business_id']);

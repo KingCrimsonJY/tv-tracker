@@ -21,7 +21,6 @@ export interface CustomTitleInput {
   posterUrl?: string | null;
   overview?: string;
   uploader?: string | null;
-  liveStatus?: TitleDoc['liveStatus'];
   episodeCount?: number | null;
   episodes?: LinkImportEpisodeSeed[];
   targetListId?: string;
@@ -36,7 +35,6 @@ export interface UpdateTitleDetailsInput {
   posterPath?: string | null;
   overview?: string;
   uploader?: string | null;
-  liveStatus?: TitleDoc['liveStatus'];
   episodeCount?: number | null;
 }
 

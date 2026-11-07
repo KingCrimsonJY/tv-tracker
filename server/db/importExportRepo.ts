@@ -1,3 +1,4 @@
+import { cleanLegacySeasons, cleanLegacyProgress } from './legacyLinkData.ts';
 import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
 import { splitUploaderPrefixFromOverview } from '../../src/domain/progress.ts';
 import { DEFAULT_APP_SETTINGS, importPayloadSchema } from '../../src/domain/schemas.ts';
@@ -209,7 +210,7 @@ export function importData(
     const seasonsByTitle: Record<string, SeasonDoc[]> = {};
     for (const [titleId, seasons] of Object.entries(parsed.seasonsByTitle)) {
       if (!titles[titleId]) continue;
-      const sorted = [...seasons].sort((a, b) => a.seasonNumber - b.seasonNumber);
+      const sorted = cleanLegacySeasons(titles[titleId].source, seasons).sort((a, b) => a.seasonNumber - b.seasonNumber);
       seasonsByTitle[titleId] = sorted;
       for (const s of sorted) {
         insertSeason.run(titleId, s.seasonNumber, JSON.stringify(s));
@@ -223,7 +224,8 @@ export function importData(
     for (const [titleId, progMap] of Object.entries(parsed.progressByTitle)) {
       if (!titles[titleId]) continue;
       progressByTitle[titleId] = {};
-      for (const [ptId, pDoc] of Object.entries(progMap)) {
+      for (const [ptId, rawDoc] of Object.entries(progMap)) {
+        const pDoc = cleanLegacyProgress(titles[titleId].source, rawDoc);
         const payload: StoredProgressData = {
           watched: pDoc.watched || {},
           archivedWatched: pDoc.archivedWatched,

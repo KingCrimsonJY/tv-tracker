@@ -157,6 +157,10 @@ export const SearchPage: React.FC = () => {
           setLinkDialogOpen(false);
           setQuery(suggestedTitle);
         }}
+        onSelectTmdb={async hit => {
+          const created = await addTitleFromTmdb(hit.mediaType, hit.sourceId);
+          navigate(`/title/${created.id}`);
+        }}
         onParsedToManual={(seed) => {
           setLinkDialogOpen(false);
           setManualSeed(seed);

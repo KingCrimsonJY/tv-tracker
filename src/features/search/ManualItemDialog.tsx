@@ -79,7 +79,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
         mediaType,
         year: year === '' ? null : Number(year),
         runtimeMin: runtime === '' ? null : Number(runtime),
-        liveStatus: initialSeed?.liveStatus,
         posterPath: posterUrl.trim() || null,
         overview: overview.trim(),
         uploader: initialSeed?.uploader ?? null,
@@ -116,7 +115,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({
                 </Alert.Content>
               </Alert>
             )}
-            {initialSeed?.liveStatus && <p className="text-sm text-muted">{t.liveStatus[initialSeed.liveStatus]}</p>}
             <TextField value={title} onChange={setTitle} isRequired>
               <Label>{t.search.manual.nameLabel}</Label>
               <Input placeholder={t.search.manual.namePlaceholder} />

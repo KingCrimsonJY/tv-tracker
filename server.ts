@@ -86,6 +86,8 @@ async function startServer(): Promise<void> {
     if (stopping) return;
     stopping = true;
     clearInterval(maintenanceTimer);
+    const stopBackgroundTasks: unknown = app.locals.stopBackgroundTasks;
+    if (typeof stopBackgroundTasks === 'function') stopBackgroundTasks();
     const finish = () => {
       repo.close();
       process.exit(0);

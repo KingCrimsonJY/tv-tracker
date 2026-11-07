@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Modal, TextField, Label, Input, Button, toast } from '@heroui/react';
-import { importLinkApi, LinkImportResult } from '../../data/api';
+import { importLinkApi, LinkImportResult, TmdbSearchItem } from '../../data/api';
 import { linkResultToManualSeed, type ManualSeed } from './linkImportModel';
 import { useI18n } from '../../i18n';
 
@@ -8,6 +8,7 @@ interface LinkImportDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSearchTmdb: (suggestedTitle: string) => void;
+  onSelectTmdb: (hit: TmdbSearchItem) => Promise<void>;
   onParsedToManual: (seed: ManualSeed) => void;
 }
 
@@ -15,13 +16,14 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
   isOpen,
   onOpenChange,
   onSearchTmdb,
+  onSelectTmdb,
   onParsedToManual,
 }) => {
   const request = useRef<AbortController | null>(null);
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [tmdbSuggestion, setTmdbSuggestion] = useState<LinkImportResult | null>(null);
-  const { t, translateError } = useI18n();
+  const { t, locale, translateError } = useI18n();
 
   useEffect(() => {
     if (!isOpen) {
@@ -91,6 +93,17 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
                 <p className="text-xs text-[var(--muted)]">
                   {t.search.linkImport.tmdbSuggestionDescription}
                 </p>
+                <div className="flex flex-col gap-2">
+                  {tmdbSuggestion.tmdbMatches?.map(hit => <Button key={hit.id} variant="secondary" className="h-auto justify-start whitespace-normal"
+                    isDisabled={loading} onPress={async () => {
+                      setLoading(true);
+                      try { await onSelectTmdb(hit); onOpenChange(false); }
+                      catch (error) { toast.danger(translateError(error)); }
+                      finally { setLoading(false); }
+                    }}>
+                    {(locale === 'en' ? hit.names.en : hit.names.zh) || hit.names.original} · {hit.year || ''} · {t.mediaType[hit.mediaType]}
+                  </Button>)}
+                </div>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <Button
                     size="sm"

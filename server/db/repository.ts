@@ -1,7 +1,8 @@
+import { fillEpisodeMetadata } from './enrichmentRepo.ts';
 import { runMigration002InTx, runMigration003InTx, runMigration004InTx } from './legacyMigrations.ts';
 import { appendPlaylistEpisodes } from './linkMetadataRepo.ts';
 import { previewStructure, decideStructure, convertToManual } from './structureRepo.ts';
-import { refreshMetadata } from './metadataRepo.ts';
+import { readSeasons, refreshMetadata } from './metadataRepo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -252,6 +253,8 @@ export class TrackerRepository {
     return getState(this.ctx);
   }
 
+  public getSeasons(id: string): SeasonDoc[] { return readSeasons(this.ctx, id); }
+
   public getTitle(id: string): TitleDoc | null {
     return getTitle(this.ctx, id);
   }
@@ -273,6 +276,10 @@ export class TrackerRepository {
 
   public deleteTitle(id: string): StateMutationResult {
     return deleteTitle(this.ctx, id);
+  }
+
+  public fillEpisodeMetadata(id: string, sourceUrl: string, videoId: string, detail: LinkImportResult) {
+    return fillEpisodeMetadata(this.ctx, id, sourceUrl, videoId, detail);
   }
 
   public previewStructure(id: string) { return previewStructure(this.ctx, id); }

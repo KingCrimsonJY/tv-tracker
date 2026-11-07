@@ -27,7 +27,7 @@ export function classifyLinkFailure(error: unknown): LinkImportError {
     return new LinkImportError('LINK_PAYMENT_REQUIRED', 'A purchase or membership is required.');
   }
   if (/not live|offline|not currently live/i.test(message)) {
-    return new LinkImportError('LINK_NOT_LIVE', 'This channel is not currently live.');
+    return new LinkImportError('LINK_LIVE_UNSUPPORTED', 'This channel is not currently live.');
   }
   if (/confirm.{0,30}not a bot|automated requests|unusual traffic|bot detection/i.test(message)) {
     return new LinkImportError('LINK_RATE_LIMITED', 'The source requires an anti-bot check. Try again later.');
