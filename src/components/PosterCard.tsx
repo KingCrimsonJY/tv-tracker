@@ -38,7 +38,7 @@ export const PosterCard: React.FC<PosterCardProps> = ({
 
   const isWatching = state.status === 'watching';
   const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
-  const pct = Math.max(2, Math.min(100, Math.round(ratio * 100)));
+  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
 
   return (
     <Link

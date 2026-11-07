@@ -11,6 +11,7 @@ const nullableText = z.string().nullable().optional();
 const episodeSchema = z.object({
   id, title: z.string(), long_title: nullableText, show_title: nullableText,
   duration: z.number().optional(), cover: nullableText, pub_time: z.number().optional(),
+  section_type: z.number().optional(),
   release_date: z.union([z.string(), z.number()]).optional(),
   playable: z.boolean().optional(), rights: z.object({ area_limit: z.number().optional() }).optional(),
 });
@@ -33,6 +34,10 @@ const archivePageSchema = z.object({
   meta: z.object({ name: z.string(), description: nullableText, cover: nullableText }).optional(),
   has_more: z.boolean().optional(),
 });
+
+function episodeName(episode: z.infer<typeof episodeSchema>): string {
+  return (episode.show_title || [episode.title, episode.long_title].filter(Boolean).join(' ')).slice(0, 300);
+}
 
 function cover(raw?: string | null): string | null {
   if (!raw) return null;
@@ -139,21 +144,29 @@ export async function resolveBilibiliMetadata(
     const data = seasonSchema.parse(await api(isCourse ? '/pugv/view/web/season' : '/pgc/view/web/season', query));
     const selected = match[1] === 'ep' ? data.episodes.find(ep => ep.id === match[2]) : undefined;
     if (match[1] === 'ep' && !selected) throw new LinkImportError('LINK_UNAVAILABLE', 'The requested episode is unavailable.');
-    const selectedEpisodes = selected ? [selected] : data.episodes;
+    // The main array can interleave trailers and bonus clips with full episodes.
+    // Use the provider's section marker, not titles or duration, to avoid misnumbering.
+    const selectedEpisodes = selected ? [selected] : isCourse ? data.episodes
+      : data.episodes.filter(ep => ep.section_type === undefined || ep.section_type === 0);
     if (!selectedEpisodes.length) throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'No episodes are available.');
     if (selectedEpisodes.length > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
-    const result = base(input, isCourse && selected ? selected.title : data.title);
+    const title = selected
+      ? isCourse ? selected.title : data.title + ' · ' + episodeName(selected)
+      : data.title;
+    const result = base(input, title);
+    if (selected && !isCourse) result.seriesTitle = data.title;
     result.kind = !isCourse && !deps.forceImport ? 'tmdb-suggestion' : selected ? 'video' : 'playlist';
     result.mediaType = isCourse || selected ? 'other' : data.type === 2 ? 'movie' : 'tv';
     result.posterUrl = cover(selected?.cover || data.cover);
     result.overview = (data.evaluate || data.subtitle || '').slice(0, 2000);
     result.uploader = data.up_info?.uname ?? null;
     result.year = data.publish?.pub_time ? Number(data.publish.pub_time.slice(0, 4)) || null : null;
-    result.runtimeMin = selected ? minutes((selected.duration ?? 0) / (isCourse ? 1 : 1000)) : null;
+    const runtimeEpisode = selected ?? (!isCourse && data.type === 2 ? selectedEpisodes[0] : undefined);
+    result.runtimeMin = minutes((runtimeEpisode?.duration ?? 0) / (isCourse ? 1 : 1000));
     if (!selected) {
-      result.episodes = data.episodes.map(ep => ({
+      result.episodes = selectedEpisodes.map(ep => ({
         sourceVideoId: ep.id,
-        name: (ep.show_title || [ep.title, ep.long_title].filter(Boolean).join(' ')).slice(0, 300),
+        name: episodeName(ep),
         runtime: minutes((ep.duration ?? 0) / (isCourse ? 1 : 1000)),
         airDate: date(ep.pub_time ?? (typeof ep.release_date === 'number' ? ep.release_date : undefined)),
       }));

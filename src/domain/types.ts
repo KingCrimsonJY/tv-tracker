@@ -256,6 +256,7 @@ export interface LinkImportEpisodeSeed {
 }
 
 export interface LinkImportResult {
+  seriesTitle?: string;
   tmdbMatches?: TmdbSearchItem[];
   kind: 'video' | 'playlist' | 'tmdb-suggestion';
   title: string;

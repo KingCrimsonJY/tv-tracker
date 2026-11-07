@@ -26,3 +26,12 @@ test('Bilibili dates and year use Asia/Shanghai across midnight and New Year', a
   });
   expect(data?.year).toBe(2024); expect(data?.episodes[0].airDate).toBe('2024-01-01');
 });
+
+test('single-episode imports search for the series while keeping the episode label', async () => {
+  const episode = { ...result, title: 'Series · Episode 2', seriesTitle: 'Series', episodes: [] };
+  const search = vi.fn().mockResolvedValue([]);
+  expect(await suggestBangumiMatches(episode, search)).toMatchObject({
+    kind: 'video', title: 'Series · Episode 2',
+  });
+  expect(search).toHaveBeenCalledWith('Series');
+});

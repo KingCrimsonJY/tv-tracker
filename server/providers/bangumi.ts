@@ -6,7 +6,7 @@ export async function suggestBangumiMatches(result: LinkImportResult, search?: (
   if (result.kind !== 'tmdb-suggestion') return result;
   const lookup = search ?? (isTmdbConfigured() ? async (query: string) => (await searchTmdb(query)).map(item => toTmdbSearchItem(item)) : undefined);
   let matches: TmdbSearchItem[] = [];
-  try { matches = lookup ? await lookup(result.title) : []; } catch { /* A missing TMDB result must not block a Bilibili-only work. */ }
+  try { matches = lookup ? await lookup(result.seriesTitle || result.title) : []; } catch { /* A missing TMDB result must not block a Bilibili-only work. */ }
   return matches.length ? { ...result, tmdbMatches: matches }
     : { ...result, kind: result.episodes.length ? 'playlist' : 'video' };
 }
