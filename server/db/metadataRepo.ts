@@ -120,7 +120,7 @@ export function refreshMetadata(
     if (!data.failedSeasons?.length) {
       const signature = structureSignature(data.seasons);
       title.upstreamChange =
-        (current.structureLocked ? plan.removed.length > 0 : plan.destructive) && signature !== title.ignoredStructure
+        plan.needsReview && signature !== title.ignoredStructure
           ? { signature, seasons: data.seasons, fetchedAt: now }
           : null;
     }

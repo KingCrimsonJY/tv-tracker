@@ -98,6 +98,7 @@ export function planStructure(local: SeasonDoc[], incoming: SeasonDoc[], locked 
   const destructive = missingSeason || removed.length > 0 || moved.length > 0;
   const changed = destructive || newSeason || added.length > 0;
   const byOld = new Map(matches.map((m) => [m.from, m]));
+  const deferred: EpisodeMeta[] = [];
   const safe: SeasonDoc[] = local.map((season) => ({
     ...season,
     name: incoming.find((next) => next.seasonNumber === season.seasonNumber)?.name || season.name,
@@ -105,22 +106,30 @@ export function planStructure(local: SeasonDoc[], incoming: SeasonDoc[], locked 
     airDate: incoming.find((next) => next.seasonNumber === season.seasonNumber)?.airDate || season.airDate,
     episodes: season.episodes.map((ep) => {
       const mapping = byOld.get(ep);
+      if (!mapping) return ep;
       if (
-        !mapping ||
-        (mapping.method !== 'id' && (mapping.from.key !== mapping.to.key || Boolean(episodeIdentity(mapping.from))))
+        !locked &&
+        mapping.method !== 'id' &&
+        (mapping.from.key !== mapping.to.key || Boolean(episodeIdentity(mapping.from)))
       )
         return ep;
       return mergeEpisode(ep, mapping.to);
     }),
   }));
   if (locked) {
-    const identities = new Set(oldEpisodes.map(episodeIdentity).filter(Boolean));
-    const additions = newEpisodes
-      .filter((ep) => {
-        const id = episodeIdentity(ep);
-        return id ? !identities.has(id) : added.includes(ep);
-      })
-      .sort((a, b) => (a.airDate || '9999').localeCompare(b.airDate || '9999'));
+    // Recreated IDs have already matched by date/order and merged in place.
+    // Classify only the remaining episodes against the pre-refresh local cutoff.
+    const latestAirDate = oldEpisodes.reduce(
+      (latest, ep) => (ep.airDate && ep.airDate > latest ? ep.airDate : latest),
+      '',
+    );
+    const identities = new Set(flattenEpisodes(safe).map(episodeIdentity).filter(Boolean));
+    const additions: EpisodeMeta[] = [];
+    for (const ep of added) {
+      if (ep.airDate && ep.airDate >= latestAirDate) additions.push(ep);
+      else deferred.push(ep);
+    }
+    additions.sort((a, b) => (a.airDate || '').localeCompare(b.airDate || ''));
     let target = [...safe].sort((a, b) => b.seasonNumber - a.seasonNumber)[0];
     if (!target && additions.length) {
       target = { seasonNumber: 1, name: null, episodes: [] };
@@ -164,6 +173,7 @@ export function planStructure(local: SeasonDoc[], incoming: SeasonDoc[], locked 
     added,
     moved,
     destructive,
+    needsReview: locked ? removed.length > 0 || deferred.length > 0 : destructive,
     changed,
   };
 }

@@ -233,13 +233,6 @@ test('locked new identities append to the last local season in air-date order an
   ]);
   expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 123, s2e1: 123 });
 });
-test('locked new IDs sharing an air date are never mistaken for an existing local episode', () => {
-  const { repo, title, refresh } = setup([season(1, [1])], { structureLocked: true });
-  const incoming = season(1, [2]);
-  incoming.episodes[0].airDate = '2024-01-01';
-  refresh([incoming]);
-  expect(repo.getSeasons(title.id)[0].episodes.map((ep) => ep.tmdbEpisodeId)).toEqual([1, 2]);
-});
 test('pending structures live outside title docs and survive a complete v2 export/import', () => {
   const { repo, title, refresh } = setup();
   refresh([season(2, [1, 2])]);

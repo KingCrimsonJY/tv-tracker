@@ -33,7 +33,9 @@
 - Automatically apply additions and safe text/image updates.
 - Never automatically remove or renumber seasons/episodes. Show structural changes on the title page with a preview and a choice to keep the local structure or adopt the upstream structure.
 - On adoption, migrate watched marks by TMDB episode id first, then air date and order. Preserve unmatched marks so they return if the episode returns. Synchronization never silently deletes watched history.
-- Each title can lock its season structure. Continue safe text/image updates and append new episode identities to the end of the last local season in air-date order. Locking prevents removal, renumbering and moving existing episodes between seasons.
+- Each title can lock its season structure. Locking prevents removal, renumbering and moving existing episodes between seasons.
+- For locked titles, match by stable episode id first, then air date and order, then the legacy fallback. Treat date/order matches as the same episodes even when TMDB recreates their ids: update ids and metadata in place while preserving local keys, numbers and watched marks.
+- Append only episodes still unmatched after all passes and dated on or after the latest local air date before refresh. Append to the last local season in air-date order, preserving source order for same-day releases. Undated or older unmatched episodes remain in pending review without blocking future eligible appends.
 - A missing upstream title/video is marked source unavailable; preserve everything and stop automatic refresh. Offer re-linking to another TMDB entry or conversion to manual maintenance.
 
 ## Link imports
