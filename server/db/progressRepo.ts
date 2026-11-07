@@ -13,7 +13,10 @@ export function putProgress(
       throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
+    const previousRow = ctx.db.prepare('SELECT data FROM progress WHERE title_id = ? AND playthrough_id = ?').get(titleId, playthroughId) as { data: string } | undefined;
+    const previous = previousRow ? JSON.parse(previousRow.data) as StoredProgressData : undefined;
     const payload: StoredProgressData = {
+      archivedWatched: previous?.archivedWatched,
       watched: { ...(input.watched || {}) },
       ...(input.movieWatchedAt !== undefined ? { movieWatchedAt: input.movieWatchedAt } : {}),
     };
@@ -29,6 +32,7 @@ export function putProgress(
     const doc: ProgressDoc = {
       playthroughId,
       watched: payload.watched,
+          archivedWatched: payload.archivedWatched,
       ...(payload.movieWatchedAt !== undefined
         ? { movieWatchedAt: payload.movieWatchedAt }
         : {}),
@@ -94,6 +98,7 @@ export function patchProgress(
     }
 
     const updatedData: StoredProgressData = {
+      archivedWatched: current.archivedWatched,
       watched,
       ...(movieWatchedAt !== undefined ? { movieWatchedAt } : {}),
     };
@@ -109,6 +114,7 @@ export function patchProgress(
     const doc: ProgressDoc = {
       playthroughId,
       watched: updatedData.watched,
+          archivedWatched: updatedData.archivedWatched,
       ...(updatedData.movieWatchedAt !== undefined
         ? { movieWatchedAt: updatedData.movieWatchedAt }
         : {}),

@@ -1,4 +1,18 @@
 export const zhCN = {
+  upstream: {
+    title: '来源与季结构', lock: '锁定季结构',
+    lockHint: '固定季和集的编号，名称和图片仍可更新。',
+    changed: '来源的季结构已变更', changedHint: '本地结构和观看记录已保留。请先预览，再决定是否采用新结构。',
+    unavailable: '来源已不可用', unavailableHint: '原条目已不可用，已暂停自动刷新；片库内容和观看记录均已保留。',
+    preview: '预览变更', keep: '保留我的版本', adopt: '采用新结构',
+    previewTitle: '确认季结构变更', archived: '保留在历史归档中', added: '新增剧集',
+    counts: (kept: number, archived: number) => `匹配 ${kept} 条观看记录 · 归档保留 ${archived} 条`,
+    previewHint: '先匹配剧集 ID，再按播出日期和顺序匹配。未匹配记录不会删除，原剧集恢复后会重新关联。',
+    lockedHint: '请先解除季结构锁定，再采用变更。',
+    manual: '转为手动维护', relink: '重新关联 TMDB', tmdbId: '新的 TMDB ID',
+    sourceHint: '重新关联会更新元数据，结构变更仍需预览确认。',
+    archivedCount: (count: number) => `已为缺失剧集归档保留 ${count} 条观看记录`,
+  },
   app: {
     name: '帧迹',
     logoChar: '帧',
@@ -100,6 +114,8 @@ export const zhCN = {
     TITLE_NOT_FOUND: '未找到该影视作品',
     LIST_NOT_FOUND: '未找到该列表',
     ENTRY_NOT_FOUND: '未找到该列表条目',
+    STRUCTURE_CONFLICT: "预览后片库已有变更，请重新预览后再试。",
+    SOURCE_UNAVAILABLE: "来源已不可用，本地数据已保留。",
     REWATCH_CONFLICT: "另一台设备已更改当前观看轮次，已重新同步片库，请重试。",
     CONFLICT_ERROR: '数据冲突，请刷新后重试',
     VALIDATION_ERROR: '请求数据格式不正确',

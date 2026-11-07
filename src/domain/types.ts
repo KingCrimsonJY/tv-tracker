@@ -40,6 +40,8 @@ export type ServerErrorCode =
   | 'ENTRY_NOT_FOUND'
   | 'CONFLICT_ERROR'
   | 'REWATCH_CONFLICT'
+  | 'STRUCTURE_CONFLICT'
+  | 'SOURCE_UNAVAILABLE'
   | 'VALIDATION_ERROR'
   | 'PAYLOAD_TOO_LARGE'
   | 'ROUTE_NOT_FOUND'
@@ -132,7 +134,21 @@ export interface TitleNames {
 
 export type LinkLiveStatus = 'live' | 'upcoming' | 'ended' | 'offline';
 
+export interface UpstreamChange {
+  signature: string;
+  seasons: SeasonDoc[];
+  fetchedAt: number;
+}
+export interface ArchivedWatch {
+  episode: EpisodeMeta;
+  watchedAt: number;
+}
+
 export interface TitleDoc {
+  structureLocked?: boolean;
+  sourceUnavailable?: boolean;
+  upstreamChange?: UpstreamChange | null;
+  ignoredStructure?: string | null;
   id: string;
   source: TitleSource;
   sourceId: string | null;
@@ -164,6 +180,7 @@ export interface TitleDoc {
 }
 
 export interface EpisodeMeta {
+  tmdbEpisodeId?: number;
   number: number;
   key: string; // e.g. 's2e5'
   name: LocalizedText | null;
@@ -183,6 +200,7 @@ export interface SeasonDoc {
 }
 
 export interface ProgressDoc {
+  archivedWatched?: ArchivedWatch[];
   playthroughId: string;
   watched: Record<string, number>; // episodeKey -> watchedAt (unix ms)
   movieWatchedAt?: number; // unix ms (for movies)

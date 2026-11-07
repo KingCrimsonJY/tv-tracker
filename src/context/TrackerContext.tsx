@@ -80,6 +80,9 @@ export interface TrackerContextValue {
     customName?: string
   ) => Promise<void>;
   setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
+  setStructureLock: (id: string, locked: boolean) => Promise<void>;
+  resolveStructure: (id: string, input: Parameters<typeof import('../data/api.ts').decideStructureApi>[1]) => Promise<void>;
+  changeTitleSource: (id: string, input: Parameters<typeof import('../data/api.ts').changeTitleSourceApi>[1]) => Promise<void>;
   fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
   refreshTitleMetadata: (titleId: string) => Promise<MetadataRefreshStatus>;
   refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<MetadataRefreshCounts>;

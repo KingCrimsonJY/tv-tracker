@@ -1,3 +1,4 @@
+import { registerMetadataRoutes } from './metadataRoutes.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Express } from 'express';
@@ -61,6 +62,7 @@ function classifyProviderError(err: unknown, fallbackCode: ServerErrorCode): {
 }
 
 export function registerProviderRoutes(app: Express, options: ProviderRoutesOptions): void {
+  registerMetadataRoutes(app, options);
   const { repo, broadcastMutation, nowFn = () => Date.now(), linkDeps = {} } = options;
 
   app.get('/api/system/info', async (_req, res) => {
@@ -146,25 +148,6 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
     }
   });
 
-  app.post('/api/titles/:id/refresh-metadata', async (req, res, next) => {
-    try {
-      const id = String(req.params.id);
-      const title = repo.getTitle(id);
-      if (!title) throw new NotFoundError('TITLE_NOT_FOUND');
-      if (title.source !== 'tmdb' || !title.sourceId || title.mediaType === 'other') {
-        res.json({ version: repo.getVersion(), upserts: {}, deletes: {}, status: 'skipped' });
-        return;
-      }
-      if (!isTmdbConfigured()) { sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_NOT_CONFIGURED'); return; }
-      const data = await fetchTmdbTitleDetails(title.mediaType, title.sourceId);
-      const mutation = broadcastMutation(repo.refreshMetadata(id, data, nowFn()));
-      res.json({ ...mutation, status: data.failedSeasons?.length ? 'partial' : 'updated' });
-    } catch (error) {
-      if (error instanceof NotFoundError) { next(error); return; }
-      sendApiError(res, 502, 'TMDB_UNAVAILABLE', 'TMDB_UNAVAILABLE');
-    }
-  });
-
   app.get('/api/ratings', async (req, res) => {
     const imdbId = String(req.query.imdbId || '').trim();
     const result = await fetchCombinedRatings({ imdbId });
@@ -232,6 +215,11 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         return;
       }
       const classified = classifyProviderError(err, 'REFRESH_LINK_FAILED');
+      if (classified.code === 'LINK_UNAVAILABLE') {
+        const id = String(req.params.id);
+        const current = repo.getTitle(id);
+        if (current?.source === 'url') broadcastMutation(repo.patchTitle(id, { sourceUnavailable: true, updatedAt: nowFn() }));
+      }
       sendApiError(res, 400, classified.code, classified.message);
     }
   });

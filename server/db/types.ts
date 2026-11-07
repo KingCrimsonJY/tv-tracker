@@ -31,6 +31,7 @@ export interface RepositoryOptions {
 }
 
 export interface StoredProgressData {
+  archivedWatched?: import('../../src/domain/types.ts').ArchivedWatch[];
   watched: Record<string, number>;
   movieWatchedAt?: number;
 }

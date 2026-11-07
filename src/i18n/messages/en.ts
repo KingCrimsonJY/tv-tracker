@@ -16,6 +16,20 @@ function ordinal(n: number): string {
 }
 
 export const en: MessageCatalog = {
+  upstream: {
+    title: 'Source and season structure', lock: 'Lock season structure',
+    lockHint: 'Keep season and episode numbering fixed. Names and images can still update.',
+    changed: 'The source structure has changed', changedHint: 'Your local structure and watched history are safe. Review the changes before adopting them.',
+    unavailable: 'Source unavailable', unavailableHint: 'The original entry is no longer available. Automatic refresh is paused; your library and history are preserved.',
+    preview: 'Preview changes', keep: 'Keep my version', adopt: 'Adopt new structure',
+    previewTitle: 'Review season changes', archived: 'Retained in history', added: 'New episode',
+    counts: (kept: number, archived: number) => `${kept} watched marks mapped · ${archived} retained in the archive`,
+    previewHint: 'Matching uses episode IDs first, then air date and episode order. Unmatched marks are retained and restored when the episode returns.',
+    lockedHint: 'Unlock the season structure before adopting changes.',
+    manual: 'Maintain manually', relink: 'Re-link to TMDB', tmdbId: 'New TMDB ID',
+    sourceHint: 'Re-linking updates metadata; structural changes still require your review.',
+    archivedCount: (count: number) => `${count} watched marks retained for missing episodes`,
+  },
   app: {
     name: 'Zhenji',
     logoChar: 'Z',
@@ -117,6 +131,8 @@ export const en: MessageCatalog = {
     TITLE_NOT_FOUND: 'Title not found',
     LIST_NOT_FOUND: 'List not found',
     ENTRY_NOT_FOUND: 'List entry not found',
+    STRUCTURE_CONFLICT: "The library changed after this preview. Review the latest changes and try again.",
+    SOURCE_UNAVAILABLE: "The source is unavailable. Your local data has been preserved.",
     REWATCH_CONFLICT: "Another device changed the active viewing. Your library has been refreshed; try again.",
     CONFLICT_ERROR: 'Data conflict. Please refresh and try again.',
     VALIDATION_ERROR: 'Invalid request payload',

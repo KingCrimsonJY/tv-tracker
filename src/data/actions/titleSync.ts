@@ -6,6 +6,8 @@ import type {
 } from '../../domain/types.ts';
 import { getActiveCatalog, translateErrorObject } from '../../i18n/index.ts';
 import {
+  changeTitleSourceApi,
+  decideStructureApi,
   deleteTitleApi,
   fetchRatingsApi,
   refreshMetadataApi,
@@ -99,7 +101,7 @@ export function createTitleSyncActions(
 
   async function refreshTitleMetadata(titleId: string): Promise<MetadataRefreshStatus> {
     const current = getState().titles[titleId];
-    if (!current || current.source !== 'tmdb' || !current.sourceId || current.mediaType === 'other') return 'skipped';
+    if (!current || current.source !== 'tmdb' || !current.sourceId || current.mediaType === 'other' || current.sourceUnavailable) return 'skipped';
     try {
       const result = await refreshMetadataApi(titleId);
       applyServerMutation(result);
@@ -219,7 +221,18 @@ export function createTitleSyncActions(
     }
   }
 
+  async function setStructureLock(id: string, locked: boolean) {
+    applyServerMutation(await patchTitleApi(id, { structureLocked: locked }));
+  }
+  async function resolveStructure(id: string, input: Parameters<typeof decideStructureApi>[1]) {
+    applyServerMutation(await decideStructureApi(id, input));
+  }
+  async function changeTitleSource(id: string, input: Parameters<typeof changeTitleSourceApi>[1]) {
+    applyServerMutation(await changeTitleSourceApi(id, input));
+  }
+
   return {
+    setStructureLock, resolveStructure, changeTitleSource,
     fetchAndCacheTitleRatings,
     refreshTitleMetadata,
     refreshAllTmdbMetadata,

@@ -421,3 +421,13 @@ export async function fetchSystemInfoApi(): Promise<SystemInfoResponse> {
 export function refreshMetadataApi(titleId: string): Promise<import('../domain/types.ts').MetadataRefreshResult> {
   return apiJson(`/api/titles/${encodeURIComponent(titleId)}/refresh-metadata`, { method: 'POST' });
 }
+
+export function previewStructureApi(titleId: string): Promise<import('../domain/structure.ts').StructurePreview> {
+  return apiJson(`/api/titles/${encodeURIComponent(titleId)}/structure`);
+}
+export function decideStructureApi(titleId: string, input: { decision: 'keep' | 'adopt'; version: number; signature: string }): Promise<StateMutationResult> {
+  return apiJson(`/api/titles/${encodeURIComponent(titleId)}/structure`, { method: 'POST', body: JSON.stringify(input) });
+}
+export function changeTitleSourceApi(titleId: string, input: { action: 'manual' } | { action: 'relink'; sourceId: string; mediaType: 'movie' | 'tv' }): Promise<StateMutationResult> {
+  return apiJson(`/api/titles/${encodeURIComponent(titleId)}/source`, { method: 'POST', body: JSON.stringify(input) });
+}

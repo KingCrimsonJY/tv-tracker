@@ -68,6 +68,7 @@ export function getState(ctx: DbContext): AppStateSnapshot {
     progressByTitle[row.title_id][row.playthrough_id] = {
       playthroughId: row.playthrough_id,
       watched: data.watched || {},
+      archivedWatched: data.archivedWatched,
       ...(data.movieWatchedAt !== undefined ? { movieWatchedAt: data.movieWatchedAt } : {}),
     };
   }
@@ -225,12 +226,14 @@ export function importData(
       for (const [ptId, pDoc] of Object.entries(progMap)) {
         const payload: StoredProgressData = {
           watched: pDoc.watched || {},
+          archivedWatched: pDoc.archivedWatched,
           ...(pDoc.movieWatchedAt !== undefined ? { movieWatchedAt: pDoc.movieWatchedAt } : {}),
         };
         insertProgress.run(titleId, ptId, JSON.stringify(payload));
         progressByTitle[titleId][ptId] = {
           playthroughId: ptId,
           watched: payload.watched,
+          archivedWatched: payload.archivedWatched,
           ...(payload.movieWatchedAt !== undefined
             ? { movieWatchedAt: payload.movieWatchedAt }
             : {}),

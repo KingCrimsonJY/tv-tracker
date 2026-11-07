@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from '@heroui/react';
+import { UpstreamPanel } from '../features/title/UpstreamPanel';
 import { useTitleDetail } from '../features/title/useTitleDetail';
 import { TitleHero } from '../features/title/TitleHero';
 import { RatingsRow } from '../features/title/RatingsRow';
@@ -81,6 +82,8 @@ export const TitleDetailPage: React.FC = () => {
             </Button>
           )}
         </div>
+
+        <UpstreamPanel key={title.id} title={title} />
 
         {titleState.isEpisodic && (
           <SeasonPanel
