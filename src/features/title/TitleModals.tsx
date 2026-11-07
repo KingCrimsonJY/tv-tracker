@@ -79,6 +79,12 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
     }
   }, [editModalOpen, title]);
 
+  const languageOptions: Array<{ value: DisplayLang | 'default'; label: string; name?: string }> = [
+    { value: 'default', label: t.detail.languageOptions.default },
+    { value: 'zh', label: t.detail.languageOptions.zh, name: title.names.zh || '-' },
+    { value: 'original', label: t.detail.languageOptions.original, name: title.names.original || '-' },
+    { value: 'en', label: t.detail.languageOptions.en, name: title.names.en || '-' },
+  ];
   const listArray = Object.values(lists);
   const deletingPtNum =
     title.playthroughs.find((p) => p.id === deletePlaythroughId)?.number ?? 1;
@@ -137,7 +143,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
       </Modal.Backdrop>
 
       <Modal.Backdrop isOpen={langModalOpen} onOpenChange={onLangModalOpenChange}>
-        <Modal.Container size="sm">
+        <Modal.Container size="sm" scroll="inside">
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -145,6 +151,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
             </Modal.Header>
             <Modal.Body>
               <RadioGroup
+                className="gap-1"
                 value={title.displayLang ?? 'default'}
                 onChange={(val) => {
                   onUpdateDisplayLang(val === 'default' ? null : (val as DisplayLang));
@@ -152,22 +159,21 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                 }}
                 aria-label={t.detail.menu.titleLanguage}
               >
-                <Radio value="default">
-                  <Radio.Control><Radio.Indicator /></Radio.Control>
-                  <Radio.Content><Label>{t.detail.languageOptions.default}</Label></Radio.Content>
-                </Radio>
-                <Radio value="zh">
-                  <Radio.Control><Radio.Indicator /></Radio.Control>
-                  <Radio.Content><Label>{t.detail.languageOptions.zh} ({title.names.zh || '-'})</Label></Radio.Content>
-                </Radio>
-                <Radio value="original">
-                  <Radio.Control><Radio.Indicator /></Radio.Control>
-                  <Radio.Content><Label>{t.detail.languageOptions.original} ({title.names.original || '-'})</Label></Radio.Content>
-                </Radio>
-                <Radio value="en">
-                  <Radio.Control><Radio.Indicator /></Radio.Control>
-                  <Radio.Content><Label>{t.detail.languageOptions.en} ({title.names.en || '-'})</Label></Radio.Content>
-                </Radio>
+                {languageOptions.map((option) => (
+                  <Radio key={option.value} value={option.value} className="m-0 w-full min-w-0">
+                    <Radio.Content className="min-h-11 w-full items-start rounded-lg px-2 py-2">
+                      <Radio.Control className="mt-0.5">
+                        <Radio.Indicator />
+                      </Radio.Control>
+                      <Label className="min-w-0 flex-1 whitespace-normal break-words">
+                        <span className="block">{option.label}</span>
+                        {option.name && (
+                          <span className="mt-0.5 block text-xs font-normal text-muted">{option.name}</span>
+                        )}
+                      </Label>
+                    </Radio.Content>
+                  </Radio>
+                ))}
               </RadioGroup>
             </Modal.Body>
           </Modal.Dialog>
