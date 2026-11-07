@@ -5,7 +5,8 @@ import { Link2, PlusCircle } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
 import { searchTmdbApi, TmdbSearchItem } from '../data/api';
 import { SearchResults } from '../features/search/SearchResults';
-import { LinkImportDialog, ManualSeed } from '../features/search/LinkImportDialog';
+import { LinkImportDialog } from '../features/search/LinkImportDialog';
+import type { ManualSeed } from '../features/search/linkImportModel';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
 import { useI18n } from '../i18n';
 

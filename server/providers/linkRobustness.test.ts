@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { resolveLinkMetadata, decodeHtmlEntities } from './linkImport.ts';
+import { resolveLinkMetadata, decodeHtmlEntities, scrapeOpenGraph } from './linkImport.ts';
 import { resolveBilibiliMetadata } from './bilibili.ts';
 import { normalizeLinkUrl } from './linkUrls.ts';
 import { mapYtdlpJsonToLinkResult, resolveWithYtdlp, YtdlpExecutionError } from './ytdlp.ts';
@@ -132,6 +132,29 @@ describe('link normalization and failures', () => {
       lookupFn, execFn: async () => { throw new Error('no suitable extractor'); },
       fetchFn: async () => new Response(html, { headers: { 'Content-Type': 'text/html' } }),
     })).rejects.toMatchObject({ code: 'LINK_PARSE_FAILED' });
+  });
+  test.each([0, 2001])('YouTube playlist size %s cannot fall back to an ordinary web page', async count => {
+    let scraped = false;
+    await expect(resolveLinkMetadata('https://www.youtube.com/playlist?list=example', {
+      lookupFn,
+      execFn: async () => ({ stderr: '', stdout: JSON.stringify({
+        title: 'Public playlist', _type: 'playlist', playlist_count: count,
+        entries: count ? [{ id: 'entry', title: 'Video', duration: 60 }] : [],
+      }) }),
+      fetchFn: async () => { scraped = true; return new Response('<title>Public playlist</title>'); },
+    })).rejects.toMatchObject({ code: count ? 'LINK_PLAYLIST_TOO_LARGE' : 'LINK_EMPTY_PLAYLIST' });
+    expect(scraped).toBe(false);
+  });
+  test('an unsuccessful web response releases its unread body', async () => {
+    let cancelled = false;
+    await expect(scrapeOpenGraph('https://example.com/missing', {
+      lookupFn,
+      fetchFn: async () => new Response(new ReadableStream({
+        start(controller) { controller.enqueue(new TextEncoder().encode('Not found')); },
+        cancel() { cancelled = true; },
+      }), { status: 404 }),
+    })).rejects.toThrow('HTTP 404');
+    expect(cancelled).toBe(true);
   });
   test('malformed numeric HTML entities cannot crash the decoder', () => {
     expect(decodeHtmlEntities('&#99999999999; &#x110000; &#x1f3ac;')).toBe('&#99999999999; &#x110000; 🎬');

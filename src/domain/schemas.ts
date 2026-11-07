@@ -160,7 +160,7 @@ export const patchTitleRequestSchema = z
     genres: z.array(z.string()).optional(),
     genreIds: z.array(z.number().int()).optional(),
     uploader: z.string().nullable().optional(),
-  liveStatus: z.enum(['live', 'upcoming', 'ended', 'offline']).optional(),
+    liveStatus: z.enum(['live', 'upcoming', 'ended', 'offline']).optional(),
     posterPath: z.string().nullable().optional(),
     posters: localizedPostersSchema.optional(),
     backdropPath: z.string().nullable().optional(),

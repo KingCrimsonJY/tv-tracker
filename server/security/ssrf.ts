@@ -44,15 +44,20 @@ const defaultFetchFn: FetchFn = async (input, init = {}) => {
         }, err => callback(err, ''));
       },
     }, incoming => {
-      const headers = new Headers();
-      for (const [name, value] of Object.entries(incoming.headers)) {
-        if (Array.isArray(value)) value.forEach(v => headers.append(name, v));
-        else if (value !== undefined) headers.set(name, value);
+      try {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (Array.isArray(value)) value.forEach(v => headers.append(name, v));
+          else if (value !== undefined) headers.set(name, value);
+        }
+        const status = incoming.statusCode || 502;
+        const noBody = init.method === 'HEAD' || [204, 205, 304].includes(status);
+        if (noBody) incoming.resume();
+        resolve(new Response(noBody ? null : Readable.toWeb(incoming) as ReadableStream<Uint8Array>, { status, headers }));
+      } catch (err) {
+        incoming.destroy();
+        reject(err);
       }
-      const status = incoming.statusCode || 502;
-      const noBody = init.method === 'HEAD' || [204, 205, 304].includes(status);
-      if (noBody) incoming.resume();
-      resolve(new Response(noBody ? null : Readable.toWeb(incoming) as ReadableStream<Uint8Array>, { status, headers }));
     });
     request.on('error', reject);
     request.end();
@@ -106,18 +111,6 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   }
 
   if (version === 6) {
-    // Deny non-global ranges, documentation, Teredo and 6to4 transition addresses.
-    if (!cleanIp.startsWith('::ffff:') && (!/^[23][0-9a-f]{3}:/.test(cleanIp) ||
-        /^(?:2001:db8:|2001:(?:0:|:)|2002:|3fff:)/.test(cleanIp))) return true;
-    if (
-      cleanIp === '::1' ||
-      cleanIp === '::' ||
-      cleanIp === '0:0:0:0:0:0:0:1' ||
-      cleanIp === '0:0:0:0:0:0:0:0'
-    ) {
-      return true;
-    }
-
     if (cleanIp.startsWith('::ffff:')) {
       const v4Part = cleanIp.slice('::ffff:'.length);
       if (net.isIP(v4Part) === 4) {
@@ -135,24 +128,9 @@ export function isPrivateOrReservedIp(ip: string): boolean {
       return true;
     }
 
-    if (cleanIp.startsWith('fc') || cleanIp.startsWith('fd')) {
-      return true;
-    }
-
-    if (
-      cleanIp.startsWith('fe8') ||
-      cleanIp.startsWith('fe9') ||
-      cleanIp.startsWith('fea') ||
-      cleanIp.startsWith('feb')
-    ) {
-      return true;
-    }
-
-    if (cleanIp.startsWith('ff')) {
-      return true;
-    }
-
-    return false;
+    // Only global unicast; exclude documentation and transition ranges.
+    return !/^[23][0-9a-f]{3}:/.test(cleanIp) ||
+      /^(?:2001:db8:|2001:(?:0:|:)|2002:|3fff:)/.test(cleanIp);
   }
 
   return true;

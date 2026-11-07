@@ -241,6 +241,20 @@ function isTvOrBangumiOutput(parsed: YtdlpOutput, inputUrl: string): boolean {
     (parsed.webpage_url ? isBangumiUrl(parsed.webpage_url) : false);
 }
 
+function getPlaylistEntries(parsed: YtdlpOutput) {
+  const validEntries = Array.isArray(parsed.entries)
+    ? parsed.entries.filter((e): e is NonNullable<typeof e> => Boolean(e))
+    : [];
+
+  if (validEntries.length > 2000 || (parsed.playlist_count ?? 0) > 2000) {
+    throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+  }
+  if ((parsed._type === 'playlist' || parsed._type === 'multi_video') && !validEntries.length) {
+    throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
+  }
+  return validEntries;
+}
+
 export function mapYtdlpJsonToLinkResult(
   rawJson: unknown,
   inputUrl: string,
@@ -250,7 +264,14 @@ export function mapYtdlpJsonToLinkResult(
     throw new YtdlpExecutionError('yt-dlp did not return a valid JSON object', 'YTDLP_FAILED');
   }
 
-  const parsed = ytdlpOutputSchema.parse(rawJson);
+  return mapParsedYtdlpResult(ytdlpOutputSchema.parse(rawJson), inputUrl, options);
+}
+
+function mapParsedYtdlpResult(
+  parsed: YtdlpOutput,
+  inputUrl: string,
+  options: { forceImport?: boolean }
+): LinkImportResult {
   const rawTitle = (parsed.series?.trim() && isTvOrBangumiOutput(parsed, inputUrl) && !options.forceImport
     ? parsed.series.trim()
     : parsed.title?.trim()) || '';
@@ -277,16 +298,7 @@ export function mapYtdlpJsonToLinkResult(
       ? Math.max(1, Math.round(parsed.duration / 60))
       : null;
 
-  const validEntries = Array.isArray(parsed.entries)
-    ? parsed.entries.filter((e): e is NonNullable<typeof e> => Boolean(e))
-    : [];
-
-  if (validEntries.length > 2000 || (parsed.playlist_count ?? 0) > 2000) {
-    throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
-  }
-  if ((parsed._type === 'playlist' || parsed._type === 'multi_video') && !validEntries.length) {
-    throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
-  }
+  const validEntries = getPlaylistEntries(parsed);
   const episodes: LinkImportEpisodeSeed[] = validEntries.map((entry, idx) => {
     const rawEpTitle = entry.title?.trim() || null;
     const epTitle = rawEpTitle && !isGenericEpisodeLabel(rawEpTitle) ? rawEpTitle.slice(0, 300) : null;
@@ -381,8 +393,8 @@ export async function resolveWithYtdlp(
   }
 
   const parsed = ytdlpOutputSchema.parse(parsedJson);
-  // Validate size and shape before spending requests on optional enrichment.
-  mapYtdlpJsonToLinkResult(parsed, safeUrl.toString(), { forceImport: options.forceImport });
+  // Reject empty/oversized playlists before spending requests on optional enrichment.
+  getPlaylistEntries(parsed);
   if (parsed.entries && (parsed.extractor || '').toLowerCase().startsWith('youtube')) {
     // Bounded enrichment of Shorts/channel entries omitted by the flat extractor.
     // Never follow arbitrary entry URLs emitted by a third-party page.
@@ -415,7 +427,7 @@ export async function resolveWithYtdlp(
       }
     }));
   }
-  return mapYtdlpJsonToLinkResult(parsed, safeUrl.toString(), {
+  return mapParsedYtdlpResult(parsed, safeUrl.toString(), {
     forceImport: options.forceImport,
   });
 }

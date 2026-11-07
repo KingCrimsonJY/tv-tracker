@@ -132,6 +132,7 @@ export async function scrapeOpenGraph(
     );
 
     if (!response.ok) {
+      await response.body?.cancel();
       throw new Error(`HTTP ${response.status}`);
     }
 
@@ -176,7 +177,7 @@ export async function scrapeOpenGraph(
 
     return {
       kind: isBangumiUrl(finalUrl) ? 'tmdb-suggestion' : 'video',
-      title: cleanTitle || rawTitle.slice(0, 200),
+      title: cleanTitle,
       posterUrl,
       overview: cleanDesc.slice(0, 2000),
       uploader: siteName ? siteName.slice(0, 200) : null,
@@ -221,9 +222,11 @@ async function resolveNormalizedMetadata(
     if (err instanceof UnsafeUrlError) throw err;
     failure = classifyLinkFailure(err);
     if (nativeFailure && (['LINK_UNAVAILABLE', 'LINK_LOGIN_REQUIRED'].includes(nativeFailure.code) || (failure.code === 'LINK_PARSE_FAILED' && nativeFailure.code !== 'LINK_PARSE_FAILED'))) {
-      failure = nativeFailure ?? failure;
+      failure = nativeFailure;
     }
   }
+
+  if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE'].includes(failure.code)) throw failure;
 
   // Restrictions are actionable failures, not successful generic page imports.
   // Bangumi pages can still supply a title for a clearly labelled TMDB suggestion.

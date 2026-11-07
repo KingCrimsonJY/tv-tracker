@@ -133,7 +133,6 @@ Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, 
 - Empty lists, expired links, login, age and regional restrictions are reported explicitly. Basic webpage fallbacks are labelled as incomplete.
 - Imports are limited to 2,000 entries. Metadata enrichment has concurrency and time limits; unavailable fields remain unknown, without fabricated dates.
 - Public metadata does not grant playback access. The app does not download media or bypass paid, member-only or regional restrictions.
-- See the [link-import validation record](docs/link-import-validation.md) for coverage and reproduction steps.
 
 ## Known Limitations
 

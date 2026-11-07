@@ -13,7 +13,7 @@ import {
 } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
 import { MediaType } from '../../domain/types';
-import { ManualSeed } from './LinkImportDialog';
+import type { ManualSeed } from './linkImportModel';
 import { useI18n } from '../../i18n';
 
 interface ManualItemDialogProps {

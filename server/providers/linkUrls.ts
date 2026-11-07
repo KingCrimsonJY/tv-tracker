@@ -12,7 +12,7 @@ export function isBangumiUrl(raw: string): boolean {
   } catch { return false; }
 }
 
-export function canonicalizeLinkUrl(input: URL): URL {
+function canonicalizeLinkUrl(input: URL): URL {
   const url = new URL(input);
   url.hash = '';
   if (isBilibiliUrl(url)) {

@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Modal, TextField, Label, Input, Button, toast } from '@heroui/react';
 import { importLinkApi, LinkImportResult } from '../../data/api';
 import { linkResultToManualSeed, type ManualSeed } from './linkImportModel';
-export type { ManualSeed } from './linkImportModel';
 import { useI18n } from '../../i18n';
 
 interface LinkImportDialogProps {
