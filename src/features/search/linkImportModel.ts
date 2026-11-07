@@ -9,6 +9,7 @@ export interface ManualSeed {
   year?: number | null;
   runtimeMin?: number | null;
   warning?: string;
+  skippedCount?: number;
   episodeCount: number;
   episodes?: LinkImportEpisodeSeed[];
   source: 'url' | 'custom';
@@ -18,6 +19,7 @@ export interface ManualSeed {
 export function linkResultToManualSeed(result: LinkImportResult): ManualSeed {
   return {
     title: result.title,
+    skippedCount: result.skippedCount,
     mediaType: result.mediaType ?? 'other',
     posterUrl: result.posterUrl || '',
     overview: result.overview,

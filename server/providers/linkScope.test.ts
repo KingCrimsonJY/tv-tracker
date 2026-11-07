@@ -29,7 +29,7 @@ test.each([
   expect(execFn).not.toHaveBeenCalled();
 });
 
-test.each(['is_live', 'is_upcoming'])('rejects YouTube %s metadata, including live playlist entries', (status) => {
+test.each(['is_live', 'is_upcoming'])('rejects a YouTube %s single video and an entirely live playlist', (status) => {
   expect(() =>
     mapYtdlpJsonToLinkResult({ title: 'Live', live_status: status }, 'https://youtube.com/watch?v=abcdefghijk'),
   ).toThrow('LINK_LIVE_UNSUPPORTED');
@@ -38,7 +38,7 @@ test.each(['is_live', 'is_upcoming'])('rejects YouTube %s metadata, including li
       { title: 'Playlist', entries: [{ id: 'abcdefghijk', live_status: status }] },
       'https://youtube.com/playlist?list=PLabc',
     ),
-  ).toThrow('LINK_LIVE_UNSUPPORTED');
+  ).toThrow('LINK_EMPTY_PLAYLIST');
 });
 
 test.each([

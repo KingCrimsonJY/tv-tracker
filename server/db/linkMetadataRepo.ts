@@ -73,5 +73,5 @@ export function appendPlaylistEpisodes(
     now,
   );
   const after = result.upserts.seasonsByTitle?.[id]?.reduce((sum, season) => sum + season.episodes.length, 0) ?? before;
-  return { ...result, addedCount: Math.max(0, after - before) };
+  return { ...result, skippedCount: metadata?.skippedCount, addedCount: Math.max(0, after - before) };
 }

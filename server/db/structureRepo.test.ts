@@ -55,7 +55,10 @@ test('removed season remains local until adoption; returning episode restores ar
   const { repo, title, refresh, decide } = setup([season(1, [1]), season(2, [2])]);
   refresh([season(1, [1])]);
   expect(repo.getState().seasonsByTitle[title.id]).toHaveLength(2);
-  expect(repo.previewStructure(title.id)).toMatchObject({ archived: 1, changes: [{ from: 's2e1', to: null }] });
+  expect(repo.previewStructure(title.id)).toMatchObject({
+    archived: 1,
+    changes: [{ from: { seasonNumber: 2, episodeNumber: 1 }, to: null }],
+  });
   decide('adopt');
   expect(repo.getState().progressByTitle[title.id].p1).toMatchObject({
     watched: { s1e1: 123 },
@@ -72,7 +75,10 @@ test('split season is previewed and adopted by stable episode id without moving 
   const { repo, title, refresh, decide } = setup();
   refresh([season(1, [1]), season(2, [2])]);
   expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 123, s1e2: 123 });
-  expect(repo.previewStructure(title.id).changes).toContainEqual({ from: 's1e2', to: 's2e1' });
+  expect(repo.previewStructure(title.id).changes).toContainEqual({
+    from: { seasonNumber: 1, episodeNumber: 2, name: { en: 'Story 2' } },
+    to: { seasonNumber: 2, episodeNumber: 1, name: { en: 'Story 2' } },
+  });
   decide('adopt');
   expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 123, s2e1: 123 });
 });
@@ -86,14 +92,14 @@ test('legacy episodes use air date and order after id matching, including recrea
   expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s2e1: 123, s2e2: 123 });
 });
 
-test('locked structure updates names but neither adds nor removes episodes', () => {
-  const { repo, title, refresh, decide } = setup([season(1, [1])], { structureLocked: true });
+test('locked structure updates names and appends new episodes without a review banner', () => {
+  const { repo, title, refresh } = setup([season(1, [1])], { structureLocked: true });
   const incoming = season(1, [1, 2]);
   incoming.episodes[0].name = { en: 'New name' };
   refresh([incoming]);
-  expect(repo.getState().seasonsByTitle[title.id][0].episodes).toHaveLength(1);
+  expect(repo.getState().seasonsByTitle[title.id][0].episodes).toHaveLength(2);
   expect(repo.getState().seasonsByTitle[title.id][0].episodes[0].name).toEqual({ en: 'New name' });
-  expect(() => decide('adopt')).toThrow('STRUCTURE_CONFLICT');
+  expect(repo.getTitle(title.id)?.upstreamChange).toBeNull();
   expect(repo.getTitle(title.id)?.names.original).toBe('Updated');
 });
 
@@ -191,7 +197,14 @@ test('automatic refresh preserves orphan marks and does not silently replace kno
   refresh([replacement]);
   expect(repo.getState().seasonsByTitle[title.id][0].episodes[0].tmdbEpisodeId).toBe(1);
   expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 123, s9e9: 456 });
-  expect(repo.previewStructure(title.id).changes).toContainEqual({ from: 's1e1', to: 's1e1' });
+  expect(repo.previewStructure(title.id).changes).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        from: expect.objectContaining({ seasonNumber: 1, episodeNumber: 1 }),
+        to: expect.objectContaining({ seasonNumber: 1, episodeNumber: 1 }),
+      }),
+    ]),
+  );
   decide('adopt');
   expect(repo.getState().seasonsByTitle[title.id][0].episodes[0].tmdbEpisodeId).toBe(99);
   expect(repo.getState().progressByTitle[title.id].p1).toMatchObject({
@@ -203,5 +216,27 @@ test('automatic refresh preserves orphan marks and does not silently replace kno
 test('empty season removal is visible in the preview', () => {
   const { repo, title, refresh } = setup([season(1, [1]), season(2, [])]);
   refresh([season(1, [1])]);
-  expect(repo.previewStructure(title.id).changes).toContainEqual({ from: 's2', to: null });
+  expect(repo.previewStructure(title.id).changes).toContainEqual({ from: { seasonNumber: 2, name: null }, to: null });
+});
+
+test('locked new identities append to the last local season in air-date order and deduplicate on refresh', () => {
+  const { repo, title, refresh } = setup([season(1, [1]), season(2, [2])], { structureLocked: true });
+  const incoming = [season(1, [1]), season(5, [4, 3, 2])];
+  refresh(incoming);
+  refresh(incoming);
+  const stored = repo.getSeasons(title.id);
+  expect(stored.map((s) => s.seasonNumber)).toEqual([1, 2]);
+  expect(stored[1].episodes.map((ep) => [ep.key, ep.tmdbEpisodeId])).toEqual([
+    ['s2e1', 2],
+    ['s2e2', 3],
+    ['s2e3', 4],
+  ]);
+  expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 123, s2e1: 123 });
+});
+test('locked new IDs sharing an air date are never mistaken for an existing local episode', () => {
+  const { repo, title, refresh } = setup([season(1, [1])], { structureLocked: true });
+  const incoming = season(1, [2]);
+  incoming.episodes[0].airDate = '2024-01-01';
+  refresh([incoming]);
+  expect(repo.getSeasons(title.id)[0].episodes.map((ep) => ep.tmdbEpisodeId)).toEqual([1, 2]);
 });

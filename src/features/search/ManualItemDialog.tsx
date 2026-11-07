@@ -108,6 +108,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
             </Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
+            {Boolean(initialSeed?.skippedCount) && <p>{t.upstream.skippedEntries(initialSeed?.skippedCount || 0)}</p>}
             {initialSeed?.warning && (
               <Alert status="warning">
                 <Alert.Indicator />

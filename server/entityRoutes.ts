@@ -1,3 +1,4 @@
+import { toLocalDateString } from '../src/domain/airing.ts';
 import { assertSupportedLinkType } from './providers/linkScope.ts';
 import type { Express } from 'express';
 import {
@@ -207,7 +208,7 @@ export function registerEntityRoutes(
 
   app.get('/api/export', (_req, res) => {
     const exported = repo.exportData();
-    const dateStr = exported.exportedAt.slice(0, 10);
+    const dateStr = toLocalDateString();
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="zhenji-${dateStr}.json"`);
     res.send(JSON.stringify(exported, null, 2));

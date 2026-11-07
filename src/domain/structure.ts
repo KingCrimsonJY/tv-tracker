@@ -113,7 +113,30 @@ export function planStructure(local: SeasonDoc[], incoming: SeasonDoc[], locked 
       return mergeEpisode(ep, mapping.to);
     }),
   }));
-  if (!locked) {
+  if (locked) {
+    const identities = new Set(oldEpisodes.map(episodeIdentity).filter(Boolean));
+    const additions = newEpisodes
+      .filter((ep) => {
+        const id = episodeIdentity(ep);
+        return id ? !identities.has(id) : added.includes(ep);
+      })
+      .sort((a, b) => (a.airDate || '9999').localeCompare(b.airDate || '9999'));
+    let target = [...safe].sort((a, b) => b.seasonNumber - a.seasonNumber)[0];
+    if (!target && additions.length) {
+      target = { seasonNumber: 1, name: null, episodes: [] };
+      safe.push(target);
+    }
+    if (target) {
+      let number = Math.max(0, ...target.episodes.map((ep) => ep.number));
+      for (const episode of additions) {
+        const identity = episodeIdentity(episode);
+        if (identity && identities.has(identity)) continue;
+        if (identity) identities.add(identity);
+        number++;
+        target.episodes.push({ ...episode, number, key: 's' + target.seasonNumber + 'e' + number });
+      }
+    }
+  } else {
     for (const season of incoming) {
       let target = safe.find((s) => s.seasonNumber === season.seasonNumber);
       const additions = season.episodes.filter((ep) => added.includes(ep));
@@ -197,10 +220,17 @@ export function restoreArchivedWatched(progress: ProgressDoc, seasons: SeasonDoc
   return { ...progress, watched, archivedWatched: retained };
 }
 
+export interface StructureReference {
+  seasonNumber: number;
+  episodeNumber?: number;
+  name: EpisodeMeta['name'];
+}
 export interface StructurePreview {
   version: number;
   signature: string;
-  changes: { from: string | null; to: string | null }[];
+  localSeasons: number;
+  sourceSeasons: number;
+  changes: { from: StructureReference | null; to: StructureReference | null }[];
   migrated: number;
   archived: number;
 }

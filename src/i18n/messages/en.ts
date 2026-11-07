@@ -17,9 +17,22 @@ function ordinal(n: number): string {
 
 export const en: MessageCatalog = {
   upstream: {
+    unlock: 'Unlock season structure',
+    search: 'Search TMDB',
+    noResults: 'No matching titles',
+    skippedEntries: (count: number) => 'Skipped ' + count + ' live or upcoming entries.',
+    seasonSummary: (before: number, after: number) =>
+      before === 1 && after > 1
+        ? '1 season split into ' + after
+        : before +
+          (before === 1 ? ' local season → ' : ' local seasons → ') +
+          after +
+          (after === 1 ? ' source season' : ' source seasons'),
+    episodeRef: (season: number, episode?: number) =>
+      episode === undefined ? 'Season ' + season : 'Season ' + season + ', Episode ' + episode,
+
     title: 'Source and season structure',
     lock: 'Lock season structure',
-    lockHint: 'Keep season and episode numbering fixed. Names and images can still update.',
     changed: 'The source structure has changed',
     changedHint: 'Your local structure and watched history are safe. Review the changes before adopting them.',
     unavailable: 'Source unavailable',
@@ -37,7 +50,6 @@ export const en: MessageCatalog = {
     lockedHint: 'Unlock the season structure before adopting changes.',
     manual: 'Maintain manually',
     relink: 'Re-link to TMDB',
-    tmdbId: 'New TMDB ID',
     sourceHint: 'Re-linking updates metadata; structural changes still require your review.',
     archivedCount: (count: number) => `${count} watched marks retained for missing episodes`,
   },
@@ -427,6 +439,7 @@ export const en: MessageCatalog = {
     },
     overview: { expand: 'Read More', collapse: 'Show Less', empty: 'No overview yet' },
     seasons: {
+      episodeRange: 'Episodes',
       tabLabel: (n: number) => (n === 0 ? 'Specials' : `Season ${n}`),
       selectOptionWithCount: (seasonLabel: string, count: number | string) => `${seasonLabel} (${count} eps)`,
       selectAria: 'Select season',
@@ -528,8 +541,8 @@ export const en: MessageCatalog = {
       refreshAllMetadata: 'Refresh All Metadata',
       refreshingAllToast: (done: number | string, total: number | string) =>
         `Refreshing bilingual metadata (${done}/${total})…`,
-      refreshAllSummary: (updated: number, partial: number, failed: number, skipped: number) =>
-        `Updated: ${updated} · Partial: ${partial} · Failed: ${failed} · Skipped: ${skipped}`,
+      refreshAllSummary: (updated: number, needsReview: number, partial: number, failed: number, skipped: number) =>
+        `Updated: ${updated} · Needs review: ${needsReview} · Partial: ${partial} · Failed: ${failed} · Skipped: ${skipped}`,
       refreshAllEmptyToast: 'No TMDB titles in library to refresh',
       refreshAllFailedToast: 'Metadata refresh failed. Check your TMDB token or connection.',
       importConfirmTitle: 'Overwrite Library Data?',

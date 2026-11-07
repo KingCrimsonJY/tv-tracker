@@ -1,17 +1,7 @@
+import { TmdbSourcePicker } from './TmdbSourcePicker';
+import { resolveLocalizedText } from '../../domain/ordering';
 import { useState } from 'react';
-import {
-  Alert,
-  Button,
-  Card,
-  Description,
-  Label,
-  Modal,
-  NumberField,
-  Switch,
-  ToggleButton,
-  ToggleButtonGroup,
-  toast,
-} from '@heroui/react';
+import { Alert, Button, Card, Modal, toast } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
 import { previewStructureApi } from '../../data/api';
 import type { StructurePreview } from '../../domain/structure';
@@ -19,17 +9,17 @@ import type { TitleDoc } from '../../domain/types';
 import { useI18n } from '../../i18n';
 
 export function UpstreamPanel({ title }: { title: TitleDoc }) {
-  const { t, translateError } = useI18n();
-  const { setStructureLock, resolveStructure, changeTitleSource, progressByTitle } = useTracker();
+  const { t, locale, translateError } = useI18n();
+  const { resolveStructure, changeTitleSource, progressByTitle } = useTracker();
   const [preview, setPreview] = useState<StructurePreview | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sourceId, setSourceId] = useState(Number.NaN);
-  const [sourceType, setSourceType] = useState<'movie' | 'tv'>(title.mediaType === 'movie' ? 'movie' : 'tv');
+  const [pickingSource, setPickingSource] = useState(false);
+
   const archived = Object.values(progressByTitle[title.id] || {}).reduce(
     (sum, p) => sum + (p.archivedWatched?.length || 0),
     0,
   );
-  if (title.source === 'custom' && !archived) return null;
+  if (!title.upstreamChange && !title.sourceUnavailable && !archived) return null;
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -47,21 +37,6 @@ export function UpstreamPanel({ title }: { title: TitleDoc }) {
         <Card.Title>{t.upstream.title}</Card.Title>
       </Card.Header>
       <Card.Content className="space-y-4">
-        {title.source !== 'custom' && (
-          <Switch
-            isSelected={Boolean(title.structureLocked)}
-            isDisabled={busy}
-            onChange={(locked) => void run(() => setStructureLock(title.id, locked))}
-          >
-            <Switch.Content>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Label>{t.upstream.lock}</Label>
-            </Switch.Content>
-            <Description>{t.upstream.lockHint}</Description>
-          </Switch>
-        )}
         {archived > 0 && <p>{t.upstream.archivedCount(archived)}</p>}
         {title.sourceUnavailable && (
           <Alert status="warning">
@@ -94,48 +69,8 @@ export function UpstreamPanel({ title }: { title: TitleDoc }) {
         )}
         {title.sourceUnavailable && (
           <div className="flex flex-col gap-3">
-            {title.mediaType === 'other' && (
-              <ToggleButtonGroup
-                aria-label={t.search.manual.typeLabel}
-                selectionMode="single"
-                disallowEmptySelection
-                selectedKeys={new Set([sourceType])}
-                onSelectionChange={(keys) => {
-                  const value = [...keys][0];
-                  if (value === 'movie' || value === 'tv') setSourceType(value);
-                }}
-              >
-                <ToggleButton id="movie">{t.mediaType.movie}</ToggleButton>
-                <ToggleButton id="tv">{t.mediaType.tv}</ToggleButton>
-              </ToggleButtonGroup>
-            )}
-            <NumberField
-              value={sourceId}
-              onChange={setSourceId}
-              minValue={1}
-              formatOptions={{ useGrouping: false }}
-              isDisabled={busy}
-            >
-              <Label>{t.upstream.tmdbId}</Label>
-              <NumberField.Group>
-                <NumberField.Input />
-              </NumberField.Group>
-              <Description>{t.upstream.sourceHint}</Description>
-            </NumberField>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                isDisabled={busy || !Number.isSafeInteger(sourceId) || sourceId < 1}
-                onPress={() =>
-                  void run(() =>
-                    changeTitleSource(title.id, {
-                      action: 'relink',
-                      sourceId: String(sourceId),
-                      mediaType: sourceType,
-                    }),
-                  )
-                }
-              >
+              <Button variant="secondary" isDisabled={busy} onPress={() => setPickingSource(true)}>
                 {t.upstream.relink}
               </Button>
               <Button
@@ -149,6 +84,23 @@ export function UpstreamPanel({ title }: { title: TitleDoc }) {
           </div>
         )}
       </Card.Content>
+      {pickingSource && (
+        <TmdbSourcePicker
+          title={title}
+          busy={busy}
+          onClose={() => setPickingSource(false)}
+          onSelect={(item) =>
+            void run(async () => {
+              await changeTitleSource(title.id, {
+                action: 'relink',
+                sourceId: item.sourceId,
+                mediaType: item.mediaType,
+              });
+              setPickingSource(false);
+            })
+          }
+        />
+      )}
       <Modal.Backdrop
         isOpen={Boolean(preview)}
         onOpenChange={(open) => {
@@ -166,11 +118,28 @@ export function UpstreamPanel({ title }: { title: TitleDoc }) {
               <p>{t.upstream.previewHint}</p>
               {preview && (
                 <>
+                  <p>{t.upstream.seasonSummary(preview.localSeasons, preview.sourceSeasons)}</p>
                   <p>{t.upstream.counts(preview.migrated, preview.archived)}</p>
                   <div className="space-y-2">
                     {preview.changes.map((change, index) => (
                       <p key={index}>
-                        {change.from || t.upstream.added} → {change.to || t.upstream.archived}
+                        {change.from
+                          ? [
+                              t.upstream.episodeRef(change.from.seasonNumber, change.from.episodeNumber),
+                              resolveLocalizedText(change.from.name, locale),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : t.upstream.added}
+                        {' → '}
+                        {change.to
+                          ? [
+                              t.upstream.episodeRef(change.to.seasonNumber, change.to.episodeNumber),
+                              resolveLocalizedText(change.to.name, locale),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : t.upstream.archived}
                       </p>
                     ))}
                   </div>

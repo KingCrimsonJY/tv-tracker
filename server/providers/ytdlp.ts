@@ -87,6 +87,7 @@ const ytdlpEntrySchema = z.object({
   duration: z.number().nullable().optional(),
   ie_key: z.string().nullable().optional(),
   live_status: z.string().nullable().optional(),
+  is_live: z.boolean().nullable().optional(),
 });
 
 export const ytdlpOutputSchema = z.object({
@@ -267,11 +268,7 @@ function mapParsedYtdlpResult(
 ): LinkImportResult {
   assertSupportedLinkType(inputUrl);
   if (parsed.webpage_url) assertSupportedLinkType(parsed.webpage_url);
-  if (
-    parsed.is_live ||
-    ['is_live', 'is_upcoming'].includes(parsed.live_status || '') ||
-    parsed.entries?.some((ep) => ep && ['is_live', 'is_upcoming'].includes(ep.live_status || ''))
-  ) {
+  if (parsed.is_live || ['is_live', 'is_upcoming'].includes(parsed.live_status || '')) {
     throw new LinkImportError('LINK_LIVE_UNSUPPORTED', 'LINK_LIVE_UNSUPPORTED');
   }
   const rawTitle =
@@ -301,7 +298,14 @@ function mapParsedYtdlpResult(
       ? Math.max(1, Math.round(parsed.duration / 60))
       : null;
 
-  const validEntries = getPlaylistEntries(parsed);
+  const allEntries = getPlaylistEntries(parsed);
+  const validEntries = allEntries.filter(
+    (entry) => !entry.is_live && !['is_live', 'is_upcoming'].includes(entry.live_status || ''),
+  );
+  const skippedCount = allEntries.length - validEntries.length;
+  if (allEntries.length && !validEntries.length) {
+    throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'LINK_EMPTY_PLAYLIST');
+  }
   const episodes: LinkImportEpisodeSeed[] = validEntries.map((entry, idx) => {
     const rawEpTitle = entry.title?.trim() || null;
     const epTitle = rawEpTitle && !isGenericEpisodeLabel(rawEpTitle) ? rawEpTitle.slice(0, 300) : null;
@@ -318,7 +322,8 @@ function mapParsedYtdlpResult(
 
   const metadata = {
     mediaType: 'other' as const,
-    ...((parsed.playlist_count != null && parsed.playlist_count > validEntries.length) ||
+    skippedCount,
+    ...((parsed.playlist_count != null && parsed.playlist_count > allEntries.length) ||
     validEntries.some(
       (entry) => !entry.title || (!entry.duration && !['is_live', 'is_upcoming'].includes(entry.live_status || '')),
     )
@@ -399,7 +404,7 @@ export async function resolveWithYtdlp(rawUrl: string, options: RunYtdlpOptions 
   if (
     result.kind === 'playlist' &&
     /(?:^|\.)youtube\.com$/.test(safeUrl.hostname) &&
-    !(parsed.playlist_count && parsed.playlist_count > result.episodes.length) &&
+    !(parsed.playlist_count && parsed.playlist_count > result.episodes.length + (result.skippedCount || 0)) &&
     result.episodes.some((ep) => !ep.name || ep.runtime == null)
   )
     result.warning = 'LINK_METADATA_PENDING';

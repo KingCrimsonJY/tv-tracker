@@ -9,7 +9,7 @@ test('Refresh All counts updated, partial, failed and skipped separately', async
   store.setState((s) => ({
     ...s,
     titles: Object.fromEntries(
-      ['ok', 'partial', 'missing-token', 'manual'].map((id) => [
+      ['ok', 'partial', 'needsReview', 'missing-token', 'manual'].map((id) => [
         id,
         makeBaseTvTitle({ id, source: id === 'manual' ? 'custom' : 'tmdb' }),
       ]),
@@ -17,7 +17,12 @@ test('Refresh All counts updated, partial, failed and skipped separately', async
   }));
   vi.spyOn(api, 'refreshMetadataApi').mockImplementation(async (id) => {
     if (id === 'missing-token') throw new Error('TMDB_NOT_CONFIGURED');
-    return { version: 1, upserts: {}, deletes: {}, status: id === 'partial' ? 'partial' : 'updated' };
+    return {
+      version: 1,
+      upserts: {},
+      deletes: {},
+      status: id === 'partial' ? 'partial' : id === 'needsReview' ? 'needsReview' : 'updated',
+    };
   });
   const actions = createTrackerActions({
     getState: store.getState,
@@ -25,6 +30,12 @@ test('Refresh All counts updated, partial, failed and skipped separately', async
     applyServerMutation: store.applyMutation,
     showToast: vi.fn(),
   });
-  expect(await actions.refreshAllTmdbMetadata()).toEqual({ updated: 1, partial: 1, failed: 1, skipped: 1 });
-  expect(api.refreshMetadataApi).toHaveBeenCalledTimes(3);
+  expect(await actions.refreshAllTmdbMetadata()).toEqual({
+    updated: 1,
+    needsReview: 1,
+    partial: 1,
+    failed: 1,
+    skipped: 1,
+  });
+  expect(api.refreshMetadataApi).toHaveBeenCalledTimes(4);
 });

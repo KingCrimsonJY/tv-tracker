@@ -117,7 +117,7 @@ export function createTitleSyncActions(
     onProgress?: (done: number, total: number) => void,
   ): Promise<MetadataRefreshCounts> {
     const targets = Object.values(getState().titles);
-    const counts: MetadataRefreshCounts = { updated: 0, partial: 0, failed: 0, skipped: 0 };
+    const counts: MetadataRefreshCounts = { updated: 0, needsReview: 0, partial: 0, failed: 0, skipped: 0 };
     let index = 0;
     let done = 0;
     onProgress?.(0, targets.length);
@@ -133,6 +133,7 @@ export function createTitleSyncActions(
     showToast(
       getActiveCatalog().settings.dataManagement.refreshAllSummary(
         counts.updated,
+        counts.needsReview,
         counts.partial,
         counts.failed,
         counts.skipped,
@@ -150,6 +151,7 @@ export function createTitleSyncActions(
       const res = await refreshLinkPlaylistApi(titleId);
       applyServerMutation(res);
       const cat = getActiveCatalog();
+      if (res.skippedCount) showToast(cat.upstream.skippedEntries(res.skippedCount), 'warning');
       if (res.warning) showToast(translateErrorObject({ code: res.warning }, cat), 'warning');
       showToast(
         res.addedCount > 0

@@ -237,6 +237,7 @@ export interface LinkImportEpisodeSeed {
 }
 
 export interface LinkImportResult {
+  skippedCount?: number;
   seriesTitle?: string;
   tmdbMatches?: TmdbSearchItem[];
   kind: 'video' | 'playlist' | 'tmdb-suggestion';
@@ -304,6 +305,7 @@ export interface TitleAtomicActionInput {
 }
 
 export interface PlaylistRefreshResult extends StateMutationResult {
+  skippedCount?: number;
   warning?: string;
   addedCount: number;
 }
@@ -320,7 +322,7 @@ export interface ZhenjiExportV2 {
   entriesByList: Record<string, ListEntryDoc[]>;
 }
 
-export type MetadataRefreshStatus = 'updated' | 'partial' | 'failed' | 'skipped';
+export type MetadataRefreshStatus = 'updated' | 'needsReview' | 'partial' | 'failed' | 'skipped';
 export type MetadataRefreshCounts = Record<MetadataRefreshStatus, number>;
 export interface MetadataRefreshResult extends StateMutationResult {
   status: MetadataRefreshStatus;

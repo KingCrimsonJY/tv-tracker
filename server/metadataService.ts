@@ -24,7 +24,11 @@ export async function refreshTmdbTitle(
     const result = repo.refreshMetadata(id, data, now);
     return {
       ...result,
-      status: data.failedSeasons?.length || result.upserts.titles?.[id]?.upstreamChange ? 'partial' : 'updated',
+      status: data.failedSeasons?.length
+        ? 'partial'
+        : result.upserts.titles?.[id]?.upstreamChange
+          ? 'needsReview'
+          : 'updated',
     };
   } catch (error) {
     if (error instanceof TmdbRequestError && (error.status === 404 || error.status === 410)) {

@@ -1,8 +1,16 @@
 export const zhCN = {
   upstream: {
+    unlock: '解锁季结构',
+    search: '搜索 TMDB',
+    noResults: '没有找到匹配作品',
+    skippedEntries: (count: number) => '已跳过 ' + count + ' 个直播或待首播条目。',
+    seasonSummary: (before: number, after: number) =>
+      before === 1 && after > 1 ? '1 季拆分为 ' + after + ' 季' : '本地 ' + before + ' 季 → 来源 ' + after + ' 季',
+    episodeRef: (season: number, episode?: number) =>
+      episode === undefined ? '第 ' + season + ' 季' : '第 ' + season + ' 季，第 ' + episode + ' 集',
+
     title: '来源与季结构',
     lock: '锁定季结构',
-    lockHint: '固定季和集的编号，名称和图片仍可更新。',
     changed: '来源的季结构已变更',
     changedHint: '本地结构和观看记录已保留。请先预览，再决定是否采用新结构。',
     unavailable: '来源已不可用',
@@ -18,7 +26,6 @@ export const zhCN = {
     lockedHint: '请先解除季结构锁定，再采用变更。',
     manual: '转为手动维护',
     relink: '重新关联 TMDB',
-    tmdbId: '新的 TMDB ID',
     sourceHint: '重新关联会更新元数据，结构变更仍需预览确认。',
     archivedCount: (count: number) => `已为缺失剧集归档保留 ${count} 条观看记录`,
   },
@@ -399,6 +406,7 @@ export const zhCN = {
     },
     overview: { expand: '展开全部', collapse: '收起', empty: '暂无简介' },
     seasons: {
+      episodeRange: '集数范围',
       tabLabel: (n: number) => (n === 0 ? '特别篇' : `第 ${n} 季`),
       selectOptionWithCount: (seasonLabel: string, count: number | string) => `${seasonLabel} (${count} 集)`,
       selectAria: '选择季',
@@ -499,8 +507,8 @@ export const zhCN = {
       importJson: '导入数据 (JSON)',
       refreshAllMetadata: '刷新全部元数据',
       refreshingAllToast: (done: number | string, total: number | string) => `正在刷新双语元数据 (${done}/${total})…`,
-      refreshAllSummary: (updated: number, partial: number, failed: number, skipped: number) =>
-        `已更新 ${updated} · 部分更新 ${partial} · 失败 ${failed} · 跳过 ${skipped}`,
+      refreshAllSummary: (updated: number, needsReview: number, partial: number, failed: number, skipped: number) =>
+        `已更新 ${updated} · 待确认 ${needsReview} · 部分更新 ${partial} · 失败 ${failed} · 跳过 ${skipped}`,
       refreshAllEmptyToast: '当前片库中没有需要刷新的 TMDB 作品',
       refreshAllFailedToast: '刷新元数据失败，请检查 TMDB 配置或网络连接',
       importConfirmTitle: '确认导入并覆盖数据',

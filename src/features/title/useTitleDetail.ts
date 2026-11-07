@@ -141,6 +141,11 @@ export function useTitleDetail() {
   const menuNode = React.createElement(TitleMenu, {
     title,
     titleState,
+    onToggleStructureLock: () => {
+      void tracker
+        .setStructureLock(title.id, !title.structureLocked)
+        .catch((error: unknown) => toast.danger(translateError(error)));
+    },
     onAddToList: () => setAddToListOpen(true),
     onOpenResume: () => {
       setResumeDefaultEpKey(title.resume?.episodeKey ?? titleState.nextUp?.key ?? null);
@@ -155,6 +160,7 @@ export function useTitleDetail() {
         const status = await refreshTitleMetadata(title.id);
         const message = t.settings.dataManagement.refreshAllSummary(
           status === 'updated' ? 1 : 0,
+          status === 'needsReview' ? 1 : 0,
           status === 'partial' ? 1 : 0,
           status === 'failed' ? 1 : 0,
           status === 'skipped' ? 1 : 0,

@@ -1,3 +1,4 @@
+import { toLocalDateString } from '../domain/airing';
 import React, { useRef, useState } from 'react';
 import {
   Card,
@@ -80,7 +81,7 @@ export const SettingsPage: React.FC = () => {
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const dateStr = new Date().toISOString().slice(0, 10);
+      const dateStr = toLocalDateString();
       a.href = url;
       a.download = `zhenji-${dateStr}.json`;
       document.body.appendChild(a);
