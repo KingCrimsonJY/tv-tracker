@@ -1,3 +1,6 @@
+import { LinkImportError } from './providers/linkErrors.ts';
+import { createPlaylistEnricher } from './playlistEnrichment.ts';
+import { resolveWithYtdlp } from './providers/ytdlp.ts';
 import compression from 'compression';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
@@ -49,13 +52,11 @@ export function sendApiError(
   res: Response,
   status: number,
   code: ServerErrorCode,
-  message: string,
+  _message: string,
   extra?: Record<string, unknown>
 ): void {
   res.status(status).json({
     code,
-    message,
-    error: message,
     ...(extra || {}),
   });
 }
@@ -333,12 +334,18 @@ export function createApp(options: CreateAppOptions): Express {
     req.on('close', () => client.close());
   });
 
-  registerEntityRoutes(app, repo, broadcastMutation);
+  const enricher = createPlaylistEnricher({ repo, broadcast: broadcastMutation,
+    loadVideo: url => resolveWithYtdlp(url, { binaryPath: options.linkDeps?.ytdlpPath, execFn: options.linkDeps?.execFn, lookupFn: options.linkDeps?.lookupFn }),
+  });
+  app.locals.stopBackgroundTasks = () => enricher.stop();
+  for (const title of Object.values(repo.getState().titles)) if (title.source === 'url') enricher.schedule(title.id);
+  registerEntityRoutes(app, repo, broadcastMutation, enricher.schedule);
   registerProviderRoutes(app, {
     repo,
     broadcastMutation,
     nowFn,
     linkDeps: options.linkDeps,
+    scheduleEnrichment: enricher.schedule,
   });
 
   app.use('/api', (_req: Request, res: Response) => {
@@ -351,10 +358,11 @@ export function createApp(options: CreateAppOptions): Express {
       const field = firstIssue?.path.length ? firstIssue.path.join('.') : undefined;
       sendApiError(res, 400, 'VALIDATION_ERROR', firstIssue?.message || 'Invalid request payload', {
         ...(field ? { field } : {}),
-        issues: err.issues,
+        issues: err.issues.map(issue => ({ code: issue.code, path: issue.path })),
       });
       return;
     }
+    if (err instanceof LinkImportError) { sendApiError(res, 400, err.code, err.code); return; }
     if (err instanceof NotFoundError) {
       sendApiError(res, 404, err.code, err.message);
       return;

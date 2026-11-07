@@ -13,6 +13,7 @@ import {
   TextField,
   Toast,
 } from '@heroui/react';
+import { NavigationScroll } from './components/NavigationScroll';
 import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
 import { useI18n } from './i18n/index.ts';
@@ -249,7 +250,7 @@ export default function App() {
       <BrowserRouter>
         <TrackerProvider>
           <Toast.Provider placement="bottom" />
-          <AppRoutes />
+          <NavigationScroll><AppRoutes /></NavigationScroll>
         </TrackerProvider>
       </BrowserRouter>
     </I18nProvider>

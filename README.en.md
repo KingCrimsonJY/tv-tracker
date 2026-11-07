@@ -128,7 +128,7 @@
 
 ## Link import support
 
-Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, bangumi, films, courses and live rooms use public metadata where available. YouTube videos, Shorts, playlists and channel tabs use yt-dlp. Review the type, year, runtime and episodes before saving; refresh preserves watch history and fills missing metadata.
+Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, bangumi, films, courses and live replays use public metadata where available. YouTube videos, Shorts, playlists and live replays use yt-dlp. Live rooms, active streams, favorites, Watch Later and channel upload pages cannot be imported. Bangumi imports automatically look for TMDB matches and remain importable as links when no match is found. YouTube playlists save their entries first, then fill missing titles and runtimes in the background. Refresh preserves local structure and watch history; review removals, season splits and renumbering on the title page before adopting them, or lock the structure.
 
 - Empty lists, expired links, login, age and regional restrictions are reported explicitly. Basic webpage fallbacks are labelled as incomplete.
 - Imports are limited to 2,000 entries. Metadata enrichment has concurrency and time limits; unavailable fields remain unknown, without fabricated dates.
@@ -137,7 +137,7 @@ Bilibili BV/AV, mobile and short links, multi-part videos, collections, series, 
 ## Known Limitations
 
 - **Single-User Only**: Built for one owner protected by a single password; there are no multi-user accounts or social features.
-- **Offline Use Intentionally Blocked**: To prevent multi-device sync conflicts, if the server or event stream is unreachable for more than 5 seconds, a full-screen connection guard blocks edits until reconnected.
+- **Offline Use Intentionally Blocked**: To prevent multi-device sync conflicts, 5 seconds after a detected connection failure (or about 20 seconds after heartbeats stop), a full-screen connection guard blocks edits until reconnected.
 - **YouTube Datacenter IP Restrictions**: YouTube frequently blocks `yt-dlp` requests originating from datacenter/VPS IPs; Link Import works best when self-hosted on a home connection (e.g., a home Linux PC exposed via Cloudflare Tunnel or Tailscale).
 - **No Douban Ratings**: Because Douban has no official public API, Douban ratings are not fetched; ratings are provided via TMDB and OMDb (IMDb, Rotten Tomatoes, Metacritic).
 - **API Keys**: A free **TMDB Read Access Token or v3 API Key** is required for TMDB search and metadata refresh; an **OMDb API Key** is optional (used only for IMDb, Rotten Tomatoes, and Metacritic ratings).
@@ -175,7 +175,7 @@ On first start (when no password exists yet), the server generates a random **on
 
 Open `http://localhost:3000`, enter the setup code from the terminal (or the `SETUP_CODE` configured in `.env`), and set a password of at least 10 characters. Once set, the setup endpoint is permanently disabled.
 
-> To generate a pre-populated demo database with curated titles, the Marvel watch order, and offline 3Blue1Brown playlist fixtures in `./data-demo` (without touching `./data`), run `npm run seed:demo`.
+> To generate a pre-populated demo database with curated titles, the Marvel watch order, and offline 3Blue1Brown playlist fixtures in `./data-demo` (without touching `./data`), run `npm run seed:demo`. It ignores `DATA_DIR` and refuses an existing `data-demo` directory.
 
 ## Configuration
 

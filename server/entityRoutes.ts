@@ -1,3 +1,4 @@
+import { assertSupportedLinkType } from './providers/linkScope.ts';
 import type { Express } from 'express';
 import {
   importPayloadSchema,
@@ -19,13 +20,15 @@ import type { TrackerRepository } from './db/repository.ts';
 export function registerEntityRoutes(
   app: Express,
   repo: TrackerRepository,
-  broadcastMutation: (mutation: StateMutationResult) => StateMutationResult
+  broadcastMutation: (mutation: StateMutationResult) => StateMutationResult,
+  scheduleEnrichment: (id: string) => void = () => {},
 ): void {
   app.put('/api/titles/:id', (req, res, next) => {
     try {
       const id = String(req.params.id);
       const parsed = putTitleRequestSchema.parse(req.body);
       const titleDoc = 'title' in parsed ? { ...parsed.title, id } : { ...parsed, id };
+      if (titleDoc.source === 'url' && titleDoc.sourceId) assertSupportedLinkType(titleDoc.sourceId);
       let progressMap: Record<string, ProgressDoc> | undefined;
       if (parsed.progress !== undefined) {
         if (
@@ -47,6 +50,7 @@ export function registerEntityRoutes(
         progress: progressMap,
       });
       res.json(broadcastMutation(mutation));
+      scheduleEnrichment(id);
     } catch (err) {
       next(err);
     }

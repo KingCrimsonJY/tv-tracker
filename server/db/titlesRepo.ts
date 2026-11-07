@@ -1,9 +1,5 @@
-import { normalizeLocalizedEpisodeName } from '../../src/domain/progress.ts';
 import { titleDocSchema } from '../../src/domain/schemas.ts';
 import type {
-  LinkImportEpisodeSeed,
-  LinkImportResult,
-  PlaylistRefreshResult,
   ProgressDoc,
   SeasonDoc,
   StateDeletes,
@@ -76,12 +72,14 @@ export function putTitle(
       for (const [ptId, pDoc] of Object.entries(input.progress)) {
         const progPayload: StoredProgressData = {
           watched: pDoc.watched || {},
+          archivedWatched: pDoc.archivedWatched,
           ...(pDoc.movieWatchedAt !== undefined ? { movieWatchedAt: pDoc.movieWatchedAt } : {}),
         };
         upsertProg.run(id, ptId, JSON.stringify(progPayload));
         storedProgressMap[ptId] = {
           playthroughId: ptId,
           watched: progPayload.watched,
+          archivedWatched: progPayload.archivedWatched,
           ...(progPayload.movieWatchedAt !== undefined
             ? { movieWatchedAt: progPayload.movieWatchedAt }
             : {}),
@@ -213,6 +211,15 @@ export function applyTitleAtomicAction(
       throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
     }
 
+    const currentTitle = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
+    if (input.expectedActivePlaythroughId !== undefined && input.expectedActivePlaythroughId !== currentTitle.activePlaythroughId) {
+      throw new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
+    }
+    const addsPlaythrough = input.title?.playthroughs?.some(p => !currentTitle.playthroughs.some(existing => existing.id === p.id));
+    if (addsPlaythrough && input.expectedActivePlaythroughId === undefined) {
+      throw new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
+    }
+
     const upserts: StateUpserts = {};
     const deletes: StateDeletes = {};
 
@@ -259,6 +266,7 @@ export function applyTitleAtomicAction(
         }
 
         const updatedData: StoredProgressData = {
+          archivedWatched: current.archivedWatched,
           watched,
           ...(movieWatchedAt !== undefined ? { movieWatchedAt } : {}),
         };
@@ -274,6 +282,7 @@ export function applyTitleAtomicAction(
         const doc: ProgressDoc = {
           playthroughId: ptId,
           watched: updatedData.watched,
+          archivedWatched: updatedData.archivedWatched,
           ...(updatedData.movieWatchedAt !== undefined
             ? { movieWatchedAt: updatedData.movieWatchedAt }
             : {}),
@@ -314,134 +323,6 @@ export function applyTitleAtomicAction(
       version,
       upserts,
       deletes,
-    };
-  });
-}
-
-export function appendPlaylistEpisodes(
-  ctx: DbContext,
-  titleId: string,
-  incomingEpisodes: LinkImportEpisodeSeed[],
-  now = Date.now(),
-  metadata?: LinkImportResult
-): PlaylistRefreshResult {
-  return ctx.runInTransaction(() => {
-    const titleRow = ctx.db.prepare('SELECT data FROM titles WHERE id = ?').get(titleId) as
-      | { data: string }
-      | undefined;
-    if (!titleRow) {
-      throw new NotFoundError(`Title not found: ${titleId}`, 'TITLE_NOT_FOUND');
-    }
-
-    const existingTitle = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
-    const seasonRows = ctx.db
-      .prepare(
-        'SELECT season_number, data FROM seasons WHERE title_id = ? ORDER BY season_number ASC'
-      )
-      .all(titleId) as Array<{ season_number: number; data: string }>;
-
-    const incomingById = new Map(incomingEpisodes.filter(ep => ep.sourceVideoId).map(ep => [ep.sourceVideoId!, ep]));
-    const seasons: SeasonDoc[] = seasonRows.map((r) => {
-      const season = JSON.parse(r.data) as SeasonDoc;
-      return { ...season, episodes: season.episodes.map(ep => {
-        const item = ep.sourceVideoId ? incomingById.get(ep.sourceVideoId) : undefined;
-        if (!item) return ep;
-        return {
-          ...ep,
-          name: normalizeLocalizedEpisodeName(ep.name) ?? normalizeLocalizedEpisodeName(item.name),
-          runtime: ep.runtime ?? item.runtime ?? null,
-          airDate: ep.airDate ?? item.airDate ?? null,
-        };
-      }) };
-    });
-    let season1 = seasons.find((s) => s.seasonNumber === 1);
-    if (!season1 && incomingEpisodes.length > 0) {
-      season1 = { seasonNumber: 1, name: null, episodes: [] };
-      seasons.push(season1);
-      seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
-    }
-
-    const existingVideoIds = new Set<string>();
-    let maxEpNumber = 0;
-    for (const s of seasons) {
-      for (const ep of s.episodes) {
-        if (ep.sourceVideoId) {
-          existingVideoIds.add(ep.sourceVideoId);
-        }
-        if (s.seasonNumber === 1 && ep.number > maxEpNumber) {
-          maxEpNumber = ep.number;
-        }
-      }
-    }
-
-    let addedCount = 0;
-    const appendedEpisodes = [...(season1?.episodes ?? [])];
-    for (const item of incomingEpisodes) {
-      const vidId = item.sourceVideoId?.trim();
-      if (!vidId || existingVideoIds.has(vidId)) {
-        continue;
-      }
-      existingVideoIds.add(vidId);
-      maxEpNumber += 1;
-      addedCount += 1;
-      appendedEpisodes.push({
-        number: maxEpNumber,
-        key: `s1e${maxEpNumber}`,
-        name: normalizeLocalizedEpisodeName({
-          zh: item.name ?? undefined,
-          en: item.name ?? undefined,
-        }),
-        airDate: item.airDate ?? null,
-        runtime: item.runtime ?? existingTitle.runtimeMin ?? null,
-        stillPath: null,
-        overview: {},
-        sourceVideoId: vidId,
-      });
-    }
-
-    const updatedSeasons = seasons.map((s) =>
-      s.seasonNumber === 1 ? { ...s, episodes: appendedEpisodes } : s
-    );
-
-    ctx.db.prepare('DELETE FROM seasons WHERE title_id = ?').run(titleId);
-    const insertSeason = ctx.db.prepare(
-      'INSERT INTO seasons (title_id, season_number, data) VALUES (?, ?, ?)'
-    );
-    for (const s of updatedSeasons) {
-      insertSeason.run(titleId, s.seasonNumber, JSON.stringify(s));
-    }
-
-    const updatedTitle: TitleDoc = {
-      ...existingTitle,
-      id: titleId,
-      ...(metadata ? {
-        sourceId: metadata.sourceUrl,
-        year: existingTitle.year ?? metadata.year,
-        runtimeMin: metadata.liveStatus === 'live' ? null : existingTitle.runtimeMin ?? metadata.runtimeMin,
-        posterPath: existingTitle.posterPath || metadata.posterUrl,
-        backdropPath: existingTitle.backdropPath || metadata.posterUrl,
-        uploader: existingTitle.uploader || metadata.uploader,
-        ...(metadata.liveStatus ? { liveStatus: metadata.liveStatus } : {}),
-      } : {}),
-      mediaType: incomingEpisodes.length > 0 && existingTitle.mediaType === 'movie' && metadata?.mediaType !== 'movie'
-        ? 'other' : existingTitle.mediaType,
-      metaFetchedAt: now,
-      updatedAt: now,
-    };
-    const dataJson = serializeTitleData(updatedTitle);
-    ctx.db
-      .prepare('UPDATE titles SET data = ?, added_at = ?, updated_at = ? WHERE id = ?')
-      .run(dataJson, updatedTitle.addedAt, updatedTitle.updatedAt, titleId);
-
-    const version = ctx.bumpVersionInTx();
-    return {
-      version,
-      addedCount,
-      upserts: {
-        titles: { [titleId]: updatedTitle },
-        seasonsByTitle: { [titleId]: updatedSeasons },
-      },
-      deletes: {},
     };
   });
 }

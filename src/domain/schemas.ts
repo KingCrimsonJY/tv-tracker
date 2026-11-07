@@ -94,7 +94,18 @@ export const externalIdsSchema = z.object({
 
 export const overviewSchema = localizedTextSchema;
 
+const upstreamFields = {
+  structureLocked: z.boolean().optional(),
+  sourceUnavailable: z.boolean().optional(),
+  ignoredStructure: z.string().nullable().optional(),
+  upstreamChange: z.object({
+    signature: z.string(), fetchedAt: z.number().nonnegative(),
+    seasons: z.array(z.lazy(() => seasonDocSchema)),
+  }).nullable().optional(),
+};
+
 const baseTitleFields = {
+  ...upstreamFields,
   source: titleSourceSchema,
   sourceId: z.string().nullable(),
   mediaType: mediaTypeSchema,
@@ -106,7 +117,6 @@ const baseTitleFields = {
   genres: z.array(z.string()),
   genreIds: z.array(z.number().int()).optional(),
   uploader: z.string().nullable().optional(),
-  liveStatus: z.enum(['live', 'upcoming', 'ended', 'offline']).optional(),
   posterPath: z.string().nullable(),
   posters: localizedPostersSchema.optional(),
   backdropPath: z.string().nullable(),
@@ -149,6 +159,7 @@ export const titleDocSchema: z.ZodType<TitleDoc> = z
 
 export const patchTitleRequestSchema = z
   .object({
+    structureLocked: z.boolean().optional(),
     source: titleSourceSchema.optional(),
     sourceId: z.string().nullable().optional(),
     mediaType: mediaTypeSchema.optional(),
@@ -160,7 +171,6 @@ export const patchTitleRequestSchema = z
     genres: z.array(z.string()).optional(),
     genreIds: z.array(z.number().int()).optional(),
     uploader: z.string().nullable().optional(),
-    liveStatus: z.enum(['live', 'upcoming', 'ended', 'offline']).optional(),
     posterPath: z.string().nullable().optional(),
     posters: localizedPostersSchema.optional(),
     backdropPath: z.string().nullable().optional(),
@@ -180,6 +190,7 @@ export const patchTitleRequestSchema = z
   .strict();
 
 export const episodeMetaSchema: z.ZodType<EpisodeMeta> = z.object({
+  tmdbEpisodeId: z.number().int().positive().optional(),
   number: z.number().int().min(1),
   key: z.string().regex(/^s\d+e\d+$/i),
   name: localizedEpisodeNameSchema,
@@ -198,12 +209,16 @@ export const seasonDocSchema: z.ZodType<SeasonDoc> = z.object({
   episodes: z.array(episodeMetaSchema),
 });
 
+const archivedWatchedSchema = z.array(z.object({ episode: episodeMetaSchema, watchedAt: z.number().nonnegative() })).optional();
+
 export const progressDataSchema = z.object({
+  archivedWatched: archivedWatchedSchema,
   watched: z.record(z.string(), z.number().nonnegative()),
   movieWatchedAt: z.number().nonnegative().optional(),
 });
 
 export const progressDocSchema: z.ZodType<ProgressDoc> = z.object({
+  archivedWatched: archivedWatchedSchema,
   playthroughId: z.string().min(1),
   watched: z.record(z.string(), z.number().nonnegative()),
   movieWatchedAt: z.number().nonnegative().optional(),
@@ -236,6 +251,7 @@ export const titleAtomicProgressMutationSchema = z
 
 export const titleAtomicActionRequestSchema: z.ZodType<TitleAtomicActionInput> = z
   .object({
+    expectedActivePlaythroughId: z.string().min(1).optional(),
     progress: titleAtomicProgressMutationSchema.optional(),
     title: patchTitleRequestSchema.optional(),
   })

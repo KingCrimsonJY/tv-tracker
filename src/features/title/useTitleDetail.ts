@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
+import { toLocalDateString } from '../../domain/airing';
 import { computeTitleState } from '../../domain/status';
 import { resolveDisplayTitle, resolveOverviewText } from '../../domain/ordering';
 import { resolveTitleGenres } from '../../domain/genres';
@@ -40,7 +41,7 @@ export function useTitleDetail() {
   const title = id ? titles[id] : undefined;
   const seasons = useMemo(() => (id ? seasonsByTitle[id] ?? [] : []), [id, seasonsByTitle]);
   const activeProgress = title ? getActiveProgress(title) : undefined;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateString();
 
   const titleState = useMemo(() => {
     if (!title) return null;
@@ -50,6 +51,7 @@ export function useTitleDetail() {
     });
   }, [title, seasons, activeProgress, settings.includeSpecials, today]);
 
+  const titleUnavailable = title?.sourceUnavailable;
   const titleId = title?.id;
   const titleMetaFetchedAt = title?.metaFetchedAt;
   const titleRatingsFetchedAt = title?.ratings.fetchedAt;
@@ -63,7 +65,7 @@ export function useTitleDetail() {
   const titleOverviewEn = title?.overview.en;
 
   useEffect(() => {
-    if (!titleId) return;
+    if (!titleId || titleUnavailable) return;
     const now = Date.now();
     const isOngoing =
       titleMediaType === 'tv' &&
@@ -76,7 +78,7 @@ export function useTitleDetail() {
 
     if (
       titleSource === 'tmdb' &&
-      (!titleMetaFetchedAt || now - titleMetaFetchedAt > threshold || missingEitherLang)
+      (!titleMetaFetchedAt || now - titleMetaFetchedAt > threshold || (missingEitherLang && now - titleMetaFetchedAt > 3600_000))
     ) {
       void refreshTitleMetadata(titleId).catch(() => {});
     }
@@ -90,6 +92,7 @@ export function useTitleDetail() {
     }
   }, [
     titleId,
+    titleUnavailable,
     titleMetaFetchedAt,
     titleRatingsFetchedAt,
     titleSource,
@@ -155,7 +158,10 @@ export function useTitleDetail() {
     onOpenEdit: () => setEditModalOpen(true),
     onRefreshMetadata: async () => {
       try {
-        await refreshTitleMetadata(title.id);
+        const status = await refreshTitleMetadata(title.id);
+        const message = t.settings.dataManagement.refreshAllSummary(status === 'updated' ? 1 : 0, status === 'partial' ? 1 : 0, status === 'failed' ? 1 : 0, status === 'skipped' ? 1 : 0);
+        if (status === 'failed' || status === 'partial') toast.warning(message);
+        else toast.success(message);
       } catch (err) {
         toast.danger(translateError(err));
       }

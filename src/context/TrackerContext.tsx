@@ -27,6 +27,7 @@ import {
 import type { ToastVariant } from '../data/actions/types.ts';
 import { runOneTimeLegacyStorageCleanup } from '../data/storageCleanup.ts';
 import { trackerStore } from '../data/store.ts';
+import { createReconciler } from '../data/reconcile.ts';
 import type {
   AppSettingsDoc,
   CollectionSort,
@@ -34,6 +35,8 @@ import type {
   ListEntryDoc,
   ListKind,
   ManualState,
+  MetadataRefreshStatus,
+  MetadataRefreshCounts,
   ProgressDoc,
   SeasonDoc,
   StateMutationResult,
@@ -77,9 +80,12 @@ export interface TrackerContextValue {
     customName?: string
   ) => Promise<void>;
   setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
+  setStructureLock: (id: string, locked: boolean) => Promise<void>;
+  resolveStructure: (id: string, input: Parameters<typeof import('../data/api.ts').decideStructureApi>[1]) => Promise<void>;
+  changeTitleSource: (id: string, input: Parameters<typeof import('../data/api.ts').changeTitleSourceApi>[1]) => Promise<void>;
   fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
-  refreshTitleMetadata: (titleId: string) => Promise<void>;
-  refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<number>;
+  refreshTitleMetadata: (titleId: string) => Promise<MetadataRefreshStatus>;
+  refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<MetadataRefreshCounts>;
   refreshLinkTitlePlaylist: (titleId: string) => Promise<number>;
   tmdbGenres: { zh: Record<number, string>; en: Record<number, string> } | null;
   removeTitle: (titleId: string) => Promise<void>;
@@ -205,7 +211,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
   }, [authenticated]);
 
-  const refreshStateFromServer = useCallback(async () => {
+  const readStateFromServer = useCallback(async () => {
     try {
       const snapshot = await fetchStateSnapshot();
       trackerStore.applySnapshot(snapshot);
@@ -223,10 +229,12 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  const refreshStateFromServer = useMemo(() => createReconciler(readStateFromServer), [readStateFromServer]);
+
   const applyServerMutation = useCallback(
     (mutation: StateMutationResult) => {
-      const { epochChanged } = trackerStore.applyMutation(mutation);
-      if (epochChanged) void refreshStateFromServer();
+      trackerStore.applyMutation(mutation);
+      void refreshStateFromServer();
     },
     [refreshStateFromServer]
   );

@@ -112,11 +112,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
                 </Chip>
               )}
 
-              {title.liveStatus && (
-                <Chip size="sm" color={title.liveStatus === 'live' ? 'danger' : 'default'} variant="soft">
-                  {t.liveStatus[title.liveStatus]}
-                </Chip>
-              )}
+
               {titleState.hasNewEpisodes && (
                 <Chip size="sm" color="accent" variant="primary">
                   {t.status.newEpisodesBadge}

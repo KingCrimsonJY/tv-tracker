@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: docker build -t zhenji:ci .
+      - name: Check production container
+        run: |
+          docker run -d --name zhenji-ci -p 127.0.0.1:3000:3000 zhenji:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/healthz; then exit 0; fi
+            sleep 2
+          done
+          docker logs zhenji-ci
+          exit 1
+      - if: always()
+        run: docker rm -f zhenji-ci || true

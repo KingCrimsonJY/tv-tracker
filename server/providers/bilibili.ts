@@ -1,3 +1,4 @@
+import { assertSupportedLinkType } from './linkScope.ts';
 import { z } from 'zod';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
 import { safeFetchFollowingRedirects, readResponseText, type SafeFetchOptions } from '../security/ssrf.ts';
@@ -28,13 +29,8 @@ const archiveSchema = z.object({
 });
 const archivePageSchema = z.object({
   archives: z.array(archiveSchema).optional(),
-  medias: z.array(archiveSchema).nullable().optional(),
   page: z.object({ total: z.number(), page_size: z.number().optional(), size: z.number().optional() }).optional(),
   meta: z.object({ name: z.string(), description: nullableText, cover: nullableText }).optional(),
-  info: z.object({
-    title: z.string(), intro: nullableText, cover: nullableText, media_count: z.number(),
-    upper: z.object({ name: z.string() }).optional(),
-  }).optional(),
   has_more: z.boolean().optional(),
 });
 
@@ -55,7 +51,7 @@ function minutes(seconds?: number): number | null {
 function date(seconds?: number): string | null {
   if (!seconds || !Number.isFinite(seconds)) return null;
   const value = new Date(seconds * 1000);
-  return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  return Number.isNaN(value.getTime()) ? null : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
 }
 
 function base(url: string, title: string): LinkImportResult {
@@ -71,12 +67,13 @@ export async function resolveBilibiliMetadata(
   input: string,
   deps: SafeFetchOptions & { forceImport?: boolean } = {}
 ): Promise<LinkImportResult | null> {
+  assertSupportedLinkType(input);
   const url = new URL(input);
   if (!isBilibiliUrl(url)) return null;
   const signal = AbortSignal.timeout(30_000);
 
-  async function api(endpoint: string, params: Record<string, string> = {}, live = false): Promise<unknown> {
-    const target = new URL(endpoint, live ? 'https://api.live.bilibili.com/' : 'https://api.bilibili.com/');
+  async function api(endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
+    const target = new URL(endpoint, 'https://api.bilibili.com/');
     Object.entries(params).forEach(([key, value]) => target.searchParams.set(key, value));
     const { response } = await safeFetchFollowingRedirects(target.toString(), {
       headers: { Referer: 'https://www.bilibili.com/', 'User-Agent': 'Zhenji/1.0 (metadata tracker)' }, signal,
@@ -115,7 +112,7 @@ export async function resolveBilibiliMetadata(
     result.posterUrl = cover(data.pic);
     result.overview = (data.desc === '-' ? '' : data.desc || '').slice(0, 2000);
     result.uploader = data.owner?.name ?? null;
-    result.year = data.pubdate ? new Date(data.pubdate * 1000).getUTCFullYear() : null;
+    result.year = date(data.pubdate) ? Number(date(data.pubdate)?.slice(0, 4)) : null;
     result.runtimeMin = minutes(part?.duration ?? data.duration);
     if (!selected && data.pages.length > 1) {
       if (data.pages.length > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
@@ -131,8 +128,8 @@ export async function resolveBilibiliMetadata(
 
   const bangumi = /\/bangumi\/(?:play|media)\/(ss|ep|md)(\d+)/.exec(url.pathname);
   const cheese = /\/cheese\/play\/(ss|ep)(\d+)/.exec(url.pathname);
-  if (bangumi || cheese) {
-    const match = (bangumi || cheese)!;
+  const match = bangumi || cheese;
+  if (match) {
     const isCourse = Boolean(cheese);
     let query = { [match[1] === 'ep' ? 'ep_id' : 'season_id']: match[2] };
     if (match[1] === 'md') {
@@ -170,29 +167,12 @@ export async function resolveBilibiliMetadata(
     return result;
   }
 
-  if (url.hostname === 'live.bilibili.com') {
-    const room = /^\/(?:blanc\/)?(\d+)\/?$/.exec(url.pathname)?.[1];
-    if (!room) return null;
-    const data = z.object({
-      room_id: id, title: z.string().min(1), user_cover: nullableText, keyframe: nullableText,
-      live_status: z.number(),
-    }).parse(await api('/room/v1/Room/get_info', { room_id: room }, true));
-    return {
-      ...base('https://live.bilibili.com/' + data.room_id, data.title),
-      posterUrl: cover(data.user_cover || data.keyframe),
-      liveStatus: data.live_status === 1 ? 'live' : 'offline',
-      ...(data.live_status !== 1 ? { warning: 'LINK_NOT_LIVE' } : {}),
-    };
-  }
-
   const space = /^\/(\d+)\/(?:lists\/(\d+)|channel\/(collectiondetail|seriesdetail))\/?$/.exec(url.pathname);
-  const favorite = url.searchParams.get('fid') || /^\/medialist\/detail\/ml(\d+)/.exec(url.pathname)?.[1];
-  if ((space && url.hostname === 'space.bilibili.com') || favorite) {
-    const series = space?.[3] === 'seriesdetail' || url.searchParams.get('type') === 'series';
-    const sid = space?.[2] || url.searchParams.get('sid') || '';
-    const endpoint = favorite ? '/x/v3/fav/resource/list'
-      : series ? '/x/series/archives' : '/x/polymer/web-space/seasons_archives_list';
-    const pageSize = favorite ? 20 : 100;
+  if (space && url.hostname === 'space.bilibili.com') {
+    const series = space[3] === 'seriesdetail' || url.searchParams.get('type') === 'series';
+    const sid = space[2] || url.searchParams.get('sid') || '';
+    const endpoint = series ? '/x/series/archives' : '/x/polymer/web-space/seasons_archives_list';
+    const pageSize = 100;
     const entries: LinkImportEpisodeSeed[] = [];
     const seen = new Set<string>();
     let result: LinkImportResult | null = null;
@@ -200,25 +180,24 @@ export async function resolveBilibiliMetadata(
     let received = 0;
     // Providers may clamp the requested page size. Bound requests independently.
     for (let page = 1; page <= 100; page++) {
-      const params: Record<string, string> = favorite ? { media_id: favorite, pn: String(page), ps: String(pageSize) }
-        : series ? { mid: space![1], series_id: sid, pn: String(page), ps: String(pageSize) }
-        : { mid: space![1], season_id: sid, page_num: String(page), page_size: String(pageSize) };
+      const params: Record<string, string> = series
+        ? { mid: space[1], series_id: sid, pn: String(page), ps: String(pageSize) }
+        : { mid: space[1], season_id: sid, page_num: String(page), page_size: String(pageSize) };
       const data = archivePageSchema.parse(await api(endpoint, params));
-      const items = data.archives ?? data.medias ?? [];
+      const items = data.archives ?? [];
       if (page === 1) {
-        total = data.page?.total ?? data.info?.media_count ?? items.length;
+        total = data.page?.total ?? items.length;
         if (total > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
         let meta = data.meta;
         if (series) {
           meta = z.object({ meta: z.object({ name: z.string(), description: nullableText }) })
             .parse(await api('/x/series/series', { series_id: sid })).meta;
         }
-        result = base(input, meta?.name || data.info?.title || '');
+        result = base(input, meta?.name || '');
         if (!result.title) throw new LinkImportError('LINK_PARSE_FAILED', 'Playlist title is missing.');
         result.kind = 'playlist';
-        result.posterUrl = cover(meta?.cover || data.info?.cover || items[0]?.pic);
-        result.overview = (meta?.description || data.info?.intro || '').slice(0, 2000);
-        result.uploader = data.info?.upper?.name ?? null;
+        result.posterUrl = cover(meta?.cover || items[0]?.pic);
+        result.overview = (meta?.description || '').slice(0, 2000);
       }
       const previousCount = entries.length;
       received += items.length;

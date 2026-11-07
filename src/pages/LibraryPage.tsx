@@ -234,7 +234,7 @@ export const LibraryPage: React.FC = () => {
       {/* Poster Grid: 3 columns on phone, 4-5 on tablet, 6-8 on desktop */}
       {loadingData ? (
         <div
-          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3.5 sm:gap-5"
+          className="poster-grid"
           aria-label={t.library.loadingAria}
         >
           {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -264,7 +264,7 @@ export const LibraryPage: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3.5 sm:gap-5">
+        <div className="poster-grid">
           {items.map(({ title, seasons, progress }) => (
             <PosterCard
               key={title.id}

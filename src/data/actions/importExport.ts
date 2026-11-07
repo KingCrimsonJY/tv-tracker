@@ -3,20 +3,11 @@ import { buildExportV2FromState } from '../store.ts';
 import type { TrackerActionDeps } from './types.ts';
 
 export function createImportExportActions(deps: TrackerActionDeps) {
-  const { getState, setState } = deps;
+  const { getState, applyServerMutation } = deps;
 
   async function importBackupData(rawPayload: unknown): Promise<void> {
     const mut = await importDataApi(rawPayload);
-    setState((prev) => ({
-      version: mut.version,
-      epoch: mut.epoch ?? prev.epoch,
-      titles: mut.upserts.titles || {},
-      seasonsByTitle: mut.upserts.seasonsByTitle || {},
-      progressByTitle: mut.upserts.progressByTitle || {},
-      lists: mut.upserts.lists || {},
-      entriesByList: mut.upserts.entriesByList || {},
-      settings: mut.upserts.settings || prev.settings,
-    }));
+    applyServerMutation(mut);
   }
 
   function exportAllDataJson(): string {

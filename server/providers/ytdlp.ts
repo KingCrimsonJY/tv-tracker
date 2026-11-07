@@ -1,10 +1,11 @@
+import { assertSupportedLinkType } from './linkScope.ts';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { isGenericEpisodeLabel } from '../../src/domain/airing.ts';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
-import { LinkImportError, classifyLinkFailure } from './linkErrors.ts';
+import { LinkImportError } from './linkErrors.ts';
 import { isBangumiUrl } from './linkUrls.ts';
 import { assertSafePublicUrl, type DnsLookupFn } from '../security/ssrf.ts';
 
@@ -272,6 +273,11 @@ function mapParsedYtdlpResult(
   inputUrl: string,
   options: { forceImport?: boolean }
 ): LinkImportResult {
+  assertSupportedLinkType(inputUrl);
+  if (parsed.webpage_url) assertSupportedLinkType(parsed.webpage_url);
+  if (parsed.is_live || ['is_live', 'is_upcoming'].includes(parsed.live_status || '') || parsed.entries?.some(ep => ep && ['is_live', 'is_upcoming'].includes(ep.live_status || ''))) {
+    throw new LinkImportError('LINK_LIVE_UNSUPPORTED', 'LINK_LIVE_UNSUPPORTED');
+  }
   const rawTitle = (parsed.series?.trim() && isTvOrBangumiOutput(parsed, inputUrl) && !options.forceImport
     ? parsed.series.trim()
     : parsed.title?.trim()) || '';
@@ -313,11 +319,7 @@ function mapParsedYtdlpResult(
     };
   });
 
-  const liveStatus = parsed.is_live || parsed.live_status === 'is_live' ? 'live'
-    : parsed.live_status === 'is_upcoming' ? 'upcoming'
-    : parsed.live_status === 'was_live' || parsed.live_status === 'post_live' ? 'ended' : undefined;
   const metadata = {
-    ...(liveStatus ? { liveStatus } : {}),
     mediaType: 'other' as const,
     ...((parsed.playlist_count != null && parsed.playlist_count > validEntries.length) || validEntries.some(entry => !entry.title || (!entry.duration && !['is_live', 'is_upcoming'].includes(entry.live_status || '')))
       ? { warning: 'LINK_METADATA_INCOMPLETE' } : {}),
@@ -369,6 +371,7 @@ export async function resolveWithYtdlp(
   rawUrl: string,
   options: RunYtdlpOptions = {}
 ): Promise<LinkImportResult> {
+  assertSupportedLinkType(rawUrl);
   const safeUrl = await assertSafePublicUrl(rawUrl, options.lookupFn);
   const binaryPath = getYtdlpBinaryPath(options.binaryPath);
   const execFn = options.execFn ?? defaultYtdlpExec;
@@ -395,41 +398,11 @@ export async function resolveWithYtdlp(
   const parsed = ytdlpOutputSchema.parse(parsedJson);
   // Reject empty/oversized playlists before spending requests on optional enrichment.
   getPlaylistEntries(parsed);
-  if (parsed.entries && (parsed.extractor || '').toLowerCase().startsWith('youtube')) {
-    // Bounded enrichment of Shorts/channel entries omitted by the flat extractor.
-    // Never follow arbitrary entry URLs emitted by a third-party page.
-    const deadline = Date.now() + 60_000;
-    const pending = parsed.entries.filter(entry => entry?.id && /^[\w-]{11}$/.test(entry.id) &&
-      (!entry.title || !entry.duration) && !['is_live', 'is_upcoming'].includes(entry.live_status || '')).slice(0, 2000);
-    let cursor = 0;
-    let sourceBlocked = false;
-    await Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
-      while (!sourceBlocked && cursor < pending.length && Date.now() < deadline) {
-        const entry = pending[cursor++];
-        if (!entry) continue;
-        try {
-          const target = 'https://www.youtube.com/watch?v=' + entry.id;
-          await assertSafePublicUrl(target, options.lookupFn);
-          const detail = await execFn(binaryPath, buildYtdlpArgs(target), {
-            timeout: Math.min(timeout, Math.max(1, deadline - Date.now())),
-            maxBuffer: YTDLP_MAX_BUFFER_BYTES,
-          });
-          const info = ytdlpOutputSchema.parse(JSON.parse(detail.stdout));
-          entry.title ||= info.title;
-          entry.duration ||= info.duration;
-          entry.live_status ||= info.live_status;
-        } catch (err) {
-          if (['LINK_RATE_LIMITED', 'LINK_LOGIN_REQUIRED'].includes(classifyLinkFailure(err).code)) {
-            sourceBlocked = true;
-          }
-          // Preserve every item and report partial metadata instead of dropping it.
-        }
-      }
-    }));
-  }
-  return mapParsedYtdlpResult(parsed, safeUrl.toString(), {
-    forceImport: options.forceImport,
-  });
+  const result = mapParsedYtdlpResult(parsed, safeUrl.toString(), { forceImport: options.forceImport });
+  if (result.kind === 'playlist' && /(?:^|\.)youtube\.com$/.test(safeUrl.hostname) &&
+      !(parsed.playlist_count && parsed.playlist_count > result.episodes.length) &&
+      result.episodes.some(ep => !ep.name || ep.runtime == null)) result.warning = 'LINK_METADATA_PENDING';
+  return result;
 }
 
 export async function getYtdlpVersion(options: {

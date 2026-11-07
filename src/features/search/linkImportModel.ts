@@ -1,4 +1,4 @@
-import type { LinkImportEpisodeSeed, LinkImportResult, LinkLiveStatus, MediaType } from '../../domain/types.ts';
+import type { LinkImportEpisodeSeed, LinkImportResult, MediaType } from '../../domain/types.ts';
 
 export interface ManualSeed {
   title: string;
@@ -8,7 +8,6 @@ export interface ManualSeed {
   uploader?: string | null;
   year?: number | null;
   runtimeMin?: number | null;
-  liveStatus?: LinkLiveStatus;
   warning?: string;
   episodeCount: number;
   episodes?: LinkImportEpisodeSeed[];
@@ -21,7 +20,7 @@ export function linkResultToManualSeed(result: LinkImportResult): ManualSeed {
     title: result.title, mediaType: result.mediaType ?? 'other',
     posterUrl: result.posterUrl || '', overview: result.overview,
     uploader: result.uploader, year: result.year, runtimeMin: result.runtimeMin,
-    liveStatus: result.liveStatus, warning: result.warning ||
+    warning: result.warning ||
       (result.fallbackUsed === 'og' ? 'LINK_METADATA_INCOMPLETE' : undefined),
     episodeCount: result.episodes.length, episodes: result.episodes,
     source: 'url', sourceUrl: result.sourceUrl,

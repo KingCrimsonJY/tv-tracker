@@ -39,6 +39,9 @@ export type ServerErrorCode =
   | 'LIST_NOT_FOUND'
   | 'ENTRY_NOT_FOUND'
   | 'CONFLICT_ERROR'
+  | 'REWATCH_CONFLICT'
+  | 'STRUCTURE_CONFLICT'
+  | 'SOURCE_UNAVAILABLE'
   | 'VALIDATION_ERROR'
   | 'PAYLOAD_TOO_LARGE'
   | 'ROUTE_NOT_FOUND'
@@ -57,7 +60,10 @@ export type ServerErrorCode =
   | 'LINK_PAYMENT_REQUIRED'
   | 'LINK_LOGIN_REQUIRED'
   | 'LINK_UNAVAILABLE'
-  | 'LINK_NOT_LIVE'
+  | 'LINK_LIVE_UNSUPPORTED'
+  | 'LINK_FAVORITES_UNSUPPORTED'
+  | 'LINK_WATCH_LATER_UNSUPPORTED'
+  | 'LINK_FEED_UNSUPPORTED'
   | 'LINK_RATE_LIMITED'
   | 'LINK_EMPTY_PLAYLIST'
   | 'LINK_PLAYLIST_TOO_LARGE'
@@ -129,9 +135,21 @@ export interface TitleNames {
   custom?: string;
 }
 
-export type LinkLiveStatus = 'live' | 'upcoming' | 'ended' | 'offline';
+export interface UpstreamChange {
+  signature: string;
+  seasons: SeasonDoc[];
+  fetchedAt: number;
+}
+export interface ArchivedWatch {
+  episode: EpisodeMeta;
+  watchedAt: number;
+}
 
 export interface TitleDoc {
+  structureLocked?: boolean;
+  sourceUnavailable?: boolean;
+  upstreamChange?: UpstreamChange | null;
+  ignoredStructure?: string | null;
   id: string;
   source: TitleSource;
   sourceId: string | null;
@@ -144,7 +162,6 @@ export interface TitleDoc {
   genres: string[];
   genreIds?: number[];
   uploader?: string | null;
-  liveStatus?: LinkLiveStatus;
   posterPath: string | null;
   posters?: LocalizedPosters;
   backdropPath: string | null;
@@ -163,6 +180,7 @@ export interface TitleDoc {
 }
 
 export interface EpisodeMeta {
+  tmdbEpisodeId?: number;
   number: number;
   key: string; // e.g. 's2e5'
   name: LocalizedText | null;
@@ -182,6 +200,7 @@ export interface SeasonDoc {
 }
 
 export interface ProgressDoc {
+  archivedWatched?: ArchivedWatch[];
   playthroughId: string;
   watched: Record<string, number>; // episodeKey -> watchedAt (unix ms)
   movieWatchedAt?: number; // unix ms (for movies)
@@ -237,12 +256,12 @@ export interface LinkImportEpisodeSeed {
 }
 
 export interface LinkImportResult {
+  tmdbMatches?: TmdbSearchItem[];
   kind: 'video' | 'playlist' | 'tmdb-suggestion';
   title: string;
   posterUrl: string | null;
   overview: string;
   uploader?: string | null;
-  liveStatus?: LinkLiveStatus;
   sourceUrl: string;
   year: number | null;
   runtimeMin: number | null;
@@ -280,6 +299,7 @@ export interface StateDeletes {
 }
 
 export interface StateMutationResult {
+  replace?: boolean;
   version: number;
   epoch?: string;
   upserts: StateUpserts;
@@ -296,6 +316,7 @@ export interface TitleAtomicProgressMutation {
 }
 
 export interface TitleAtomicActionInput {
+  expectedActivePlaythroughId?: string;
   progress?: TitleAtomicProgressMutation;
   title?: Partial<Omit<TitleDoc, 'id'>>;
 }
@@ -315,4 +336,15 @@ export interface ZhenjiExportV2 {
   progressByTitle: Record<string, Record<string, ProgressDoc>>;
   lists: Record<string, WatchListDoc>;
   entriesByList: Record<string, ListEntryDoc[]>;
+}
+
+export type MetadataRefreshStatus = 'updated' | 'partial' | 'failed' | 'skipped';
+export type MetadataRefreshCounts = Record<MetadataRefreshStatus, number>;
+export interface MetadataRefreshResult extends StateMutationResult {
+  status: MetadataRefreshStatus;
+}
+export interface TmdbDetails {
+  title: TitleDoc;
+  seasons: SeasonDoc[];
+  failedSeasons?: number[];
 }

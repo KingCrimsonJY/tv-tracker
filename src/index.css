@@ -188,3 +188,10 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Size poster columns against usable content width, including navigation rails. */
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+}

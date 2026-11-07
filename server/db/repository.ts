@@ -1,12 +1,11 @@
+import { fillEpisodeMetadata } from './enrichmentRepo.ts';
+import { runMigration002InTx, runMigration003InTx, runMigration004InTx } from './legacyMigrations.ts';
+import { appendPlaylistEpisodes } from './linkMetadataRepo.ts';
+import { previewStructure, decideStructure, convertToManual } from './structureRepo.ts';
+import { readSeasons, refreshMetadata } from './metadataRepo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
-import {
-  normalizeLocalizedEpisodeName,
-  normalizeLocalizedSeasonName,
-  splitUploaderPrefixFromOverview,
-} from '../../src/domain/progress.ts';
 import type {
   AppSettingsDoc,
   AppStateSnapshot,
@@ -49,7 +48,6 @@ import {
   verifyAndTouchSession,
 } from './settingsAuthRepo.ts';
 import {
-  appendPlaylistEpisodes,
   applyTitleAtomicAction,
   deleteTitle,
   getTitle,
@@ -180,191 +178,16 @@ export class TrackerRepository {
       this.runInTransaction(() => {
         this.db.exec(sqlContent);
         if (migration.version === 2) {
-          this.runMigration002InTx();
+          runMigration002InTx(this.db);
         }
         if (migration.version === 3) {
-          this.runMigration003InTx();
+          runMigration003InTx(this.db);
         }
         if (migration.version === 4) {
-          this.runMigration004InTx();
+          runMigration004InTx(this.db);
         }
         this.db.exec(`PRAGMA user_version = ${migration.version};`);
       });
-    }
-  }
-
-  private runMigration002InTx(): void {
-    const seasonRows = this.db
-      .prepare('SELECT title_id, season_number, data FROM seasons')
-      .all() as Array<{ title_id: string; season_number: number; data: string }>;
-    const updateSeason = this.db.prepare(
-      'UPDATE seasons SET data = ? WHERE title_id = ? AND season_number = ?'
-    );
-
-    for (const row of seasonRows) {
-      try {
-        const parsed = JSON.parse(row.data) as SeasonDoc & {
-          name?: unknown;
-          episodes?: Array<{ name?: unknown }>;
-        };
-        const normalizedSeason: SeasonDoc = {
-          ...parsed,
-          name: normalizeLocalizedSeasonName(parsed.name as string | null | undefined),
-          episodes: Array.isArray(parsed.episodes)
-            ? parsed.episodes.map((ep) => ({
-                ...ep,
-                name: normalizeLocalizedEpisodeName(ep.name as string | null | undefined),
-              }))
-            : [],
-        };
-        updateSeason.run(JSON.stringify(normalizedSeason), row.title_id, row.season_number);
-      } catch {
-        // Ignore malformed legacy row
-      }
-    }
-
-    const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
-      id: string;
-      data: string;
-    }>;
-    const updateTitle = this.db.prepare('UPDATE titles SET data = ? WHERE id = ?');
-
-    for (const row of titleRows) {
-      try {
-        const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
-        let changed = false;
-
-        if ((parsed.source === 'url' || parsed.source === 'custom') && parsed.overview?.zh) {
-          const split = splitUploaderPrefixFromOverview(parsed.overview.zh);
-          if (split.uploader) {
-            parsed.uploader = parsed.uploader || split.uploader;
-            parsed.overview = {
-              ...parsed.overview,
-              zh: split.overview,
-            };
-            changed = true;
-          }
-        }
-
-        if (
-          (!parsed.genreIds || parsed.genreIds.length === 0) &&
-          Array.isArray(parsed.genres) &&
-          parsed.genres.length > 0
-        ) {
-          const ids = extractGenreIdsFromNames(parsed.genres);
-          if (ids.length > 0) {
-            parsed.genreIds = ids;
-            changed = true;
-          }
-        }
-
-        if (changed) {
-          updateTitle.run(JSON.stringify(parsed), row.id);
-        }
-      } catch {
-        // Ignore malformed legacy row
-      }
-    }
-  }
-
-  private getFirstAirDatesByTitle(): Map<string, string> {
-    const seasonRows = this.db
-      .prepare('SELECT title_id, season_number, data FROM seasons WHERE season_number = 1')
-      .all() as Array<{ title_id: string; season_number: number; data: string }>;
-    const firstAirByTitle = new Map<string, string>();
-    for (const sRow of seasonRows) {
-      try {
-        const parsedSeason = JSON.parse(sRow.data) as SeasonDoc;
-        const firstEpAirDate = parsedSeason.episodes?.[0]?.airDate;
-        if (firstEpAirDate && firstEpAirDate.trim() !== '') {
-          firstAirByTitle.set(sRow.title_id, firstEpAirDate.trim());
-        } else if (parsedSeason.airDate && parsedSeason.airDate.trim() !== '') {
-          firstAirByTitle.set(sRow.title_id, parsedSeason.airDate.trim());
-        }
-      } catch {
-        // Ignore malformed season row
-      }
-    }
-    return firstAirByTitle;
-  }
-
-  private runMigration003InTx(): void {
-    const firstAirByTitle = this.getFirstAirDatesByTitle();
-
-    const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
-      id: string;
-      data: string;
-    }>;
-    const updateTitle = this.db.prepare('UPDATE titles SET data = ? WHERE id = ?');
-
-    for (const row of titleRows) {
-      try {
-        const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
-        let changed = false;
-
-        if (parsed.releaseDate === undefined) {
-          const inferredAir = firstAirByTitle.get(row.id);
-          if (inferredAir) {
-            parsed.releaseDate = inferredAir;
-          } else if (typeof parsed.year === 'number' && parsed.year > 1800) {
-            parsed.releaseDate = `${parsed.year}-01-01`;
-          } else {
-            parsed.releaseDate = null;
-          }
-          changed = true;
-        }
-
-        if (!parsed.posters) {
-          parsed.posters = {
-            zh: parsed.posterPath ?? null,
-            en: parsed.posterPath ?? null,
-            textless: null,
-          };
-          changed = true;
-        }
-
-        if (changed) {
-          updateTitle.run(JSON.stringify(parsed), row.id);
-        }
-      } catch {
-        // Ignore malformed legacy row
-      }
-    }
-  }
-
-  private runMigration004InTx(): void {
-    const firstAirByTitle = this.getFirstAirDatesByTitle();
-    const titleRows = this.db.prepare('SELECT id, data FROM titles').all() as Array<{
-      id: string;
-      data: string;
-    }>;
-    const updateTitle = this.db.prepare('UPDATE titles SET data = ? WHERE id = ?');
-
-    for (const row of titleRows) {
-      try {
-        const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
-        let changed = false;
-
-        if (parsed.posters && parsed.posters.en === parsed.posters.zh) {
-          delete parsed.posters;
-          changed = true;
-        }
-
-        if (
-          typeof parsed.year === 'number' &&
-          parsed.releaseDate === `${parsed.year}-01-01` &&
-          firstAirByTitle.get(row.id) !== `${parsed.year}-01-01`
-        ) {
-          parsed.releaseDate = null;
-          changed = true;
-        }
-
-        if (changed) {
-          updateTitle.run(JSON.stringify(parsed), row.id);
-        }
-      } catch {
-        // Ignore malformed row
-      }
     }
   }
 
@@ -430,6 +253,8 @@ export class TrackerRepository {
     return getState(this.ctx);
   }
 
+  public getSeasons(id: string): SeasonDoc[] { return readSeasons(this.ctx, id); }
+
   public getTitle(id: string): TitleDoc | null {
     return getTitle(this.ctx, id);
   }
@@ -451,6 +276,20 @@ export class TrackerRepository {
 
   public deleteTitle(id: string): StateMutationResult {
     return deleteTitle(this.ctx, id);
+  }
+
+  public fillEpisodeMetadata(id: string, sourceUrl: string, videoId: string, detail: LinkImportResult) {
+    return fillEpisodeMetadata(this.ctx, id, sourceUrl, videoId, detail);
+  }
+
+  public previewStructure(id: string) { return previewStructure(this.ctx, id); }
+  public decideStructure(id: string, decision: 'keep' | 'adopt', version: number, signature: string) {
+    return decideStructure(this.ctx, id, decision, version, signature);
+  }
+  public convertToManual(id: string) { return convertToManual(this.ctx, id); }
+
+  public refreshMetadata(id: string, data: import('../../src/domain/types.ts').TmdbDetails, now = Date.now(), relink = false): StateMutationResult {
+    return refreshMetadata(this.ctx, id, data, now, relink);
   }
 
   public replaceSeasons(titleId: string, seasons: SeasonDoc[]): StateMutationResult {

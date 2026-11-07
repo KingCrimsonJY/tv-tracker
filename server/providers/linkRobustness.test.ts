@@ -77,12 +77,12 @@ describe('Bilibili public metadata', () => {
     });
     expect(result).toMatchObject({ kind: 'video', mediaType: 'other', title: 'Preview', runtimeMin: 4 });
   });
-  test.each([1, 0])('room state %s is preserved independently from watch progress', async status => {
-    const result = await resolveBilibiliMetadata('https://live.bilibili.com/blanc/196', {
-      lookupFn, fetchFn: async () => reply({ room_id: 196, title: 'Live room', live_status: status }),
-    });
-    expect(result?.liveStatus).toBe(status ? 'live' : 'offline');
-    expect(result?.warning).toBe(status ? undefined : 'LINK_NOT_LIVE');
+  test('live rooms are rejected before requesting metadata', async () => {
+    let fetched = false;
+    await expect(resolveBilibiliMetadata('https://live.bilibili.com/blanc/196', {
+      lookupFn, fetchFn: async () => { fetched = true; return reply({}); },
+    })).rejects.toMatchObject({ code: 'LINK_LIVE_UNSUPPORTED' });
+    expect(fetched).toBe(false);
   });
 });
 
@@ -117,7 +117,7 @@ describe('link normalization and failures', () => {
     ['Sign in to confirm your age', 'LINK_AGE_RESTRICTED'],
     ['You need to purchase the course', 'LINK_PAYMENT_REQUIRED'],
     ['This is a private playlist. Please log in', 'LINK_LOGIN_REQUIRED'],
-    ['Streamer is not live', 'LINK_NOT_LIVE'],
+    ['Streamer is not live', 'LINK_LIVE_UNSUPPORTED'],
     ['HTTP 429 Too Many Requests', 'LINK_RATE_LIMITED'],
     ['Sign in to confirm you are not a bot', 'LINK_RATE_LIMITED'],
   ])('provider reason %s survives instead of a fake success', async (message, code) => {
@@ -175,9 +175,9 @@ describe('link normalization and failures', () => {
 });
 
 describe('yt-dlp mapping and refresh', () => {
-  test('enrichment stops launching requests after an anti-bot restriction without dropping entries', async () => {
+  test('flat playlist import returns without launching blocking per-video enrichment', async () => {
     let calls = 0;
-    const result = await resolveWithYtdlp('https://www.youtube.com/@example/shorts', {
+    const result = await resolveWithYtdlp('https://www.youtube.com/playlist?list=PLexample', {
       lookupFn,
       execFn: async () => {
         calls++;
@@ -189,8 +189,8 @@ describe('yt-dlp mapping and refresh', () => {
       },
     });
     expect(result.episodes).toHaveLength(20);
-    expect(result.warning).toBe('LINK_METADATA_INCOMPLETE');
-    expect(calls).toBeLessThanOrEqual(5);
+    expect(result.warning).toBe('LINK_METADATA_PENDING');
+    expect(calls).toBe(1);
   });
   test('truncated playlists are explicitly marked incomplete', () => {
     expect(mapYtdlpJsonToLinkResult({ title: 'List', playlist_count: 3, entries: [{ id: 'one', title: 'One', duration: 60 }] },
@@ -201,9 +201,10 @@ describe('yt-dlp mapping and refresh', () => {
       title: 'Lesson', episode_number: 1, extractor: 'BilibiliCheese',
     }, 'https://www.bilibili.com/cheese/play/ep1').kind).toBe('video');
   });
-  test('live and replay flags survive mapping', () => {
-    expect(mapYtdlpJsonToLinkResult({ title: 'Live', is_live: true }, 'https://www.youtube.com/live/123').liveStatus).toBe('live');
-    expect(mapYtdlpJsonToLinkResult({ title: 'Replay', live_status: 'was_live' }, 'https://www.youtube.com/live/123').liveStatus).toBe('ended');
+  test('live streams are rejected while replay metadata remains importable without live status', () => {
+    expect(() => mapYtdlpJsonToLinkResult({ title: 'Live', is_live: true }, 'https://www.youtube.com/live/123')).toThrow('LINK_LIVE_UNSUPPORTED');
+    const replay = mapYtdlpJsonToLinkResult({ title: 'Replay', live_status: 'was_live' }, 'https://www.youtube.com/live/123');
+    expect(replay.kind).toBe('video'); expect(replay).not.toHaveProperty('liveStatus');
   });
   test('empty playlists and missing titles are rejected', () => {
     expect(() => mapYtdlpJsonToLinkResult({ title: 'Empty', _type: 'playlist', entries: [] }, 'https://www.youtube.com/playlist?list=abc')).toThrow();
@@ -222,11 +223,11 @@ describe('yt-dlp mapping and refresh', () => {
       const incoming = [{ sourceVideoId: 'one', name: 'First', runtime: 2 }, { sourceVideoId: 'two', name: 'Provider', runtime: 3 }, { sourceVideoId: 'three', name: 'New', runtime: 4 }];
       const result = repo.appendPlaylistEpisodes(title.id, incoming);
       expect(result.addedCount).toBe(1);
-      const episodes = result.upserts.seasonsByTitle![title.id][0].episodes;
+      const episodes = repo.getState().seasonsByTitle[title.id][0].episodes;
       expect(episodes[0]).toMatchObject({ key: 's1e1', name: { zh: 'First' }, runtime: 2 });
       expect(episodes[1]).toMatchObject({ name: { zh: 'Custom' }, runtime: 30 });
       expect(episodes[2].airDate).toBeNull();
-      expect(result.upserts.titles![title.id].mediaType).toBe('other');
+      expect(result.upserts.titles?.[title.id]?.mediaType).toBe('other');
       expect(repo.getState().progressByTitle[title.id].p1.watched).toEqual({ s1e1: 1234 });
       expect(repo.appendPlaylistEpisodes(title.id, incoming).addedCount).toBe(0);
     } finally { repo.close(); }

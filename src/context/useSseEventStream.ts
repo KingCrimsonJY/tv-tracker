@@ -66,7 +66,7 @@ export function useSseEventStream(params: {
       }
     };
 
-    const connectEventStream = async (isReconnect: boolean) => {
+    const connectEventStream = async () => {
       if (cancelled) return;
       abortController = new AbortController();
       resetWatchdog();
@@ -87,7 +87,7 @@ export function useSseEventStream(params: {
 
         clearOfflineCountdown();
         resetWatchdog();
-        if (isReconnect) await refreshStateFromServer();
+        await refreshStateFromServer();
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder('utf-8');
@@ -119,18 +119,18 @@ export function useSseEventStream(params: {
         clearWatchdog();
         if (!cancelled) {
           startOfflineCountdown();
-          retryTimer = setTimeout(() => connectEventStream(true), 1500);
+          retryTimer = setTimeout(() => connectEventStream(), 1500);
         }
       } catch {
         clearWatchdog();
         if (!cancelled) {
           startOfflineCountdown();
-          retryTimer = setTimeout(() => connectEventStream(true), 2000);
+          retryTimer = setTimeout(() => connectEventStream(), 2000);
         }
       }
     };
 
-    void connectEventStream(false);
+    void connectEventStream();
     return () => {
       cancelled = true;
       clearWatchdog();

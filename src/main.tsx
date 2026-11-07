@@ -13,5 +13,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && import.meta
     .catch(() => {});
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+const root = document.getElementById('root');
+if (!root) throw new Error('ROOT_NOT_FOUND');
+createRoot(root).render(<App />);
 

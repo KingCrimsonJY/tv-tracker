@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { isDevelopmentMode } from './server/runtimeMode.ts';
 import express from 'express';
 import http from 'node:http';
 import path from 'node:path';
@@ -55,11 +56,12 @@ async function startServer(): Promise<void> {
   const maintenanceTimer = setInterval(runMaintenanceCycle, 6 * 60 * 60 * 1000);
   maintenanceTimer.unref?.();
 
-  const app = createApp({ repo });
+  const isDevelopment = isDevelopmentMode();
+  const app = createApp({ repo, isProduction: !isDevelopment });
   const httpServer = http.createServer(app);
   const PORT = Number(process.env.PORT) || 3000;
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (isDevelopment) {
     const { createServer: createViteServer } = await import('vite');
     const disableHmr = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
@@ -84,6 +86,8 @@ async function startServer(): Promise<void> {
     if (stopping) return;
     stopping = true;
     clearInterval(maintenanceTimer);
+    const stopBackgroundTasks: unknown = app.locals.stopBackgroundTasks;
+    if (typeof stopBackgroundTasks === 'function') stopBackgroundTasks();
     const finish = () => {
       repo.close();
       process.exit(0);

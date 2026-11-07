@@ -130,7 +130,7 @@ export const CollectionGridSection: React.FC<CollectionGridSectionProps> = ({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((x) => x.entry.id)} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="poster-grid">
           {items.map((item) => (
             <SortablePosterItem
               key={item.entry.id}

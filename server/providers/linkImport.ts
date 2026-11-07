@@ -1,3 +1,4 @@
+import { assertSupportedLinkType } from './linkScope.ts';
 import type { LinkImportResult } from '../../src/domain/types.ts';
 import {
   assertSafePublicUrl,
@@ -202,6 +203,7 @@ async function resolveNormalizedMetadata(
   normalizedUrl: string,
   deps: LinkImportDependencies = {}
 ): Promise<LinkImportResult> {
+  assertSupportedLinkType(normalizedUrl);
   let nativeFailure: LinkImportError | undefined;
   try {
     const result = await resolveBilibiliMetadata(normalizedUrl, deps);
@@ -209,7 +211,7 @@ async function resolveNormalizedMetadata(
   } catch (err) {
     if (err instanceof UnsafeUrlError) throw err;
     nativeFailure = classifyLinkFailure(err);
-    if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE'].includes(nativeFailure.code)) throw nativeFailure;
+    if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE', 'LINK_LIVE_UNSUPPORTED', 'LINK_FAVORITES_UNSUPPORTED', 'LINK_WATCH_LATER_UNSUPPORTED', 'LINK_FEED_UNSUPPORTED'].includes(nativeFailure.code)) throw nativeFailure;
   }
 
   let failure: LinkImportError;
@@ -226,12 +228,12 @@ async function resolveNormalizedMetadata(
     }
   }
 
-  if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE'].includes(failure.code)) throw failure;
+  if (['LINK_EMPTY_PLAYLIST', 'LINK_PLAYLIST_TOO_LARGE', 'LINK_LIVE_UNSUPPORTED', 'LINK_FAVORITES_UNSUPPORTED', 'LINK_WATCH_LATER_UNSUPPORTED', 'LINK_FEED_UNSUPPORTED'].includes(failure.code)) throw failure;
 
   // Restrictions are actionable failures, not successful generic page imports.
   // Bangumi pages can still supply a title for a clearly labelled TMDB suggestion.
   const restricted = ['LINK_REGION_RESTRICTED', 'LINK_AGE_RESTRICTED', 'LINK_PAYMENT_REQUIRED',
-    'LINK_LOGIN_REQUIRED', 'LINK_UNAVAILABLE', 'LINK_NOT_LIVE', 'LINK_RATE_LIMITED'];
+    'LINK_LOGIN_REQUIRED', 'LINK_UNAVAILABLE', 'LINK_RATE_LIMITED'];
   if (restricted.includes(failure.code) && !isBangumiUrl(normalizedUrl)) throw failure;
   try {
     const result = await scrapeOpenGraph(normalizedUrl, deps);
@@ -269,7 +271,7 @@ export async function resolveLinkMetadata(rawInput: string, deps: LinkImportDepe
   try {
     const result = await promise;
     if (!deps.forceImport) {
-      const ttl = result.liveStatus ? 15_000 : result.warning ? 30_000 : 300_000;
+      const ttl = result.warning ? 30_000 : 300_000;
       metadataCache.set(key, { expiresAt: Date.now() + ttl, result: structuredClone(result) });
       let weight = [...metadataCache.values()].reduce((sum, item) => sum + item.result.episodes.length + 1, 0);
       for (const [cacheKey, item] of metadataCache) {
