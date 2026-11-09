@@ -63,7 +63,8 @@ export function createProgressActions(
     hadMovieWatchedAtChange: boolean;
     prevTitleFields: Partial<Omit<TitleDoc, 'id'>>;
     createdPlaythroughId?: string;
-    expectedActivePlaythroughId?: string;
+    /** The active playthrough this write was computed from; the server rejects stale writes. */
+    expectedActivePlaythroughId: string;
     deletedPlaythroughDoc?: ProgressDoc;
     now: number;
   }): Promise<void> {
@@ -107,7 +108,7 @@ export function createProgressActions(
 
     try {
       const mut = await postTitleActionApi(titleId, {
-        ...(expectedActivePlaythroughId ? { expectedActivePlaythroughId } : {}),
+        expectedActivePlaythroughId,
         ...(hasProgressPayload
           ? {
               progress: {
@@ -231,6 +232,7 @@ export function createProgressActions(
       prevMovieWatchedAt: prevProgress.movieWatchedAt,
       hadMovieWatchedAtChange: diff.movieWatchedAt !== undefined,
       prevTitleFields,
+      expectedActivePlaythroughId: prevTitle.activePlaythroughId,
       now,
     });
   }
@@ -316,6 +318,7 @@ export function createProgressActions(
         updatedAt: prevTitle.updatedAt,
         lastActivityAt: prevTitle.lastActivityAt,
       },
+      expectedActivePlaythroughId: prevTitle.activePlaythroughId,
       now,
     });
   }
@@ -396,6 +399,7 @@ export function createProgressActions(
           lastActivityAt: prevTitle.lastActivityAt,
         },
         deletedPlaythroughDoc: prevProgressMap[res.removedPlaythroughId],
+        expectedActivePlaythroughId: prevTitle.activePlaythroughId,
         now,
       });
       return;
@@ -434,6 +438,7 @@ export function createProgressActions(
           updatedAt: prevTitle.updatedAt,
           lastActivityAt: prevTitle.lastActivityAt,
         },
+        expectedActivePlaythroughId: prevTitle.activePlaythroughId,
         now,
       });
     }

@@ -505,3 +505,35 @@ describe('createRandomId uniqueness', () => {
     }
   });
 });
+
+describe('progress actions name the playthrough they were computed from', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sends expectedActivePlaythroughId for episode toggles, resume points and playthrough removal', async () => {
+    const store = createTrackerStore();
+    const { snapshot } = makeFixtureState();
+    store.applySnapshot(snapshot);
+    const payloads: Array<Parameters<typeof api.postTitleActionApi>[1]> = [];
+    vi.spyOn(api, 'postTitleActionApi').mockImplementation(async (_id, payload) => {
+      payloads.push(payload);
+      return { version: store.getState().version, upserts: {}, deletes: {} };
+    });
+    const actions = createTrackerActions({
+      getState: store.getState,
+      setState: store.setState,
+      applyServerMutation: (mut) => {
+        store.applyMutation(mut, { allowSameOrLowerVersion: true });
+      },
+      showToast: () => {},
+    });
+
+    await actions.toggleEpisode('tmdb_tv_1', 's1e1');
+    await actions.saveResume('tmdb_tv_1', { episodeKey: 's1e2', seconds: 30 });
+    await actions.cancelTitleRewatch('tmdb_tv_1');
+
+    expect(payloads).toHaveLength(3);
+    for (const payload of payloads) expect(payload.expectedActivePlaythroughId).toBe('p1');
+  });
+});

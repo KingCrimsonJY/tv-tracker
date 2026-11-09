@@ -179,6 +179,36 @@ export function replaceSeasons(ctx: DbContext, titleId: string, seasons: SeasonD
   });
 }
 
+/**
+ * Reject progress writes built from a stale view of the playthroughs. Structural changes (start, cancel,
+ * clear or delete a playthrough) must name the active playthrough they were computed from, may only remove
+ * the playthrough whose progress is deleted in the same request, and progress may only be written to the
+ * playthrough that is active once the request is applied.
+ */
+function assertPlaythroughWriteIsCurrent(current: Omit<TitleDoc, 'id'>, input: TitleAtomicActionInput): void {
+  const conflict = () => new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
+  const expected = input.expectedActivePlaythroughId;
+  if (expected !== undefined && expected !== current.activePlaythroughId) throw conflict();
+
+  const currentIds = new Set(current.playthroughs.map((p) => p.id));
+  const nextPlaythroughs = input.title?.playthroughs;
+  const nextIds = nextPlaythroughs ? new Set(nextPlaythroughs.map((p) => p.id)) : currentIds;
+  const nextActiveId = input.title?.activePlaythroughId ?? current.activePlaythroughId;
+  const deletedId = input.progress?.deletePlaythroughId;
+  const removedIds = [...currentIds].filter((id) => !nextIds.has(id));
+  const structural =
+    [...nextIds].some((id) => !currentIds.has(id)) ||
+    removedIds.length > 0 ||
+    nextActiveId !== current.activePlaythroughId ||
+    deletedId !== undefined;
+
+  if (structural && expected === undefined) throw conflict();
+  if (removedIds.some((id) => id !== deletedId)) throw conflict();
+  if (deletedId !== undefined && (nextIds.has(deletedId) || deletedId === nextActiveId)) throw conflict();
+  const writtenId = input.progress?.playthroughId;
+  if (writtenId !== undefined && writtenId !== nextActiveId) throw conflict();
+}
+
 export function applyTitleAtomicAction(
   ctx: DbContext,
   titleId: string,
@@ -192,18 +222,7 @@ export function applyTitleAtomicAction(
     }
 
     const currentTitle = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
-    if (
-      input.expectedActivePlaythroughId !== undefined &&
-      input.expectedActivePlaythroughId !== currentTitle.activePlaythroughId
-    ) {
-      throw new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
-    }
-    const addsPlaythrough = input.title?.playthroughs?.some(
-      (p) => !currentTitle.playthroughs.some((existing) => existing.id === p.id),
-    );
-    if (addsPlaythrough && input.expectedActivePlaythroughId === undefined) {
-      throw new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
-    }
+    assertPlaythroughWriteIsCurrent(currentTitle, input);
 
     const upserts: StateUpserts = {};
     const deletes: StateDeletes = {};
