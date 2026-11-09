@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import type { AppStateSnapshot } from '../domain/types';
+import { NO_SEASONS } from '../domain/stableRefs';
 import { ButtonLink } from '../components/ButtonLink';
 import { Film, Plus } from 'lucide-react';
 import { Button, ScrollShadow, Label, ListBox, Select, Skeleton, ToggleButton, ToggleButtonGroup } from '@heroui/react';
@@ -11,8 +13,15 @@ type StatusFilter = 'all' | 'watching' | 'unwatched' | 'completed' | 'paused_dro
 type TypeFilter = 'all' | 'movie' | 'tv' | 'other';
 type SortMode = 'recent' | 'added' | 'year' | 'name';
 
+const selectLibraryData = (state: AppStateSnapshot) => [
+  state.titles,
+  state.seasonsByTitle,
+  state.progressByTitle,
+  state.settings,
+];
+
 export const LibraryPage: React.FC = () => {
-  const { loadingData, titles, seasonsByTitle, settings, progressByTitle } = useTracker();
+  const { loadingData, titles, seasonsByTitle, settings, progressByTitle } = useTracker(selectLibraryData);
   const { locale, t } = useI18n();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -21,7 +30,7 @@ export const LibraryPage: React.FC = () => {
 
   const items = useMemo(() => {
     const all = Object.values(titles).map((title) => {
-      const seasons = seasonsByTitle[title.id] || [];
+      const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
       const progress = progressByTitle[title.id]?.[title.activePlaythroughId];
       const state = computeTitleState(title, seasons, progress, {
         includeSpecials: settings.includeSpecials,

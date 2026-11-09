@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchField, Button, Skeleton, toast } from '@heroui/react';
 import { Link2, PlusCircle } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
@@ -10,13 +10,30 @@ import type { ManualSeed } from '../features/search/linkImportModel';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
 import { useI18n } from '../i18n';
 
+// Recent results survive opening a title and coming back, so Back shows the list without a refetch.
+const recentSearches = new Map<string, TmdbSearchItem[]>();
+const rememberSearch = (key: string, results: TmdbSearchItem[]) => {
+  recentSearches.delete(key);
+  recentSearches.set(key, results);
+  if (recentSearches.size > 20) recentSearches.delete(recentSearches.keys().next().value ?? key);
+};
+
 export const SearchPage: React.FC = () => {
   const navigate = useNavigate();
-  const { titles, lists, addTitleFromTmdb } = useTracker();
+  const { titles, lists, addTitleFromTmdb } = useTracker((state) => [state.titles, state.lists]);
   const { t, locale, translateError } = useI18n();
 
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<TmdbSearchItem[]>([]);
+  // Keep the query in the URL so browser Back from a result returns to the same search.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get('q') ?? '';
+  const setQuery = useCallback(
+    (value: string) => setSearchParams(value ? { q: value } : {}, { replace: true }),
+    [setSearchParams],
+  );
+  const searchLang = locale === 'en' ? 'en-US' : 'zh-CN';
+  const [results, setResults] = useState<TmdbSearchItem[]>(
+    () => recentSearches.get(`${searchLang}:${query.trim()}`) ?? [],
+  );
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [addingKey, setAddingKey] = useState<string | null>(null);
@@ -34,13 +51,22 @@ export const SearchPage: React.FC = () => {
       return;
     }
 
+    const cacheKey = `${searchLang}:${trimmed}`;
+    const cached = recentSearches.get(cacheKey);
+    if (cached) {
+      setResults(cached);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setSearching(true);
       setSearchError(null);
       try {
-        const lang = locale === 'en' ? 'en-US' : 'zh-CN';
-        const data = await searchTmdbApi(trimmed, lang, controller.signal);
+        const data = await searchTmdbApi(trimmed, searchLang, controller.signal);
+        rememberSearch(cacheKey, data.results || []);
         if (!controller.signal.aborted) setResults(data.results || []);
       } catch (err) {
         if (!controller.signal.aborted) setSearchError(translateError(err));
@@ -53,7 +79,7 @@ export const SearchPage: React.FC = () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, locale, translateError]);
+  }, [query, searchLang, translateError]);
 
   const existingTmdbKeys = new Set(
     Object.values(titles)

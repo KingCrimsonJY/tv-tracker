@@ -6,7 +6,8 @@ import { Button, ProgressBar, Skeleton } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
-import { computeListProgress, sortListEntries } from '../domain/ordering';
+import { compareRank, computeListProgress, sortListEntries } from '../domain/ordering';
+import { activeProgressOf, NO_SEASONS } from '../domain/stableRefs';
 import {
   computeTitleState,
   formatSeconds,
@@ -15,21 +16,30 @@ import {
   pickPoster,
   resolveDisplayTitle,
 } from '../domain/progress';
-import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
+import type { AppStateSnapshot, HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
+
+const selectHomeData = (state: AppStateSnapshot) => [
+  state.titles,
+  state.seasonsByTitle,
+  state.progressByTitle,
+  state.lists,
+  state.entriesByList,
+  state.settings,
+];
 
 export const HomePage: React.FC = () => {
   const {
     loadingData,
     titles,
     seasonsByTitle,
+    progressByTitle,
     lists,
     entriesByList,
     settings,
-    getActiveProgress,
     markEpisodeWatched,
     markWholeTitle,
-  } = useTracker();
+  } = useTracker(selectHomeData);
   const { locale, t } = useI18n();
 
   const allTitles = Object.values(titles);
@@ -38,11 +48,11 @@ export const HomePage: React.FC = () => {
 
   const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
   for (const titleDoc of allTitles) {
-    progressByTitleMap[titleDoc.id] = getActiveProgress(titleDoc);
+    progressByTitleMap[titleDoc.id] = activeProgressOf(progressByTitle, titleDoc);
   }
 
   const enriched = allTitles.map((title) => {
-    const seasons = seasonsByTitle[title.id] || [];
+    const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
     const progress = progressByTitleMap[title.id];
     const state = computeTitleState(title, seasons, progress, { includeSpecials });
     return { title, seasons, progress, state };
@@ -68,7 +78,7 @@ export const HomePage: React.FC = () => {
 
   const pinnedOrderedLists = Object.values(lists)
     .filter((l) => l.pinned)
-    .sort((a, b) => (a.rank < b.rank ? -1 : 1));
+    .sort(compareRank);
 
   const renderPosterGridSection = (
     key: HomeSectionId,

@@ -35,6 +35,7 @@ import { SortableSectionRow } from '../features/settings/SortableSectionRow';
 import { AboutSection } from '../features/settings/AboutSection';
 import { useI18n } from '../i18n';
 import { withPendingSpinner } from '../components/pendingContent';
+import { usePendingAction } from '../hooks/usePendingAction';
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -46,12 +47,14 @@ export const SettingsPage: React.FC = () => {
     importBackupData,
     signOut,
     signOutAll,
-  } = useTracker();
+  } = useTracker((state) => [state.settings, state.titles]);
   const { t, translateError } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImportJson, setPendingImportJson] = useState<unknown | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [signOutAllOpen, setSignOutAllOpen] = useState(false);
+  const [signingOutAll, runSignOutAll] = usePendingAction();
   const [refreshingMeta, setRefreshingMeta] = useState<{ done: number; total: number } | null>(null);
 
   const sensors = useSensors(
@@ -330,7 +333,7 @@ export const SettingsPage: React.FC = () => {
               <LogOut className="w-4 h-4" />
               {t.settings.account.signOut}
             </Button>
-            <Button variant="danger-soft" size="sm" onPress={() => void signOutAll()}>
+            <Button variant="danger-soft" size="sm" onPress={() => setSignOutAllOpen(true)}>
               <ShieldAlert className="w-4 h-4" />
               {t.settings.account.signOutAll}
             </Button>
@@ -339,6 +342,27 @@ export const SettingsPage: React.FC = () => {
       </Card>
 
       <AboutSection />
+
+      <AlertDialog.Backdrop isOpen={signOutAllOpen} onOpenChange={setSignOutAllOpen}>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>{t.settings.account.signOutAll}</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p className="text-sm text-muted">{t.settings.account.signOutAllConfirm}</p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer className="gap-2">
+              <Button variant="tertiary" onPress={() => setSignOutAllOpen(false)}>
+                {t.app.cancel}
+              </Button>
+              <Button variant="danger" isPending={signingOutAll} onPress={() => runSignOutAll(signOutAll)}>
+                {withPendingSpinner(t.settings.account.signOutAll)}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
 
       <AlertDialog.Backdrop isOpen={importDialogOpen} onOpenChange={setImportDialogOpen}>
         <AlertDialog.Container>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { activeProgressOf } from '../domain/stableRefs';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bookmark, Film, Layers, ListOrdered, Pin, Plus } from 'lucide-react';
 import {
@@ -17,15 +18,24 @@ import {
 } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
-import { computeListProgress, sortListEntries } from '../domain/ordering';
+import { compareRank, computeListProgress, sortListEntries } from '../domain/ordering';
 import { pickPoster, resolveDisplayTitle } from '../domain/progress';
-import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
+import type { AppStateSnapshot, ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
 import { withPendingSpinner } from '../components/pendingContent';
 
+const selectListsData = (state: AppStateSnapshot) => [
+  state.titles,
+  state.seasonsByTitle,
+  state.progressByTitle,
+  state.lists,
+  state.entriesByList,
+  state.settings,
+];
+
 export const ListsPage: React.FC = () => {
-  const { loadingData, titles, seasonsByTitle, lists, entriesByList, settings, getActiveProgress, createList } =
-    useTracker();
+  const { loadingData, titles, seasonsByTitle, progressByTitle, lists, entriesByList, settings, createList } =
+    useTracker(selectListsData);
   const { locale, t } = useI18n();
   const navigate = useNavigate();
 
@@ -39,12 +49,12 @@ export const ListsPage: React.FC = () => {
 
   const sortedLists = Object.values(lists).sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return a.rank < b.rank ? -1 : 1;
+    return compareRank(a, b);
   });
 
   const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
   for (const titleDoc of Object.values(titles)) {
-    progressByTitleMap[titleDoc.id] = getActiveProgress(titleDoc);
+    progressByTitleMap[titleDoc.id] = activeProgressOf(progressByTitle, titleDoc);
   }
 
   const handleCreateSubmit = async (e: React.FormEvent) => {

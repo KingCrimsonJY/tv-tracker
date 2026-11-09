@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { compareRank } from '../domain/ordering';
 import { ButtonLink } from './ButtonLink';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Bookmark, Download, Film, Home, Layers, ListOrdered, LogOut, Search, Settings } from 'lucide-react';
@@ -23,7 +24,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const pinnedLists = Object.values(lists)
     .filter((l) => l.pinned)
-    .sort((a, b) => (a.rank < b.rank ? -1 : 1));
+    .sort(compareRank);
 
   return (
     <div className="min-h-dvh bg-background text-foreground flex flex-col sm:flex-row">

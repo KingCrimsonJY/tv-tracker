@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { activeProgressOf, NO_SEASONS } from '../domain/stableRefs';
 import { ButtonLink } from '../components/ButtonLink';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Chip, Switch, AlertDialog, Dropdown, Label } from '@heroui/react';
@@ -23,14 +24,21 @@ export const ListDetailPage: React.FC = () => {
     titles,
     seasonsByTitle,
     settings,
-    getActiveProgress,
+    progressByTitle,
     deleteList,
     togglePinList,
     updateCollectionSort,
     addTitleToList,
     removeEntryFromList,
     reorderListEntry,
-  } = useTracker();
+  } = useTracker((state) => [
+    state.titles,
+    state.seasonsByTitle,
+    state.progressByTitle,
+    state.lists,
+    state.entriesByList,
+    state.settings,
+  ]);
   const { t, locale } = useI18n();
 
   const [isSorting, setIsSorting] = useState(false);
@@ -57,14 +65,14 @@ export const ListDetailPage: React.FC = () => {
   const progressByTitleMap = useMemo(() => {
     const map: Record<string, ProgressDoc | undefined> = {};
     for (const item of sortedEntries) {
-      map[item.title.id] = getActiveProgress(item.title);
+      map[item.title.id] = activeProgressOf(progressByTitle, item.title);
     }
     return map;
-  }, [sortedEntries, getActiveProgress]);
+  }, [sortedEntries, progressByTitle]);
 
   const titlesWithState = useMemo(() => {
     return sortedEntries.map(({ entry, title }) => {
-      const seasons = seasonsByTitle[title.id] ?? [];
+      const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
       const progress = progressByTitleMap[title.id];
       const state = computeTitleState(title, seasons, progress, {
         includeSpecials: settings.includeSpecials,
