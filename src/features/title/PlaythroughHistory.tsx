@@ -70,7 +70,7 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
               <div key={pt.id} className="flex items-center gap-3 py-3 first:pt-2 last:pb-1">
                 {isCompleted ? (
                   <span
-                    className="w-6 h-6 rounded-full bg-success-subtle text-success flex items-center justify-center shrink-0"
+                    className="w-6 h-6 rounded-full bg-success-soft text-success flex items-center justify-center shrink-0"
                     aria-hidden="true"
                   >
                     <Check className="w-3.5 h-3.5 stroke-[2.5]" />

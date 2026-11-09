@@ -456,3 +456,21 @@ registerTest(
     assert.equal(seriesState.completedPlaythroughCount, 1);
   },
 );
+
+registerTest('Starting a rewatch of a caught-up returning series finishes the outgoing viewing', () => {
+  const title = makeBaseTvTitle();
+  const seasons = makeSampleSeasons();
+  const watched = Object.fromEntries(
+    seasons
+      .filter((season) => season.seasonNumber > 0)
+      .flatMap((season) => season.episodes)
+      .filter((episode) => episode.airDate && episode.airDate <= TODAY)
+      .map((episode) => [episode.key, 1]),
+  );
+  const progress: ProgressDoc = { playthroughId: 'p1', watched };
+  assert.equal(computeTitleState(title, seasons, progress, { todayStr: TODAY }).status, 'caught_up');
+  const rewatch = startRewatch(title, seasons, progress, { todayStr: TODAY, now: 5000, newPlaythroughId: 'p2' });
+  assert.equal(rewatch.playthroughs.find((p) => p.id === 'p1')?.completedAt, 5000);
+  assert.equal(rewatch.playthroughs.find((p) => p.id === 'p2')?.completedAt, undefined);
+  assert.equal(countCompletedPlaythroughs(rewatch.playthroughs), 1);
+});

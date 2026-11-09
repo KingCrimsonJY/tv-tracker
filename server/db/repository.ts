@@ -1,5 +1,6 @@
 import { normalizeTmdbImages } from '../../src/domain/images.ts';
 import { migrateImages } from './imageMigration.ts';
+import { completeSupersededPlaythroughs } from './supersededPlaythroughs.ts';
 import { fillEpisodeMetadataBatch, enrichmentDue, claimEnrichment } from './enrichmentRepo.ts';
 import { runMigration002InTx, runMigration003InTx, runMigration004InTx } from './legacyMigrations.ts';
 import { appendPlaylistEpisodes } from './linkMetadataRepo.ts';
@@ -161,6 +162,7 @@ export class TrackerRepository {
           runMigration003InTx(this.db);
         }
         if (migration.version === 8) migrateImages(this.db);
+        if (migration.version === 10) completeSupersededPlaythroughs(this.db);
         if (migration.version === 4) {
           runMigration004InTx(this.db);
         }
