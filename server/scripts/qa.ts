@@ -108,6 +108,32 @@ try {
     }
   }
 
+  // Long, unbroken user text must wrap: list headers keep their actions on screen.
+  repo.putList('qa_long_list', {
+    name: 'W'.repeat(80),
+    description: 'D'.repeat(200),
+    kind: 'ordered',
+    pinned: true,
+    rank: 'a0',
+    collectionSort: 'manual',
+    createdAt: Date.now(),
+  });
+  for (const width of [320, 390, 1280]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, serviceWorkers: 'block' });
+    await context.addCookies([{ name: 'zhenji_session', value: token, url: baseUrl, httpOnly: true, sameSite: 'Lax' }]);
+    const page = await context.newPage();
+    observe(page);
+    await page.goto(baseUrl + '/lists/qa_long_list');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    await capture(page, 'long-list-name-' + width);
+    for (const button of await page.locator('main button').filter({ visible: true }).all()) {
+      const box = await button.boundingBox();
+      assert(box && box.x >= 0 && box.x + box.width <= width + 1, 'List header action is off screen at ' + width);
+    }
+    await context.close();
+  }
+  repo.deleteList('qa_long_list');
+
   repo.patchSettings({ uiLang: 'en' });
   const contexts = await Promise.all(
     [0, 1].map(async () => {
@@ -182,6 +208,7 @@ try {
     detailCache: 'passed',
     backupReplacement: 'passed',
     imeSearchInput: 'passed',
+    longListName: 'passed',
   };
   writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report));

@@ -199,7 +199,9 @@ export const ListsPage: React.FC = () => {
                       {list.name}
                     </h2>
 
-                    {list.description && <p className="text-xs text-muted line-clamp-1">{list.description}</p>}
+                    {list.description && (
+                      <p className="text-xs text-muted line-clamp-1 wrap-anywhere">{list.description}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

@@ -88,12 +88,13 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                   return (
                     <div
                       key={list.id}
-                      className="flex items-center justify-between p-2.5 rounded-lg bg-surface-secondary"
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-surface-secondary"
                     >
-                      <span className="text-sm font-medium">{list.name}</span>
+                      <span className="min-w-0 text-sm font-medium wrap-anywhere">{list.name}</span>
                       {existingEntry ? (
                         <Button
                           size="sm"
+                          className="shrink-0"
                           variant="tertiary"
                           onPress={() => onRemoveListEntry(list.id, existingEntry.id)}
                         >
@@ -101,7 +102,12 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
                           {t.app.delete}
                         </Button>
                       ) : (
-                        <Button size="sm" variant="secondary" onPress={() => onAddListEntry(list.id, title.id)}>
+                        <Button
+                          size="sm"
+                          className="shrink-0"
+                          variant="secondary"
+                          onPress={() => onAddListEntry(list.id, title.id)}
+                        >
                           <Plus className="w-4 h-4" />
                           {t.lists.addActionShort}
                         </Button>

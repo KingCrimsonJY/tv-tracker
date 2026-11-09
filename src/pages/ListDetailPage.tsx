@@ -99,41 +99,41 @@ export const ListDetailPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <ButtonLink to="/lists" variant="ghost" size="sm" className="-ml-2 mb-1">
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-4">
+          <ButtonLink to="/lists" variant="ghost" size="sm" className="-ml-2">
             <ArrowLeft className="w-4 h-4" />
             {t.lists.title}
           </ButtonLink>
-          <div className="flex items-center gap-2 flex-wrap">
-            {list.kind === 'ordered' ? (
-              <ListOrdered className="w-6 h-6 text-accent" />
-            ) : (
-              <Bookmark className="w-6 h-6 text-accent" />
-            )}
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{list.name}</h1>
-            <Chip size="sm" variant="soft">
-              {stats.completedCount}/{stats.totalCount}
-            </Chip>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
+              <Plus className="w-4 h-4" />
+              {t.lists.addTitlesButtonShort}
+            </Button>
+            <Button
+              variant="danger-soft"
+              size="sm"
+              isIconOnly
+              aria-label={t.app.delete}
+              onPress={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
-          {list.description && <p className="text-sm text-muted max-w-2xl">{list.description}</p>}
         </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
-            <Plus className="w-4 h-4" />
-            {t.lists.addTitlesButtonShort}
-          </Button>
-          <Button
-            variant="danger-soft"
-            size="sm"
-            isIconOnly
-            aria-label={t.app.delete}
-            onPress={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+        {/* The title gets the full width; long, unbroken names wrap instead of widening the page. */}
+        <div className="flex min-w-0 items-center gap-2 flex-wrap pt-1">
+          {list.kind === 'ordered' ? (
+            <ListOrdered className="w-6 h-6 text-accent" />
+          ) : (
+            <Bookmark className="w-6 h-6 text-accent" />
+          )}
+          <h1 className="min-w-0 text-2xl sm:text-3xl font-bold tracking-tight wrap-anywhere">{list.name}</h1>
+          <Chip size="sm" variant="soft">
+            {stats.completedCount}/{stats.totalCount}
+          </Chip>
         </div>
+        {list.description && <p className="text-sm text-muted max-w-2xl wrap-anywhere">{list.description}</p>}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-border">
