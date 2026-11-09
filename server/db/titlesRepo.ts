@@ -209,6 +209,23 @@ function assertPlaythroughWriteIsCurrent(current: Omit<TitleDoc, 'id'>, input: T
   if (writtenId !== undefined && writtenId !== nextActiveId) throw conflict();
 }
 
+/**
+ * Starting a new viewing finishes the one it replaces. The client sends this too, but an outdated client (for
+ * example a PWA still running a cached bundle) may not, and history would then show that viewing as in progress.
+ */
+function finishSupersededPlaythrough(current: Omit<TitleDoc, 'id'>, merged: TitleDoc): TitleDoc {
+  if (merged.activePlaythroughId === current.activePlaythroughId) return merged;
+  if (current.playthroughs.some((p) => p.id === merged.activePlaythroughId)) return merged;
+  const started = merged.playthroughs.find((p) => p.id === merged.activePlaythroughId);
+  if (!started) return merged;
+  return {
+    ...merged,
+    playthroughs: merged.playthroughs.map((p) =>
+      p.id === current.activePlaythroughId && p.completedAt == null ? { ...p, completedAt: started.startedAt } : p,
+    ),
+  };
+}
+
 export function applyTitleAtomicAction(
   ctx: DbContext,
   titleId: string,
@@ -296,11 +313,11 @@ export function applyTitleAtomicAction(
 
     if (input.title) {
       const existing = JSON.parse(titleRow.data) as Omit<TitleDoc, 'id'>;
-      const merged: TitleDoc = {
+      const merged: TitleDoc = finishSupersededPlaythrough(currentTitle, {
         ...existing,
         ...input.title,
         id: titleId,
-      };
+      });
       if (!merged.playthroughs.some((p) => p.id === merged.activePlaythroughId)) {
         throw new ConflictError('activePlaythroughId must exist in playthroughs', 'CONFLICT_ERROR');
       }

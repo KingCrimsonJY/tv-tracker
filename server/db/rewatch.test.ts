@@ -112,3 +112,18 @@ test('playthroughs can only be removed together with their progress', () => {
     repo.close();
   }
 });
+
+test('starting a rewatch finishes the previous viewing even when an outdated client omits it', () => {
+  const repo = new TrackerRepository({ dbPath: ':memory:' });
+  try {
+    const title = makeBaseTvTitle();
+    repo.putTitle(title.id, { title });
+    // Exactly what a client without the fix sends: the outgoing viewing has no completedAt.
+    startSecondPlaythrough(repo, title.id);
+    const playthroughs = repo.getTitle(title.id)?.playthroughs;
+    expect(playthroughs?.find((p) => p.id === 'p1')?.completedAt).toBe(1_800_000_000_000);
+    expect(playthroughs?.find((p) => p.id === 'p2')?.completedAt).toBeUndefined();
+  } finally {
+    repo.close();
+  }
+});
