@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "license": "MIT",
-  "description": "\u4e2a\u4eba\u81ea\u6258\u7ba1\u5f71\u89c6\u8fdb\u5ea6\u8ffd\u8e2a\u5e94\u7528 (Personal self-hosted movie & TV watch progress tracker)",
+  "description": "个人自托管影视进度追踪应用 (Personal self-hosted movie & TV watch progress tracker)",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -22,6 +22,7 @@
     "setup:ytdlp": "node server/scripts/setup-ytdlp.ts",
     "perf": "node server/scripts/perf.ts",
     "qa": "node server/scripts/qa.ts",
+    "screenshots": "node server/scripts/screenshots.ts",
     "format": "prettier --ignore-path .prettierignore --write .",
     "format:check": "prettier --ignore-path .prettierignore --check ."
   },
