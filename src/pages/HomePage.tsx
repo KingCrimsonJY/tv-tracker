@@ -130,7 +130,8 @@ export const HomePage: React.FC = () => {
               {continueWatchingItems.map(({ title, seasons, progress, state }) => {
                 const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
                 const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
-                const pct = Math.max(3, Math.min(100, Math.round(ratio * 100)));
+                // Report the real value to assistive technology; the fill's min width keeps a visible sliver.
+                const pct = Math.min(100, ratio * 100);
 
                 let subtitle: string = t.status[state.status];
                 if (title.resume && title.resume.seconds > 0) {
@@ -180,7 +181,7 @@ export const HomePage: React.FC = () => {
                           className="w-full"
                         >
                           <ProgressBar.Track>
-                            <ProgressBar.Fill />
+                            <ProgressBar.Fill className="min-w-1.5" />
                           </ProgressBar.Track>
                         </ProgressBar>
                       </div>

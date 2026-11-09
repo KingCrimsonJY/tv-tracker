@@ -1,5 +1,6 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { gzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from './app.ts';
 import { SESSION_TTL_MS } from './auth.ts';
@@ -391,5 +392,18 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
       console.error = originalError;
     }
     expect(JSON.stringify(logged.map(String))).not.toContain('secret-marker-123');
+  });
+
+  it('answers corrupt or truncated gzip bodies with 400', async () => {
+    const valid = gzipSync(JSON.stringify({ password: 'secret-marker-456' }));
+    for (const body of [Buffer.from('not gzip at all'), valid.subarray(0, valid.length - 8)]) {
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip', Origin: baseUrl },
+        body,
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ code: 'VALIDATION_ERROR' });
+    }
   });
 });
