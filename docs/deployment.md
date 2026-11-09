@@ -45,7 +45,8 @@ OMDB_API_KEY=your_omdb_api_key
 # 容器内固定挂载在 /data，宿主机对应 ./data
 DATA_DIR=./data
 
-# 若通过 Cloudflare Tunnel 或反向代理访问，设为 1 以读取真实客户端 IP 进行登录限流
+# 若通过 Cloudflare Tunnel 或会覆盖转发头的反向代理访问，设为 1 以读取真实客户端 IP 进行登录限流。
+# 直接暴露端口时请保持 0，否则客户端可以伪造这些请求头。
 TRUST_PROXY=1
 ```
 

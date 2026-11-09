@@ -187,16 +187,16 @@ npm run dev
 
 所有配置项均位于服务端 `.env` 文件中（参考 [`.env.example`](./.env.example)）：
 
-| 变量名              |   必填   | 默认值   | 用途说明                                                                               | 获取方式 / 备注                                                                              |
-| :------------------ | :------: | :------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
-| `TMDB_READ_TOKEN`   | **必填** | 空       | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据        | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
-| `OMDB_API_KEY`      |   可选   | 空       | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天）             | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天）    |
-| `DATA_DIR`          |   可选   | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录                                  | Docker 容器内固定为 `/data`                                                                  |
-| `YTDLP_PATH`        | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置） | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp`   |
-| `SETUP_CODE`        |   可选   | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码                                           | 留空时会在服务端启动日志中自动生成并打印                                                     |
-| `APP_PASSWORD_HASH` |   可选   | 空       | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码）                                 | 通过 `npm run set-password` 交互式生成                                                       |
-| `TRUST_PROXY`       |   可选   | `0`      | 设为 `1` 时信任反代头（`CF-Connecting-IP` / `X-Forwarded-For`）以准确按客户端 IP 限流  | 使用 Cloudflare Tunnel 或反向代理时设为 `1`                                                  |
-| `PORT`              |   可选   | `3000`   | Node.js 服务端监听端口                                                                 | 本地或容器内默认 `3000`                                                                      |
+| 变量名              |   必填   | 默认值   | 用途说明                                                                                                                     | 获取方式 / 备注                                                                              |
+| :------------------ | :------: | :------- | :--------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| `TMDB_READ_TOKEN`   | **必填** | 空       | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据                                              | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
+| `OMDB_API_KEY`      |   可选   | 空       | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天）                                                   | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天）    |
+| `DATA_DIR`          |   可选   | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录                                                                        | Docker 容器内固定为 `/data`                                                                  |
+| `YTDLP_PATH`        | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置）                                       | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp`   |
+| `SETUP_CODE`        |   可选   | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码                                                                                 | 留空时会在服务端启动日志中自动生成并打印                                                     |
+| `APP_PASSWORD_HASH` |   可选   | 空       | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码）                                                                       | 通过 `npm run set-password` 交互式生成                                                       |
+| `TRUST_PROXY`       |   可选   | `0`      | 设为 `1` 时信任反代头：`CF-Connecting-IP` 或 `X-Forwarded-For` 最后一段用于按 IP 限流，`X-Forwarded-Host` 用于 CSRF 来源校验 | 仅在 Cloudflare Tunnel 或会覆盖这些请求头的反向代理之后设为 `1`；直接暴露端口时保持 `0`      |
+| `PORT`              |   可选   | `3000`   | Node.js 服务端监听端口                                                                                                       | 本地或容器内默认 `3000`                                                                      |
 
 ## 部署
 
@@ -213,6 +213,8 @@ docker compose up -d --build
 # 查看首次启动的一次性设置码
 docker compose logs zhenji | grep "First-run setup code"
 ```
+
+> **必须通过 HTTPS 访问。** 生产模式的会话 Cookie 带 `Secure` 属性，浏览器只在 HTTPS（或 `localhost`）下保存它。用 `http://局域网IP:端口` 打开时，密码虽然正确也无法登录，登录页会给出相应提示。
 
 默认配置将服务绑定在宿主机 `127.0.0.1:8080:3000`，并内置 `cloudflare`（Cloudflare Tunnel）与 `tailscale`（Tailscale Funnel）两个可选 Compose Profile。完整的 Linux 环境配置、隧道接入、版本升级、密码重置与防休眠设置请参阅 **[《部署指南》(docs/deployment.md)](./docs/deployment.md)**。
 
@@ -258,7 +260,33 @@ npm run set-password
 
 # 生成精选演示数据库至 ./data-demo（不会修改 ./data）
 npm run seed:demo
+
+# 检查代码格式（CI 同样执行）
+npm run format:check
+
+# 基于演示数据库重新生成 README 截图至 docs/screenshots（需先 seed:demo 与 build；
+# 两步都应在 TMDB_READ_TOKEN 与 OMDB_API_KEY 为空时执行，以使用仓库内置的固定数据）
+npm run screenshots
 ```
+
+### 性能与界面验收
+
+性能与界面验收脚本需要 Playwright 的 Chromium（在开发容器内执行）：
+
+```sh
+npx playwright install --with-deps chromium
+npm run build
+npm run perf
+npm run qa
+```
+
+性能脚本使用独立的临时 SQLite 数据库，不读取或覆盖 `DATA_DIR`。夹具包含 300 部作品：普通 40 集剧集、150 集剧集、564 集合集和 12 部电影。浏览器采用 390 × 844 视口、4 倍 CPU 降速、150ms 延迟、1.6Mbps 下行和 750Kbps 上行，并关闭缓存与 Service Worker，测量冷启动。
+
+双语文本由固定种子生成，图片使用本地夹具；不需要 API Key，也不请求上游服务。结果不包含 Cloudflare Tunnel 或外部图片服务的额外延迟。性能报告逐项列出预算是否达标；设置 `PERF_ENFORCE_BUDGETS=1` 可在超标时返回失败。`PERF_OUTPUT_DIR` 指定容器内的报告目录。可选的 `PERF_PROFILE` 指定 CPU 采样文件路径，仅用于诊断；正式对比时不要开启。
+
+片库索引不传输单集名称、简介和剧照；进入详情页后按需加载并缓存。导出始终读取服务端完整资料，保持 v2 备份格式。
+
+界面验收脚本生成 320、390、1280px 下的中英文电影页、上游变更页、预览弹窗和集数范围选择截图，同时检查双设备同步、详情缓存和备份替换。`QA_OUTPUT_DIR` 指定容器内的截图与报告目录；未指定时创建独立临时目录。截图和运行数据不提交到仓库。
 
 ## 致谢与数据来源
 
@@ -277,22 +305,3 @@ npm run seed:demo
 ## 许可证
 
 本项目基于 [MIT License](./LICENSE) 开源，Copyright (c) 2026 KingCrimsonJY。
-
-## 性能与界面验收
-
-在开发容器内执行：
-
-```sh
-npx playwright install --with-deps chromium
-npm run build
-npm run perf
-npm run qa
-```
-
-性能脚本使用独立的临时 SQLite 数据库，不读取或覆盖 `DATA_DIR`。夹具包含 300 部作品：普通 40 集剧集、150 集剧集、564 集合集和 12 部电影。浏览器采用 390 × 844 视口、4 倍 CPU 降速、150ms 延迟、1.6Mbps 下行和 750Kbps 上行，并关闭缓存与 Service Worker，测量冷启动。
-
-双语文本由固定种子生成，图片使用本地夹具；不需要 API Key，也不请求上游服务。结果不包含 Cloudflare Tunnel 或外部图片服务的额外延迟。性能报告逐项列出预算是否达标；设置 `PERF_ENFORCE_BUDGETS=1` 可在超标时返回失败。`PERF_OUTPUT_DIR` 指定容器内的报告目录。可选的 `PERF_PROFILE` 指定 CPU 采样文件路径，仅用于诊断；正式对比时不要开启。
-
-片库索引不传输单集名称、简介和剧照；进入详情页后按需加载并缓存。导出始终读取服务端完整资料，保持 v2 备份格式。
-
-界面验收脚本生成 320、390、1280px 下的中英文电影页、上游变更页、预览弹窗和集数范围选择截图，同时检查双设备同步、详情缓存和备份替换。`QA_OUTPUT_DIR` 指定容器内的截图与报告目录；未指定时创建独立临时目录。截图和运行数据不提交到仓库。

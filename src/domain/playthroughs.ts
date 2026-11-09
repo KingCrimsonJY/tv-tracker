@@ -34,7 +34,13 @@ export function startRewatch(
     throw new Error('Can only start a rewatch when status is completed or caught_up');
   }
 
-  const ordered = renumberPlaythroughsByStartDate(title.playthroughs);
+  // A rewatch can only start from a finished viewing. A returning series that is merely caught up is not
+  // "completed", so stamp the outgoing viewing here or history would keep showing it as in progress.
+  const ordered = renumberPlaythroughsByStartDate(
+    title.playthroughs.map((p) =>
+      p.id === title.activePlaythroughId && p.completedAt == null ? { ...p, completedAt: now } : p,
+    ),
+  );
   const newPlaythrough: Playthrough = {
     id: newPlaythroughId,
     number: ordered.length + 1,

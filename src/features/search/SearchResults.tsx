@@ -46,7 +46,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         return (
           <div
             key={key}
-            className="flex items-center justify-between gap-4 p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-muted/50 transition-colors"
+            className="flex items-center justify-between gap-4 p-3 rounded-xl bg-surface border border-border hover:border-muted/50 transition-colors"
           >
             <div
               className={`flex items-center gap-3.5 min-w-0 flex-1 ${existingDoc ? 'cursor-pointer' : ''}`}
@@ -64,13 +64,13 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm sm:text-base text-[var(--foreground)] truncate">{mainTitle}</div>
-                {originalSub && <div className="text-xs text-[var(--muted)] truncate">{originalSub}</div>}
+                <div className="font-medium text-sm sm:text-base text-foreground truncate">{mainTitle}</div>
+                {originalSub && <div className="text-xs text-muted truncate">{originalSub}</div>}
                 <div className="flex items-center gap-2 mt-1">
                   <Chip size="sm" variant="soft">
                     {hit.mediaType === 'movie' ? t.mediaType.movie : t.mediaType.tv}
                   </Chip>
-                  {hit.year && <span className="text-xs text-[var(--muted)]">{hit.year}</span>}
+                  {hit.year && <span className="text-xs text-muted">{hit.year}</span>}
                 </div>
               </div>
             </div>
@@ -78,13 +78,13 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
             <div className="flex items-center gap-1.5 shrink-0">
               {inLibrary ? (
                 <Button size="sm" variant="tertiary" onPress={() => existingDoc && onOpenExisting(existingDoc.id)}>
-                  <Check className="w-4 h-4 mr-1 text-success" />
+                  <Check className="w-4 h-4 text-success" />
                   {t.search.addedToLibrary}
                 </Button>
               ) : (
                 <>
                   <Button size="sm" variant="primary" isDisabled={isAdding} onPress={() => onAdd(hit)}>
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="w-4 h-4" />
                     {t.search.addToLibrary}
                   </Button>
 
@@ -102,7 +102,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                       <Dropdown.Popover>
                         <Dropdown.Menu onAction={(listId) => onAdd(hit, String(listId))}>
                           {lists.map((list) => (
-                            <Dropdown.Item key={list.id} id={list.id}>
+                            <Dropdown.Item key={list.id} id={list.id} textValue={list.name}>
                               <Label>{list.name}</Label>
                             </Dropdown.Item>
                           ))}

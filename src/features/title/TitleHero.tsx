@@ -53,7 +53,7 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
               'linear-gradient(to top, var(--background) 0%, color-mix(in oklab, var(--background) 85%, transparent) 35%, color-mix(in oklab, var(--background) 35%, transparent) 100%)',
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/75 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/75 via-transparent to-transparent pointer-events-none" />
 
         {/* Back button */}
         <div className="absolute top-3 left-3 sm:top-5 sm:left-6 z-20">

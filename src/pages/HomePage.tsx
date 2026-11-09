@@ -1,11 +1,13 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ButtonLink } from '../components/ButtonLink';
+import { Link } from 'react-router-dom';
 import { Check, ChevronRight, Film, ListOrdered, Plus, Settings } from 'lucide-react';
 import { Button, ProgressBar, Skeleton } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
-import { computeListProgress, sortListEntries } from '../domain/ordering';
+import { compareRank, computeListProgress, sortListEntries } from '../domain/ordering';
+import { activeProgressOf, NO_SEASONS } from '../domain/stableRefs';
 import {
   computeTitleState,
   formatSeconds,
@@ -13,24 +15,33 @@ import {
   pickBackdrop,
   pickPoster,
   resolveDisplayTitle,
+  watchProgressPercent,
 } from '../domain/progress';
-import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
+import type { AppStateSnapshot, HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
+
+const selectHomeData = (state: AppStateSnapshot) => [
+  state.titles,
+  state.seasonsByTitle,
+  state.progressByTitle,
+  state.lists,
+  state.entriesByList,
+  state.settings,
+];
 
 export const HomePage: React.FC = () => {
   const {
     loadingData,
     titles,
     seasonsByTitle,
+    progressByTitle,
     lists,
     entriesByList,
     settings,
-    getActiveProgress,
-    toggleEpisode,
+    markEpisodeWatched,
     markWholeTitle,
-  } = useTracker();
+  } = useTracker(selectHomeData);
   const { locale, t } = useI18n();
-  const navigate = useNavigate();
 
   const allTitles = Object.values(titles);
   const defaultLang = settings.defaultTitleLang;
@@ -38,11 +49,11 @@ export const HomePage: React.FC = () => {
 
   const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
   for (const titleDoc of allTitles) {
-    progressByTitleMap[titleDoc.id] = getActiveProgress(titleDoc);
+    progressByTitleMap[titleDoc.id] = activeProgressOf(progressByTitle, titleDoc);
   }
 
   const enriched = allTitles.map((title) => {
-    const seasons = seasonsByTitle[title.id] || [];
+    const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
     const progress = progressByTitleMap[title.id];
     const state = computeTitleState(title, seasons, progress, { includeSpecials });
     return { title, seasons, progress, state };
@@ -68,7 +79,7 @@ export const HomePage: React.FC = () => {
 
   const pinnedOrderedLists = Object.values(lists)
     .filter((l) => l.pinned)
-    .sort((a, b) => (a.rank < b.rank ? -1 : 1));
+    .sort(compareRank);
 
   const renderPosterGridSection = (
     key: HomeSectionId,
@@ -80,11 +91,11 @@ export const HomePage: React.FC = () => {
     return (
       <section key={key} className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">{heading}</h2>
+          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-foreground">{heading}</h2>
           {moreLink && (
             <Link
               to={moreLink.to}
-              className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 min-h-[44px] px-2"
+              className="text-xs font-medium text-muted hover:text-foreground flex items-center gap-1 min-h-[44px] px-2"
             >
               <span>{moreLink.label}</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -113,14 +124,14 @@ export const HomePage: React.FC = () => {
         if (continueWatchingItems.length === 0) return null;
         return (
           <section key={key} className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-foreground">
               {t.home.sections.continue_watching}
             </h2>
-            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory no-scrollbar">
-              {continueWatchingItems.map(({ title, seasons, state }) => {
+            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
+              {continueWatchingItems.map(({ title, seasons, progress, state }) => {
                 const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
                 const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
-                const pct = Math.max(3, Math.min(100, Math.round(ratio * 100)));
+                const pct = watchProgressPercent(ratio);
 
                 let subtitle: string = t.status[state.status];
                 if (title.resume && title.resume.seconds > 0) {
@@ -135,12 +146,16 @@ export const HomePage: React.FC = () => {
                   subtitle = t.home.nextEpisodeLabel(state.nextUp.seasonNumber, state.nextUp.number);
                 }
 
-                const quickMarkEpisodeKey = title.resume?.episodeKey || state.nextUp?.key;
+                // A resume point can sit on an episode that is already watched (e.g. a rewatch of one
+                // episode); the quick action then targets the next unwatched episode instead.
+                const resumeKey = title.resume?.episodeKey;
+                const quickMarkEpisodeKey =
+                  resumeKey && progress?.watched[resumeKey] === undefined ? resumeKey : state.nextUp?.key;
 
                 return (
                   <div
                     key={title.id}
-                    className="relative shrink-0 w-[280px] sm:w-[320px] snap-start group rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
+                    className="relative shrink-0 w-[280px] sm:w-[320px] snap-start group rounded-2xl overflow-hidden border border-border bg-surface"
                   >
                     <Link
                       to={`/title/${title.id}${quickMarkEpisodeKey ? `?ep=${quickMarkEpisodeKey}` : ''}`}
@@ -166,7 +181,7 @@ export const HomePage: React.FC = () => {
                           className="w-full"
                         >
                           <ProgressBar.Track>
-                            <ProgressBar.Fill />
+                            <ProgressBar.Fill className="min-w-1.5" />
                           </ProgressBar.Track>
                         </ProgressBar>
                       </div>
@@ -179,7 +194,7 @@ export const HomePage: React.FC = () => {
                           size="sm"
                           isIconOnly
                           onPress={() => {
-                            void toggleEpisode(title.id, quickMarkEpisodeKey);
+                            void markEpisodeWatched(title.id, quickMarkEpisodeKey);
                           }}
                           aria-label={t.home.markNextWatchedAria(primary, quickMarkEpisodeKey.toUpperCase())}
                         >
@@ -217,12 +232,12 @@ export const HomePage: React.FC = () => {
         return (
           <section key={key} className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
+              <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-foreground">
                 {t.home.sections.pinned_lists}
               </h2>
               <Link
                 to="/lists"
-                className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 min-h-[44px] px-2"
+                className="text-xs font-medium text-muted hover:text-foreground flex items-center gap-1 min-h-[44px] px-2"
               >
                 <span>{t.home.manageLists}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -253,15 +268,15 @@ export const HomePage: React.FC = () => {
                   <Link
                     key={list.id}
                     to={`/lists/${list.id}`}
-                    className="group flex flex-col justify-between p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-secondary)] transition-colors space-y-3"
+                    className="group flex flex-col justify-between p-4 rounded-2xl border border-border bg-surface hover:bg-surface-secondary transition-colors space-y-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-xs text-[var(--accent-text)] font-medium">
+                        <div className="flex items-center gap-1.5 text-xs text-accent-soft-foreground font-medium">
                           <ListOrdered className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{list.name}</span>
                         </div>
-                        <p className="mt-1.5 text-sm font-medium text-[var(--foreground)] truncate">
+                        <p className="mt-1.5 text-sm font-medium text-foreground truncate">
                           {nextTitleName
                             ? t.home.pinnedListNextUp(nextTitleName)
                             : stats.totalCount > 0
@@ -269,7 +284,7 @@ export const HomePage: React.FC = () => {
                               : t.home.pinnedListEmpty}
                         </p>
                       </div>
-                      <span className="text-xs font-medium text-[var(--muted)] tabular-nums shrink-0">
+                      <span className="text-xs font-medium text-muted tabular-nums shrink-0">
                         {t.home.pinnedListProgress(stats.completedCount, stats.totalCount)}
                       </span>
                     </div>
@@ -304,21 +319,15 @@ export const HomePage: React.FC = () => {
   return (
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-8">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">{t.home.title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t.home.title}</h1>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onPress={() => navigate('/search')}>
+          <ButtonLink to="/search" variant="secondary" size="sm">
             <Plus className="w-4 h-4" />
             <span>{t.library.addMediaButton}</span>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            isIconOnly
-            onPress={() => navigate('/settings')}
-            aria-label={t.settings.title}
-          >
+          </ButtonLink>
+          <ButtonLink to="/settings" variant="secondary" size="sm" isIconOnly aria-label={t.settings.title}>
             <Settings className="w-4 h-4" />
-          </Button>
+          </ButtonLink>
         </div>
       </header>
 
@@ -332,17 +341,17 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       ) : allTitles.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 sm:p-12 text-center max-w-lg mx-auto my-8 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center mx-auto">
+        <div className="rounded-2xl border border-border bg-surface p-8 sm:p-12 text-center max-w-lg mx-auto my-8 space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent-soft-foreground flex items-center justify-center mx-auto">
             <Film className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">{t.home.emptyLibraryTitle}</h2>
-          <p className="text-sm text-[var(--muted)] leading-relaxed">{t.home.emptyLibraryDescription}</p>
+          <h2 className="text-lg font-semibold text-foreground">{t.home.emptyLibraryTitle}</h2>
+          <p className="text-sm text-muted leading-relaxed">{t.home.emptyLibraryDescription}</p>
           <div className="pt-2">
-            <Button variant="primary" onPress={() => navigate('/search')}>
+            <ButtonLink to="/search" variant="primary">
               <Plus className="w-4 h-4" />
               <span>{t.home.emptyLibraryCta}</span>
-            </Button>
+            </ButtonLink>
           </div>
         </div>
       ) : (

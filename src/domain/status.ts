@@ -85,6 +85,14 @@ export function computeSeasonState(
   };
 }
 
+/**
+ * Percentage for a watch-progress bar. It is the real value, also announced by assistive technology, so it is
+ * never rounded up to keep the bar visible; give the fill a minimum width instead.
+ */
+export function watchProgressPercent(ratio: number): number {
+  return Number.isFinite(ratio) ? Math.min(100, Math.max(0, ratio * 100)) : 0;
+}
+
 export function getTitleContinueProgressRatio(
   title: Pick<TitleDoc, 'mediaType' | 'resume'> & { runtimeMin?: number | null },
   seasons: SeasonDoc[],

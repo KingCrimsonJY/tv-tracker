@@ -33,14 +33,14 @@ export const PosterCard: React.FC<PosterCardProps> = React.memo(
     return (
       <Link
         to={`/title/${title.id}`}
-        className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded-xl"
+        className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-xl"
       >
-        <div className="relative rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 group-hover:scale-[1.02]">
+        <div className="relative rounded-xl overflow-hidden border border-border bg-surface transition-transform duration-200 group-hover:scale-[1.02]">
           <MediaImage src={posterSrc} alt={primary} aspect="poster" mediaType={title.mediaType} className="w-full" />
 
           {/* Thin progress bar at bottom of poster while watching */}
           {isWatching && (
-            <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-[var(--scrim-strong)] via-[var(--scrim-mid)] to-transparent">
+            <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-scrim-strong via-scrim-mid to-transparent">
               <ProgressBar
                 aria-label={`${primary} ${t.app.watchProgressAriaSuffix}`}
                 value={pct}
@@ -56,12 +56,12 @@ export const PosterCard: React.FC<PosterCardProps> = React.memo(
         </div>
 
         <div className="mt-2 px-0.5">
-          <h3 className="text-sm font-medium text-[var(--foreground)] line-clamp-2 leading-snug group-hover:text-[var(--accent-text)] transition-colors">
+          <h3 className="text-sm font-medium text-foreground line-clamp-2 leading-snug group-hover:text-accent-soft-foreground transition-colors">
             {primary}
           </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[var(--muted)] tabular-nums">
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted tabular-nums">
             {state.hasNewEpisodes ? (
-              <span className="text-[var(--accent-text)] font-medium">{t.detail.newEpisodeBadge}</span>
+              <span className="text-accent-soft-foreground font-medium">{t.detail.newEpisodeBadge}</span>
             ) : (
               <span>{t.status[state.status]}</span>
             )}

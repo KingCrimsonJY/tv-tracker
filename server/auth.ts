@@ -108,16 +108,17 @@ export function getClientIp(req: Request, trustProxy: boolean): string {
     if (typeof cfIp === 'string' && cfIp.trim()) {
       return cfIp.trim();
     }
+    // Clients can prepend arbitrary entries; the trusted proxy appends the address it saw last.
     const xff = req.headers['x-forwarded-for'];
     if (typeof xff === 'string' && xff.trim()) {
-      const first = xff.split(',')[0]?.trim();
-      if (first) return first;
+      const last = xff.split(',').at(-1)?.trim();
+      if (last) return last;
     }
   }
   return req.socket?.remoteAddress || req.ip || '127.0.0.1';
 }
 
-export function isSameOriginRequest(req: Request): boolean {
+export function isSameOriginRequest(req: Request, trustProxy = false): boolean {
   const originHeader = req.headers.origin;
   if (!originHeader || typeof originHeader !== 'string') {
     return false;
@@ -129,7 +130,8 @@ export function isSameOriginRequest(req: Request): boolean {
     return false;
   }
 
-  const forwardedHost = req.headers['x-forwarded-host'];
+  // Only a trusted reverse proxy may override the Host the browser connected to.
+  const forwardedHost = trustProxy ? req.headers['x-forwarded-host'] : undefined;
   const rawHost = (typeof forwardedHost === 'string' && forwardedHost.split(',')[0]?.trim()) || req.headers.host || '';
   if (!rawHost) return false;
 

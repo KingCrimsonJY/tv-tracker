@@ -23,6 +23,7 @@ import { MediaImage } from '../../components/MediaImage';
 import { DefaultTitleLang, ListEntryDoc, TitleDoc } from '../../domain/types';
 import { ComputedTitleState, pickPoster, resolveDisplayTitle } from '../../domain/progress';
 import { useI18n } from '../../i18n';
+import { sortableAccessibility } from '../../components/sortableAccessibility';
 
 interface ItemRow {
   entry: ListEntryDoc;
@@ -68,9 +69,7 @@ const SortableOrderedRow: React.FC<{
       ref={setNodeRef}
       style={style}
       className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-        isNextUp
-          ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/40'
-          : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--muted)]/40'
+        isNextUp ? 'bg-accent-soft border-accent/40' : 'bg-surface border-border hover:border-muted/40'
       }`}
     >
       {isSorting && (
@@ -82,16 +81,16 @@ const SortableOrderedRow: React.FC<{
           // Let dnd-kit own handle events while HeroUI supplies button styling.
           render={(props) => <button {...props} {...attributes} {...listeners} />}
           aria-label={t.lists.dragHandleAria(displayTitle)}
-          className="w-11 h-11 flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] touch-none cursor-grab active:cursor-grabbing shrink-0"
+          className="w-11 h-11 flex items-center justify-center text-muted hover:text-foreground touch-none cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-5 h-5" />
         </Button>
       )}
 
-      <div className="w-7 text-center font-mono text-sm font-semibold text-[var(--muted)] shrink-0">{index + 1}</div>
+      <div className="w-7 text-center font-mono text-sm font-semibold text-muted shrink-0">{index + 1}</div>
 
       <Link to={`/title/${item.title.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="w-11 h-16 rounded-lg overflow-hidden bg-[var(--surface-secondary)] shrink-0">
+        <div className="w-11 h-16 rounded-lg overflow-hidden bg-surface-secondary shrink-0">
           <MediaImage
             src={pickPoster(item.title, locale)}
             alt={displayTitle}
@@ -110,7 +109,7 @@ const SortableOrderedRow: React.FC<{
               </Chip>
             )}
           </div>
-          <div className="text-xs text-[var(--muted)] mt-0.5">{item.title.year ?? ''}</div>
+          <div className="text-xs text-muted mt-0.5">{item.title.year ?? ''}</div>
         </div>
       </Link>
 
@@ -159,6 +158,12 @@ export const OrderedListSection: React.FC<OrderedListSectionProps> = ({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const { t, locale } = useI18n();
+  const accessibility = sortableAccessibility(t, (id) => {
+    const item = items.find((row) => row.entry.id === id);
+    return item ? resolveDisplayTitle(item.title.names, item.title.displayLang, defaultLang, locale).primary : '';
+  });
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -166,7 +171,12 @@ export const OrderedListSection: React.FC<OrderedListSectionProps> = ({
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      accessibility={accessibility}
+      onDragEnd={handleDragEnd}
+    >
       <SortableContext items={items.map((x) => x.entry.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2.5">
           {items.map((item, idx) => (

@@ -108,6 +108,32 @@ try {
     }
   }
 
+  // Long, unbroken user text must wrap: list headers keep their actions on screen.
+  repo.putList('qa_long_list', {
+    name: 'W'.repeat(80),
+    description: 'D'.repeat(200),
+    kind: 'ordered',
+    pinned: true,
+    rank: 'a0',
+    collectionSort: 'manual',
+    createdAt: Date.now(),
+  });
+  for (const width of [320, 390, 1280]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, serviceWorkers: 'block' });
+    await context.addCookies([{ name: 'zhenji_session', value: token, url: baseUrl, httpOnly: true, sameSite: 'Lax' }]);
+    const page = await context.newPage();
+    observe(page);
+    await page.goto(baseUrl + '/lists/qa_long_list');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    await capture(page, 'long-list-name-' + width);
+    for (const button of await page.locator('main button').filter({ visible: true }).all()) {
+      const box = await button.boundingBox();
+      assert(box && box.x >= 0 && box.x + box.width <= width + 1, 'List header action is off screen at ' + width);
+    }
+    await context.close();
+  }
+  repo.deleteList('qa_long_list');
+
   repo.patchSettings({ uiLang: 'en' });
   const contexts = await Promise.all(
     [0, 1].map(async () => {
@@ -146,6 +172,26 @@ try {
     detailsBefore,
     'Detail cache missed on route return',
   );
+  // Chinese IME input: composition text must never be committed into the search field.
+  // QA runs without a TMDB key; answer the debounced search locally so it stays offline and error-free.
+  await pages[0].route('**/api/tmdb/search**', (route) => route.fulfill({ json: { configured: true, results: [] } }));
+  await pages[0].goto(baseUrl + '/search');
+  const searchInput = pages[0].getByRole('searchbox');
+  await searchInput.click();
+  const ime = await pages[0].context().newCDPSession(pages[0]);
+  for (const text of ['f', 'fa', 'fan', "fan'r", "fan'ren"]) {
+    await ime.send('Input.imeSetComposition', { text, selectionStart: text.length, selectionEnd: text.length });
+    await pages[0].waitForTimeout(40);
+  }
+  await ime.send('Input.insertText', { text: '凡人' });
+  await pages[0].waitForTimeout(400);
+  assert.equal(await searchInput.inputValue(), '凡人', 'IME composition text leaked into the search field');
+  assert.equal(new URL(pages[0].url()).searchParams.get('q'), '凡人');
+  await ime.detach();
+  await pages[0].unroute('**/api/tmdb/search**');
+  await pages[0].goto(baseUrl + '/title/' + title.id);
+  await pages[0].getByRole('heading', { level: 1 }).waitFor();
+
   const backup = repo.exportData();
   delete backup.titles[title.id];
   delete backup.seasonsByTitle[title.id];
@@ -161,6 +207,8 @@ try {
     crossDeviceToggle: 'passed',
     detailCache: 'passed',
     backupReplacement: 'passed',
+    imeSearchInput: 'passed',
+    longListName: 'passed',
   };
   writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report));

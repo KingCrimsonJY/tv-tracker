@@ -1,4 +1,5 @@
 import React from 'react';
+import { ButtonLink } from '../components/ButtonLink';
 import { Button } from '@heroui/react';
 import { UpstreamPanel } from '../features/title/UpstreamPanel';
 import { useTitleDetail } from '../features/title/useTitleDetail';
@@ -10,18 +11,20 @@ import { PlaythroughHistory } from '../features/title/PlaythroughHistory';
 import { ResumeDialog } from '../features/title/ResumeDialog';
 import { TitleModals } from '../features/title/TitleModals';
 import { useI18n } from '../i18n';
+import { useBackNavigation } from '../components/useBackNavigation';
 
 export const TitleDetailPage: React.FC = () => {
   const detail = useTitleDetail();
   const { t } = useI18n();
+  const goBack = useBackNavigation('/library');
 
   if (!detail.title || !detail.titleState) {
     return (
       <div className="p-8 text-center">
-        <p className="text-[var(--muted)] mb-4">{t.detail.notFound}</p>
-        <Button variant="secondary" onPress={() => detail.navigate('/library')}>
+        <p className="text-muted mb-4">{t.detail.notFound}</p>
+        <ButtonLink to="/library" variant="secondary">
           {t.detail.backToLibrary}
-        </Button>
+        </ButtonLink>
       </div>
     );
   }
@@ -36,7 +39,7 @@ export const TitleDetailPage: React.FC = () => {
         displayTitle={detail.displayTitle}
         showOriginalSub={detail.showOriginalSub}
         metaParts={detail.metaParts}
-        onBack={() => detail.navigate(-1)}
+        onBack={goBack}
       >
         <RatingsRow title={title} />
 
@@ -62,11 +65,11 @@ export const TitleDetailPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 mt-5">
         <div className="max-w-3xl space-y-1.5">
           {title.uploader && (
-            <p className="text-xs font-medium text-[var(--muted)]">{t.detail.uploaderPrefix(title.uploader)}</p>
+            <p className="text-xs font-medium text-muted">{t.detail.uploaderPrefix(title.uploader)}</p>
           )}
           <p
             className={`text-sm ${
-              detail.hasOverviewText ? 'text-[var(--foreground)]/90' : 'text-[var(--muted)]'
+              detail.hasOverviewText ? 'text-foreground/90' : 'text-muted'
             } leading-relaxed ${!detail.overviewExpanded ? 'line-clamp-3' : ''}`}
           >
             {detail.overviewText}
@@ -111,59 +114,50 @@ export const TitleDetailPage: React.FC = () => {
         />
       </div>
 
-      {detail.resumeDialogOpen && (
-        <ResumeDialog
-          isOpen={detail.resumeDialogOpen}
-          onOpenChange={detail.setResumeDialogOpen}
-          title={title}
-          seasons={seasons}
-          defaultEpisodeKey={detail.resumeDefaultEpKey}
-          onSave={(seconds, epKey) => void detail.saveResume(title.id, { seconds, episodeKey: epKey })}
-          onClear={() => void detail.saveResume(title.id, null)}
-        />
-      )}
+      <ResumeDialog
+        isOpen={detail.resumeDialogOpen}
+        onOpenChange={detail.setResumeDialogOpen}
+        title={title}
+        seasons={seasons}
+        defaultEpisodeKey={detail.resumeDefaultEpKey}
+        onSave={(seconds, epKey) => void detail.saveResume(title.id, { seconds, episodeKey: epKey })}
+        onClear={() => void detail.saveResume(title.id, null)}
+      />
 
-      {(detail.addToListOpen ||
-        detail.langModalOpen ||
-        detail.editModalOpen ||
-        detail.deleteConfirmOpen ||
-        detail.undoPlaythroughOpen ||
-        detail.deletePlaythroughId) && (
-        <TitleModals
-          title={title}
-          lists={detail.lists}
-          entriesByList={detail.entriesByList}
-          addToListOpen={detail.addToListOpen}
-          onAddToListOpenChange={detail.setAddToListOpen}
-          onAddListEntry={(listId, titleId) => void detail.addTitleToList(listId, titleId)}
-          onRemoveListEntry={(listId, entryId) => void detail.removeEntryFromList(listId, entryId)}
-          langModalOpen={detail.langModalOpen}
-          onLangModalOpenChange={detail.setLangModalOpen}
-          onUpdateDisplayLang={(displayLang) => void detail.updateTitleLanguage(title.id, displayLang)}
-          editModalOpen={detail.editModalOpen}
-          onEditModalOpenChange={detail.setEditModalOpen}
-          onUpdateTitle={(patch) => void detail.updateTitleDetails(title.id, patch)}
-          deleteConfirmOpen={detail.deleteConfirmOpen}
-          onDeleteConfirmOpenChange={detail.setDeleteConfirmOpen}
-          onConfirmDelete={async () => {
-            await detail.removeTitle(title.id);
-            detail.setDeleteConfirmOpen(false);
-            detail.navigate('/library');
-          }}
-          undoPlaythroughOpen={detail.undoPlaythroughOpen}
-          onUndoPlaythroughOpenChange={detail.setUndoPlaythroughOpen}
-          onConfirmUndoPlaythrough={async () => {
-            await detail.cancelTitleRewatch(title.id);
-            detail.setUndoPlaythroughOpen(false);
-          }}
-          deletePlaythroughId={detail.deletePlaythroughId}
-          onDeletePlaythroughIdChange={detail.setDeletePlaythroughId}
-          onConfirmDeletePlaythrough={async (ptId) => {
-            await detail.deleteTitlePlaythrough(title.id, ptId);
-            detail.setDeletePlaythroughId(null);
-          }}
-        />
-      )}
+      <TitleModals
+        title={title}
+        lists={detail.lists}
+        entriesByList={detail.entriesByList}
+        addToListOpen={detail.addToListOpen}
+        onAddToListOpenChange={detail.setAddToListOpen}
+        onAddListEntry={(listId, titleId) => void detail.addTitleToList(listId, titleId)}
+        onRemoveListEntry={(listId, entryId) => void detail.removeEntryFromList(listId, entryId)}
+        langModalOpen={detail.langModalOpen}
+        onLangModalOpenChange={detail.setLangModalOpen}
+        onUpdateDisplayLang={(displayLang) => void detail.updateTitleLanguage(title.id, displayLang)}
+        editModalOpen={detail.editModalOpen}
+        onEditModalOpenChange={detail.setEditModalOpen}
+        onUpdateTitle={(patch) => void detail.updateTitleDetails(title.id, patch)}
+        deleteConfirmOpen={detail.deleteConfirmOpen}
+        onDeleteConfirmOpenChange={detail.setDeleteConfirmOpen}
+        onConfirmDelete={async () => {
+          await detail.removeTitle(title.id);
+          detail.setDeleteConfirmOpen(false);
+          detail.navigate('/library');
+        }}
+        undoPlaythroughOpen={detail.undoPlaythroughOpen}
+        onUndoPlaythroughOpenChange={detail.setUndoPlaythroughOpen}
+        onConfirmUndoPlaythrough={async () => {
+          await detail.cancelTitleRewatch(title.id);
+          detail.setUndoPlaythroughOpen(false);
+        }}
+        deletePlaythroughId={detail.deletePlaythroughId}
+        onDeletePlaythroughIdChange={detail.setDeletePlaythroughId}
+        onConfirmDeletePlaythrough={async (ptId) => {
+          await detail.deleteTitlePlaythrough(title.id, ptId);
+          detail.setDeletePlaythroughId(null);
+        }}
+      />
     </div>
   );
 };

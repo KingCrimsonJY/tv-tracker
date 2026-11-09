@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { activeProgressOf, NO_SEASONS } from '../domain/stableRefs';
+import { ButtonLink } from '../components/ButtonLink';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Chip, Switch, AlertDialog, Dropdown, Label } from '@heroui/react';
 import { ArrowLeft, Plus, Trash2, Pin, ListOrdered, Bookmark, ArrowUpDown, GripVertical } from 'lucide-react';
@@ -10,6 +12,8 @@ import { OrderedListSection } from '../features/lists/OrderedListSection';
 import { CollectionGridSection } from '../features/lists/CollectionGridSection';
 import { AddTitlesDialog } from '../features/lists/AddTitlesDialog';
 import { useI18n } from '../i18n';
+import { usePendingAction } from '../hooks/usePendingAction';
+import { withPendingSpinner } from '../components/pendingContent';
 
 export const ListDetailPage: React.FC = () => {
   const { listId: id } = useParams<{ listId: string }>();
@@ -20,19 +24,27 @@ export const ListDetailPage: React.FC = () => {
     titles,
     seasonsByTitle,
     settings,
-    getActiveProgress,
+    progressByTitle,
     deleteList,
     togglePinList,
     updateCollectionSort,
     addTitleToList,
     removeEntryFromList,
     reorderListEntry,
-  } = useTracker();
+  } = useTracker((state) => [
+    state.titles,
+    state.seasonsByTitle,
+    state.progressByTitle,
+    state.lists,
+    state.entriesByList,
+    state.settings,
+  ]);
   const { t, locale } = useI18n();
 
   const [isSorting, setIsSorting] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingList, runDeleteList] = usePendingAction();
 
   const list = id ? lists[id] : undefined;
   const rawEntries = useMemo(() => (id ? (entriesByList[id] ?? []) : []), [id, entriesByList]);
@@ -53,14 +65,14 @@ export const ListDetailPage: React.FC = () => {
   const progressByTitleMap = useMemo(() => {
     const map: Record<string, ProgressDoc | undefined> = {};
     for (const item of sortedEntries) {
-      map[item.title.id] = getActiveProgress(item.title);
+      map[item.title.id] = activeProgressOf(progressByTitle, item.title);
     }
     return map;
-  }, [sortedEntries, getActiveProgress]);
+  }, [sortedEntries, progressByTitle]);
 
   const titlesWithState = useMemo(() => {
     return sortedEntries.map(({ entry, title }) => {
-      const seasons = seasonsByTitle[title.id] ?? [];
+      const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
       const progress = progressByTitleMap[title.id];
       const state = computeTitleState(title, seasons, progress, {
         includeSpecials: settings.includeSpecials,
@@ -72,10 +84,10 @@ export const ListDetailPage: React.FC = () => {
   if (!list) {
     return (
       <div className="p-8 text-center">
-        <p className="text-[var(--muted)] mb-4">{t.lists.notFound}</p>
-        <Button variant="secondary" onPress={() => navigate('/lists')}>
+        <p className="text-muted mb-4">{t.lists.notFound}</p>
+        <ButtonLink to="/lists" variant="secondary">
           {t.lists.backToLists}
-        </Button>
+        </ButtonLink>
       </div>
     );
   }
@@ -87,44 +99,44 @@ export const ListDetailPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <Button variant="ghost" size="sm" onPress={() => navigate('/lists')} className="-ml-2 mb-1">
-            <ArrowLeft className="w-4 h-4 mr-1" />
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-4">
+          <ButtonLink to="/lists" variant="ghost" size="sm" className="-ml-2">
+            <ArrowLeft className="w-4 h-4" />
             {t.lists.title}
-          </Button>
-          <div className="flex items-center gap-2 flex-wrap">
-            {list.kind === 'ordered' ? (
-              <ListOrdered className="w-6 h-6 text-[var(--accent)]" />
-            ) : (
-              <Bookmark className="w-6 h-6 text-[var(--accent)]" />
-            )}
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{list.name}</h1>
-            <Chip size="sm" variant="soft">
-              {stats.completedCount}/{stats.totalCount}
-            </Chip>
+          </ButtonLink>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
+              <Plus className="w-4 h-4" />
+              {t.lists.addTitlesButtonShort}
+            </Button>
+            <Button
+              variant="danger-soft"
+              size="sm"
+              isIconOnly
+              aria-label={t.app.delete}
+              onPress={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
-          {list.description && <p className="text-sm text-[var(--muted)] max-w-2xl">{list.description}</p>}
         </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="primary" size="sm" onPress={() => setAddModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" />
-            {t.lists.addTitlesButtonShort}
-          </Button>
-          <Button
-            variant="danger-soft"
-            size="sm"
-            isIconOnly
-            aria-label={t.app.delete}
-            onPress={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+        {/* The title gets the full width; long, unbroken names wrap instead of widening the page. */}
+        <div className="flex min-w-0 items-center gap-2 flex-wrap pt-1">
+          {list.kind === 'ordered' ? (
+            <ListOrdered className="w-6 h-6 text-accent" />
+          ) : (
+            <Bookmark className="w-6 h-6 text-accent" />
+          )}
+          <h1 className="min-w-0 text-2xl sm:text-3xl font-bold tracking-tight wrap-anywhere">{list.name}</h1>
+          <Chip size="sm" variant="soft">
+            {stats.completedCount}/{stats.totalCount}
+          </Chip>
         </div>
+        {list.description && <p className="text-sm text-muted max-w-2xl wrap-anywhere">{list.description}</p>}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-[var(--border)]">
+      <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-border">
         <div className="flex items-center gap-4">
           <Switch isSelected={list.pinned} onChange={() => void togglePinList(list.id)} size="sm">
             <Switch.Content>
@@ -143,7 +155,7 @@ export const ListDetailPage: React.FC = () => {
           {list.kind === 'collection' && (
             <Dropdown>
               <Button variant="secondary" size="sm">
-                <ArrowUpDown className="w-3.5 h-3.5 mr-1.5" />
+                <ArrowUpDown className="w-3.5 h-3.5" />
                 {t.lists.sortBy[list.collectionSort]}
               </Button>
               <Dropdown.Popover>
@@ -159,19 +171,19 @@ export const ListDetailPage: React.FC = () => {
                     }
                   }}
                 >
-                  <Dropdown.Item id="added">
+                  <Dropdown.Item id="added" textValue={t.lists.sortBy.added}>
                     <Label>{t.lists.sortBy.added}</Label>
                   </Dropdown.Item>
-                  <Dropdown.Item id="name">
+                  <Dropdown.Item id="name" textValue={t.lists.sortBy.name}>
                     <Label>{t.lists.sortBy.name}</Label>
                   </Dropdown.Item>
-                  <Dropdown.Item id="year">
+                  <Dropdown.Item id="year" textValue={t.lists.sortBy.year}>
                     <Label>{t.lists.sortBy.year}</Label>
                   </Dropdown.Item>
-                  <Dropdown.Item id="rating">
+                  <Dropdown.Item id="rating" textValue={t.lists.sortBy.rating}>
                     <Label>{t.lists.sortBy.rating}</Label>
                   </Dropdown.Item>
-                  <Dropdown.Item id="manual">
+                  <Dropdown.Item id="manual" textValue={t.lists.sortBy.manual}>
                     <Label>{t.lists.sortBy.manual}</Label>
                   </Dropdown.Item>
                 </Dropdown.Menu>
@@ -181,7 +193,7 @@ export const ListDetailPage: React.FC = () => {
 
           {(list.kind === 'ordered' || list.collectionSort === 'manual') && (
             <Button variant={isSorting ? 'primary' : 'secondary'} size="sm" onPress={() => setIsSorting(!isSorting)}>
-              <GripVertical className="w-3.5 h-3.5 mr-1" />
+              <GripVertical className="w-3.5 h-3.5" />
               {isSorting ? t.lists.reorderDone : t.lists.reorderToggle}
             </Button>
           )}
@@ -190,9 +202,9 @@ export const ListDetailPage: React.FC = () => {
 
       {titlesWithState.length === 0 ? (
         <div className="py-16 text-center space-y-3">
-          <p className="text-[var(--muted)] text-sm">{t.lists.emptyListEntries}</p>
+          <p className="text-muted text-sm">{t.lists.emptyListEntries}</p>
           <Button variant="secondary" size="sm" onPress={() => setAddModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" />
+            <Plus className="w-4 h-4" />
             {t.lists.addTitlesToList}
           </Button>
         </div>
@@ -234,7 +246,7 @@ export const ListDetailPage: React.FC = () => {
               <AlertDialog.Heading>{t.app.delete}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p className="text-sm text-[var(--muted)]">{t.lists.deleteListConfirm}</p>
+              <p className="text-sm text-muted">{t.lists.deleteListConfirm}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer className="gap-2">
               <Button variant="tertiary" onPress={() => setDeleteDialogOpen(false)}>
@@ -242,13 +254,16 @@ export const ListDetailPage: React.FC = () => {
               </Button>
               <Button
                 variant="danger"
-                onPress={async () => {
-                  await deleteList(list.id);
-                  setDeleteDialogOpen(false);
-                  navigate('/lists');
-                }}
+                isPending={deletingList}
+                onPress={() =>
+                  runDeleteList(async () => {
+                    await deleteList(list.id);
+                    setDeleteDialogOpen(false);
+                    navigate('/lists');
+                  })
+                }
               >
-                {t.app.delete}
+                {withPendingSpinner(t.app.delete)}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

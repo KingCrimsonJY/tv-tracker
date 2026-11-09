@@ -23,6 +23,11 @@ export { isEpisodic, pickBackdrop, pickPoster, resolveDisplayTitle, resolveLocal
 /**
  * Generates a fractional rank key to append at the end of a sorted list of ranks.
  */
+/** Fractional-index keys compare by code point; equal keys keep their relative order. */
+export function compareRank(a: { rank: string }, b: { rank: string }): number {
+  return a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0;
+}
+
 export function getNextRank(existingRanks: string[]): string {
   if (existingRanks.length === 0) {
     return generateKeyBetween(null, null);

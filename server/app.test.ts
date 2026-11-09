@@ -1,5 +1,6 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { gzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from './app.ts';
 import { SESSION_TTL_MS } from './auth.ts';
@@ -352,5 +353,57 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(badId.status).toBe(400);
+  });
+
+  it('does not leak internal error messages in 500 responses', async () => {
+    const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
+    });
+    const cookiePair = (setupRes.headers.get('set-cookie') || '').split(';')[0];
+    repo.getState = () => {
+      throw new Error('SQLITE_CORRUPT at /srv/private/tracker.db');
+    };
+    const res = await fetch(`${baseUrl}/api/state`, { headers: { Cookie: cookiePair } });
+    expect(res.status).toBe(500);
+    const body = await res.text();
+    expect(body).toContain('INTERNAL_ERROR');
+    expect(body).not.toContain('/srv/private');
+  });
+
+  it('answers malformed JSON with 400 and never logs the request body', async () => {
+    const logged: unknown[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(...args);
+    };
+    try {
+      for (const path of ['/api/auth/login', '/api/auth/setup', '/api/import']) {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+          body: '{"password":"secret-marker-123",',
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ code: 'VALIDATION_ERROR' });
+      }
+    } finally {
+      console.error = originalError;
+    }
+    expect(JSON.stringify(logged.map(String))).not.toContain('secret-marker-123');
+  });
+
+  it('answers corrupt or truncated gzip bodies with 400', async () => {
+    const valid = gzipSync(JSON.stringify({ password: 'secret-marker-456' }));
+    for (const body of [Buffer.from('not gzip at all'), valid.subarray(0, valid.length - 8)]) {
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip', Origin: baseUrl },
+        body,
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ code: 'VALIDATION_ERROR' });
+    }
   });
 });

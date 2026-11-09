@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
     "module": "ESNext",
     "types": ["vite/client", "vite-plugin-pwa/client", "node"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -11,7 +9,6 @@
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
     "moduleDetection": "force",
-    "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./*"]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal, TextField, Label, Description, Input, Select, ListBox, Button, FieldError } from '@heroui/react';
 import { SeasonDoc, TitleDoc } from '../../domain/types';
 import { makeEpisodeKey } from '../../domain/airing';
@@ -14,6 +14,22 @@ interface ResumeDialogProps {
   defaultEpisodeKey: string | null;
   onSave: (seconds: number, episodeKey: string | null) => void;
   onClear: () => void;
+}
+
+/**
+ * The episode the dialog was opened for wins over the stored resume point (e.g. "Record time" on another
+ * episode's menu). The stored time is only prefilled when it belongs to that episode.
+ */
+export function initialResumeSelection(
+  title: Pick<TitleDoc, 'resume'>,
+  requestedEpisodeKey: string | null,
+  firstEpisodeKey: string | null,
+  isEpisodeBased: boolean,
+): { episodeKey: string | null; seconds: number | null } {
+  const episodeKey = requestedEpisodeKey ?? title.resume?.episodeKey ?? firstEpisodeKey;
+  const resume = title.resume;
+  const matches = resume && (!isEpisodeBased || resume.episodeKey === episodeKey);
+  return { episodeKey, seconds: matches ? resume.seconds : null };
 }
 
 export const ResumeDialog: React.FC<ResumeDialogProps> = ({
@@ -47,14 +63,19 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
   const [selectedEpKey, setSelectedEpKey] = useState<string | null>(defaultEpisodeKey);
   const [timeInput, setTimeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedEpKey(title.resume?.episodeKey ?? defaultEpisodeKey ?? allEpisodes[0]?.key ?? null);
-      setTimeInput(title.resume ? formatSeconds(title.resume.seconds) : '');
-      setError(null);
-    }
-  }, [isOpen, title.resume, defaultEpisodeKey, allEpisodes]);
+  // Initialize once per opening. Synced updates to the title or its episodes while the dialog is open
+  // must not replace what the user is typing.
+  if (isOpen && !initialized) {
+    const initial = initialResumeSelection(title, defaultEpisodeKey, allEpisodes[0]?.key ?? null, isEpisodeBased);
+    setInitialized(true);
+    setSelectedEpKey(initial.episodeKey);
+    setTimeInput(initial.seconds !== null ? formatSeconds(initial.seconds) : '');
+    setError(null);
+  } else if (!isOpen && initialized) {
+    setInitialized(false);
+  }
 
   const currentRuntime = useMemo(() => {
     if (!isEpisodeBased) return title.runtimeMin;

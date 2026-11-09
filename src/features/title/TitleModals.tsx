@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, AlertDialog, RadioGroup, Radio, TextField, Label, Input, TextArea, Button } from '@heroui/react';
+import React from 'react';
+import { Modal, AlertDialog, RadioGroup, Radio, Label, Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { DisplayLang, WatchListDoc, ListEntryDoc, TitleDoc } from '../../domain/types';
 import { UpdateTitleDetailsInput } from '../../data/actions/types';
 import { useI18n } from '../../i18n';
+import { EditTitleDialog } from './EditTitleDialog';
+import { usePendingAction } from '../../hooks/usePendingAction';
+import { withPendingSpinner } from '../../components/pendingContent';
 
 interface TitleModalsProps {
   title: TitleDoc;
@@ -21,13 +24,13 @@ interface TitleModalsProps {
   onUpdateTitle: (patch: UpdateTitleDetailsInput) => void;
   deleteConfirmOpen: boolean;
   onDeleteConfirmOpenChange: (open: boolean) => void;
-  onConfirmDelete: () => void;
+  onConfirmDelete: () => Promise<void>;
   undoPlaythroughOpen: boolean;
   onUndoPlaythroughOpenChange: (open: boolean) => void;
-  onConfirmUndoPlaythrough: () => void;
+  onConfirmUndoPlaythrough: () => Promise<void>;
   deletePlaythroughId: string | null;
   onDeletePlaythroughIdChange: (id: string | null) => void;
-  onConfirmDeletePlaythrough: (id: string) => void;
+  onConfirmDeletePlaythrough: (id: string) => Promise<void>;
 }
 
 export const TitleModals: React.FC<TitleModalsProps> = ({
@@ -55,20 +58,9 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
   onConfirmDeletePlaythrough,
 }) => {
   const { t } = useI18n();
-  const [editZhTitle, setEditZhTitle] = useState(title.names.zh || '');
-  const [editOriginalTitle, setEditOriginalTitle] = useState(title.names.original || '');
-  const [editPosterUrl, setEditPosterUrl] = useState(title.posterPath ?? '');
-  const [editOverview, setEditOverview] = useState(title.overview.zh || title.overview.en || '');
-
-  useEffect(() => {
-    if (editModalOpen) {
-      setEditZhTitle(title.names.zh || '');
-      setEditOriginalTitle(title.names.original || '');
-      setEditPosterUrl(title.posterPath ?? '');
-      setEditOverview(title.overview.zh || title.overview.en || '');
-    }
-  }, [editModalOpen, title]);
-
+  const [deletingTitle, runDeleteTitle] = usePendingAction();
+  const [undoingPlaythrough, runUndoPlaythrough] = usePendingAction();
+  const [deletingPlaythrough, runDeletePlaythrough] = usePendingAction();
   const languageOptions: Array<{ value: DisplayLang | 'default'; label: string; name?: string }> = [
     { value: 'default', label: t.detail.languageOptions.default },
     { value: 'zh', label: t.detail.languageOptions.zh, name: title.names.zh || '-' },
@@ -89,28 +81,34 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
             </Modal.Header>
             <Modal.Body className="space-y-2">
               {listArray.length === 0 ? (
-                <p className="text-sm text-[var(--muted)] py-4 text-center">{t.search.emptyListsInModal}</p>
+                <p className="text-sm text-muted py-4 text-center">{t.search.emptyListsInModal}</p>
               ) : (
                 listArray.map((list) => {
                   const existingEntry = (entriesByList[list.id] ?? []).find((e) => e.titleId === title.id);
                   return (
                     <div
                       key={list.id}
-                      className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--surface-secondary)]"
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-surface-secondary"
                     >
-                      <span className="text-sm font-medium">{list.name}</span>
+                      <span className="min-w-0 text-sm font-medium wrap-anywhere">{list.name}</span>
                       {existingEntry ? (
                         <Button
                           size="sm"
+                          className="shrink-0"
                           variant="tertiary"
                           onPress={() => onRemoveListEntry(list.id, existingEntry.id)}
                         >
-                          <Check className="w-4 h-4 mr-1 text-success" />
+                          <Check className="w-4 h-4 text-success" />
                           {t.app.delete}
                         </Button>
                       ) : (
-                        <Button size="sm" variant="secondary" onPress={() => onAddListEntry(list.id, title.id)}>
-                          <Plus className="w-4 h-4 mr-1" />
+                        <Button
+                          size="sm"
+                          className="shrink-0"
+                          variant="secondary"
+                          onPress={() => onAddListEntry(list.id, title.id)}
+                        >
+                          <Plus className="w-4 h-4" />
                           {t.lists.addActionShort}
                         </Button>
                       )}
@@ -161,53 +159,12 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         </Modal.Container>
       </Modal.Backdrop>
 
-      <Modal.Backdrop isOpen={editModalOpen} onOpenChange={onEditModalOpenChange}>
-        <Modal.Container size="md" scroll="inside">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={t.app.close} />
-            <Modal.Header>
-              <Modal.Heading>{t.detail.editModal.title}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="space-y-4">
-              <TextField value={editZhTitle} onChange={setEditZhTitle}>
-                <Label>{t.detail.editModal.zhNameLabel}</Label>
-                <Input />
-              </TextField>
-              <TextField value={editOriginalTitle} onChange={setEditOriginalTitle}>
-                <Label>{t.detail.editModal.originalNameLabel}</Label>
-                <Input />
-              </TextField>
-              <TextField value={editPosterUrl} onChange={setEditPosterUrl}>
-                <Label>{t.detail.editModal.posterPathLabel}</Label>
-                <Input type="url" />
-              </TextField>
-              <TextField value={editOverview} onChange={setEditOverview}>
-                <Label>{t.detail.editModal.overviewLabel}</Label>
-                <TextArea rows={3} />
-              </TextField>
-            </Modal.Body>
-            <Modal.Footer className="gap-2">
-              <Button variant="tertiary" onPress={() => onEditModalOpenChange(false)}>
-                {t.app.cancel}
-              </Button>
-              <Button
-                variant="primary"
-                onPress={() => {
-                  onUpdateTitle({
-                    name: editZhTitle.trim() || title.names.zh || title.names.original,
-                    originalName: editOriginalTitle.trim() || title.names.original,
-                    posterPath: editPosterUrl.trim() || null,
-                    overview: editOverview.trim(),
-                  });
-                  onEditModalOpenChange(false);
-                }}
-              >
-                {t.app.save}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+      <EditTitleDialog
+        title={title}
+        isOpen={editModalOpen}
+        onOpenChange={onEditModalOpenChange}
+        onSave={onUpdateTitle}
+      />
 
       <AlertDialog.Backdrop isOpen={deleteConfirmOpen} onOpenChange={onDeleteConfirmOpenChange}>
         <AlertDialog.Container>
@@ -216,14 +173,14 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
               <AlertDialog.Heading>{t.detail.menu.deleteTitle}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p className="text-sm text-[var(--muted)]">{t.detail.deleteConfirm}</p>
+              <p className="text-sm text-muted">{t.detail.deleteConfirm}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer className="gap-2">
               <Button variant="tertiary" onPress={() => onDeleteConfirmOpenChange(false)}>
                 {t.app.cancel}
               </Button>
-              <Button variant="danger" onPress={onConfirmDelete}>
-                {t.app.delete}
+              <Button variant="danger" isPending={deletingTitle} onPress={() => runDeleteTitle(onConfirmDelete)}>
+                {withPendingSpinner(t.app.delete)}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>
@@ -241,7 +198,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
               </AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p className="text-sm text-[var(--muted)]">
+              <p className="text-sm text-muted">
                 {title.playthroughs.length > 1
                   ? t.detail.playthroughs.cancelRewatchConfirm
                   : t.detail.playthroughs.undoResetFirstConfirm}
@@ -251,8 +208,12 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
               <Button variant="tertiary" onPress={() => onUndoPlaythroughOpenChange(false)}>
                 {t.app.cancel}
               </Button>
-              <Button variant="danger" onPress={onConfirmUndoPlaythrough}>
-                {t.app.confirm}
+              <Button
+                variant="danger"
+                isPending={undoingPlaythrough}
+                onPress={() => runUndoPlaythrough(onConfirmUndoPlaythrough)}
+              >
+                {withPendingSpinner(t.app.confirm)}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>
@@ -269,9 +230,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
               <AlertDialog.Heading>{t.detail.playthroughs.deletePlaythroughTitle(deletingPtNum)}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p className="text-sm text-[var(--muted)]">
-                {t.detail.playthroughs.deletePlaythroughConfirm(deletingPtNum)}
-              </p>
+              <p className="text-sm text-muted">{t.detail.playthroughs.deletePlaythroughConfirm(deletingPtNum)}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer className="gap-2">
               <Button variant="tertiary" onPress={() => onDeletePlaythroughIdChange(null)}>
@@ -279,9 +238,14 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
               </Button>
               <Button
                 variant="danger"
-                onPress={() => deletePlaythroughId && onConfirmDeletePlaythrough(deletePlaythroughId)}
+                isPending={deletingPlaythrough}
+                onPress={() =>
+                  runDeletePlaythrough(async () => {
+                    if (deletePlaythroughId) await onConfirmDeletePlaythrough(deletePlaythroughId);
+                  })
+                }
               >
-                {t.app.delete}
+                {withPendingSpinner(t.app.delete)}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

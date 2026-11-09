@@ -246,7 +246,7 @@ export function createApp(options: CreateAppOptions): Express {
     }
     const isMutating =
       req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE';
-    if (viaCookie && isMutating && !isSameOriginRequest(req)) {
+    if (viaCookie && isMutating && !isSameOriginRequest(req, trustProxy)) {
       sendApiError(res, 403, 'CSRF_ORIGIN_MISMATCH', 'Cross-origin request rejected (Origin check failed).');
       return;
     }
@@ -369,17 +369,22 @@ export function createApp(options: CreateAppOptions): Express {
       sendApiError(res, 409, err.code, err.message);
       return;
     }
-    if (
-      typeof err === 'object' &&
-      err !== null &&
-      'type' in err &&
-      (err as { type?: string }).type === 'entity.too.large'
-    ) {
+    // Request-body failures (malformed JSON, bad or truncated gzip, unsupported charset) are client errors.
+    // body-parser and zlib mark them with a 4xx status; some carry the raw body, which can hold a
+    // password, so answer 400/413 and never log them.
+    const clientStatus =
+      typeof err === 'object' && err !== null && 'status' in err ? (err as { status?: unknown }).status : undefined;
+    if (clientStatus === 413) {
       sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request payload is too large.');
       return;
     }
-    console.error('Unhandled API error:', err);
-    sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : 'Internal server error.');
+    if (typeof clientStatus === 'number' && clientStatus >= 400 && clientStatus < 500) {
+      sendApiError(res, 400, 'VALIDATION_ERROR', 'Request body could not be read.');
+      return;
+    }
+    // Log the stack only: enumerable properties of unknown errors may include request data.
+    console.error('Unhandled API error:', err instanceof Error ? (err.stack ?? err.message) : typeof err);
+    sendApiError(res, 500, 'INTERNAL_ERROR', 'Internal server error.');
   });
 
   return app;

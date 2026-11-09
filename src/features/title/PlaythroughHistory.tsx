@@ -37,12 +37,10 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
     <Card>
       <Card.Header className="pb-1 flex flex-row items-center justify-between gap-3">
         <Card.Title className="text-base">{t.detail.playthroughs.title}</Card.Title>
-        <span className="text-xs text-[var(--muted)] shrink-0">
-          {t.detail.playthroughs.watchedCount(completedCount)}
-        </span>
+        <span className="text-xs text-muted shrink-0">{t.detail.playthroughs.watchedCount(completedCount)}</span>
       </Card.Header>
       <Card.Content className="pt-1">
-        <div className="divide-y divide-[var(--border)]">
+        <div className="divide-y divide-border">
           {sorted.map((pt) => {
             const isCompleted = pt.completedAt != null;
             const isLatest = pt.id === latestPtId;
@@ -72,7 +70,7 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
               <div key={pt.id} className="flex items-center gap-3 py-3 first:pt-2 last:pb-1">
                 {isCompleted ? (
                   <span
-                    className="w-6 h-6 rounded-full bg-success-subtle text-success flex items-center justify-center shrink-0"
+                    className="w-6 h-6 rounded-full bg-success-soft text-success flex items-center justify-center shrink-0"
                     aria-hidden="true"
                   >
                     <Check className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -88,7 +86,7 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-[var(--foreground)]">
+                    <span className="text-sm font-medium text-foreground">
                       {t.detail.playthroughs.nthWatch(pt.number)}
                     </span>
                     {!isCompleted && (
@@ -97,7 +95,7 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
                       </Chip>
                     )}
                   </div>
-                  <p className="text-xs text-[var(--muted)] mt-0.5 truncate">{dateLabel}</p>
+                  <p className="text-xs text-muted mt-0.5 truncate">{dateLabel}</p>
                 </div>
 
                 <div className="shrink-0">
@@ -107,11 +105,11 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
                     </Button>
                     <Dropdown.Popover placement="bottom end">
                       <Dropdown.Menu onAction={() => handleMenuAction()}>
-                        <Dropdown.Item id="danger-action" variant="danger">
+                        <Dropdown.Item id="danger-action" textValue={menuItemLabel} variant="danger">
                           {isRewatchInProgress ? (
-                            <RotateCcw className="w-4 h-4 mr-2 shrink-0" />
+                            <RotateCcw className="size-4 shrink-0 text-danger" />
                           ) : (
-                            <Trash2 className="w-4 h-4 mr-2 shrink-0" />
+                            <Trash2 className="size-4 shrink-0 text-danger" />
                           )}
                           <Label>{menuItemLabel}</Label>
                         </Dropdown.Item>

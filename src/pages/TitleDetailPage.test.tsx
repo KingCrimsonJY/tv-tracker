@@ -11,6 +11,7 @@ let currentTitle = makeBaseTvTitle();
 const seasons = makeSampleSeasons();
 
 vi.mock('../i18n', () => ({ useI18n: () => ({ t: en, locale: 'en' }) }));
+vi.mock('../components/useBackNavigation', () => ({ useBackNavigation: () => () => {} }));
 vi.mock('../features/title/useTitleDetail', () => ({
   useTitleDetail: () => ({
     title: currentTitle,

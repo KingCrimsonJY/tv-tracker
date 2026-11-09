@@ -46,7 +46,7 @@ export default defineConfig(() => {
         },
         workbox: {
           cleanupOutdatedCaches: true,
-          globPatterns: ['**/*.{js,css,html,ico,html,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           navigateFallbackDenylist: [/^\/api\//, /^\/healthz$/],
           // Precache the entry graph only; eager caching of lazy routes defeats code splitting on Slow 4G.
           manifestTransforms: [
@@ -82,10 +82,8 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
+      // DISABLE_HMR=true turns off HMR and file watching, e.g. while an agent edits many files at once.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };

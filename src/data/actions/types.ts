@@ -34,6 +34,8 @@ export interface UpdateTitleDetailsInput {
   runtimeMin?: number | null;
   posterPath?: string | null;
   overview?: string;
+  /** Which language slot `overview` replaces; defaults to Chinese. */
+  overviewLang?: 'zh' | 'en';
   uploader?: string | null;
   episodeCount?: number | null;
 }

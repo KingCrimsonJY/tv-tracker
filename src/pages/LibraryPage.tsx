@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import type { AppStateSnapshot } from '../domain/types';
+import { NO_SEASONS } from '../domain/stableRefs';
+import { ButtonLink } from '../components/ButtonLink';
 import { Film, Plus } from 'lucide-react';
 import { Button, ScrollShadow, Label, ListBox, Select, Skeleton, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { PosterCard } from '../components/PosterCard';
@@ -11,10 +13,16 @@ type StatusFilter = 'all' | 'watching' | 'unwatched' | 'completed' | 'paused_dro
 type TypeFilter = 'all' | 'movie' | 'tv' | 'other';
 type SortMode = 'recent' | 'added' | 'year' | 'name';
 
+const selectLibraryData = (state: AppStateSnapshot) => [
+  state.titles,
+  state.seasonsByTitle,
+  state.progressByTitle,
+  state.settings,
+];
+
 export const LibraryPage: React.FC = () => {
-  const { loadingData, titles, seasonsByTitle, settings, progressByTitle } = useTracker();
+  const { loadingData, titles, seasonsByTitle, settings, progressByTitle } = useTracker(selectLibraryData);
   const { locale, t } = useI18n();
-  const navigate = useNavigate();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -22,7 +30,7 @@ export const LibraryPage: React.FC = () => {
 
   const items = useMemo(() => {
     const all = Object.values(titles).map((title) => {
-      const seasons = seasonsByTitle[title.id] || [];
+      const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
       const progress = progressByTitle[title.id]?.[title.activePlaythroughId];
       const state = computeTitleState(title, seasons, progress, {
         includeSpecials: settings.includeSpecials,
@@ -94,20 +102,18 @@ export const LibraryPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">{t.library.title}</h1>
-          <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
-            {t.library.countLabel(items.length)}
-          </span>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t.library.title}</h1>
+          <span className="text-xs sm:text-sm text-muted tabular-nums">{t.library.countLabel(items.length)}</span>
         </div>
 
-        <Button variant="primary" size="sm" onPress={() => navigate('/search')}>
+        <ButtonLink to="/search" variant="primary" size="sm">
           <Plus className="w-4 h-4" />
           <span>{t.library.addMediaButton}</span>
-        </Button>
+        </ButtonLink>
       </header>
 
       {/* Filter & Sort Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[var(--separator)] min-w-0">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-separator min-w-0">
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 min-w-0 max-w-full">
           {/* Status filter */}
           <ScrollShadow orientation="horizontal" hideScrollBar size={28} className="max-w-full">
@@ -214,10 +220,10 @@ export const LibraryPage: React.FC = () => {
         </div>
       ) : items.length === 0 ? (
         <div className="py-16 text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--surface-secondary)] flex items-center justify-center text-[var(--muted)] mx-auto">
+          <div className="w-12 h-12 rounded-2xl bg-surface-secondary flex items-center justify-center text-muted mx-auto">
             <Film className="w-6 h-6" />
           </div>
-          <p className="text-sm text-[var(--muted)]">{t.library.emptyFiltered}</p>
+          <p className="text-sm text-muted">{t.library.emptyFiltered}</p>
           {(statusFilter !== 'all' || typeFilter !== 'all') && (
             <Button
               variant="secondary"

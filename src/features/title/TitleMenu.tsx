@@ -12,6 +12,9 @@ import {
   Trash2,
   CheckCheck,
   RefreshCw,
+  Lock,
+  LockOpen,
+  type LucideIcon,
 } from 'lucide-react';
 import { TitleDoc } from '../../domain/types';
 import { ComputedTitleState } from '../../domain/status';
@@ -32,6 +35,14 @@ interface TitleMenuProps {
   onToggleStructureLock?: () => void;
 }
 
+interface MenuEntry {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  danger?: boolean;
+  run: () => void;
+}
+
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
   titleState,
@@ -48,47 +59,52 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
 }) => {
   const { t } = useI18n();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const finished = titleState.status === 'completed' || titleState.status === 'caught_up';
 
-  const handleAction = (key: string) => {
+  // One list drives both the phone drawer and the desktop dropdown so they cannot drift apart.
+  const entries: MenuEntry[] = [
+    { id: 'addToList', label: t.detail.menu.addToList, icon: ListPlus, run: onAddToList },
+    { id: 'resume', label: t.detail.menu.recordResumeTime, icon: Clock, run: onOpenResume },
+    ...(!finished
+      ? [{ id: 'markAll', label: t.detail.menu.markAllWatched, icon: CheckCheck, run: onMarkWholeWatched }]
+      : []),
+    ...(title.manualState
+      ? [
+          {
+            id: 'clearManual',
+            label: t.detail.menu.clearManualState,
+            icon: PlayCircle,
+            run: () => onSetManualState(null),
+          },
+        ]
+      : [
+          { id: 'pause', label: t.detail.menu.pause, icon: PauseCircle, run: () => onSetManualState('paused') },
+          { id: 'drop', label: t.detail.menu.drop, icon: XCircle, run: () => onSetManualState('dropped') },
+        ]),
+    { id: 'lang', label: t.detail.menu.titleLanguage, icon: Languages, run: onOpenLangSelect },
+    { id: 'edit', label: t.detail.menu.editMetadata, icon: Edit3, run: onOpenEdit },
+    ...(title.source === 'tmdb'
+      ? [{ id: 'refresh', label: t.detail.menu.refreshMetadata, icon: RefreshCw, run: onRefreshMetadata }]
+      : []),
+    ...(title.source === 'url' && title.sourceId && onRefreshPlaylist
+      ? [{ id: 'refreshPlaylist', label: t.detail.menu.refreshPlaylist, icon: RefreshCw, run: onRefreshPlaylist }]
+      : []),
+    ...(titleState.isEpisodic && onToggleStructureLock
+      ? [
+          {
+            id: 'structureLock',
+            label: title.structureLocked ? t.upstream.unlock : t.upstream.lock,
+            icon: title.structureLocked ? LockOpen : Lock,
+            run: onToggleStructureLock,
+          },
+        ]
+      : []),
+    { id: 'delete', label: t.detail.menu.deleteTitle, icon: Trash2, danger: true, run: onDelete },
+  ];
+
+  const runEntry = (id: string) => {
     setDrawerOpen(false);
-    switch (key) {
-      case 'addToList':
-        onAddToList();
-        break;
-      case 'resume':
-        onOpenResume();
-        break;
-      case 'markAll':
-        onMarkWholeWatched();
-        break;
-      case 'pause':
-        onSetManualState('paused');
-        break;
-      case 'drop':
-        onSetManualState('dropped');
-        break;
-      case 'clearManual':
-        onSetManualState(null);
-        break;
-      case 'lang':
-        onOpenLangSelect();
-        break;
-      case 'edit':
-        onOpenEdit();
-        break;
-      case 'refresh':
-        onRefreshMetadata();
-        break;
-      case 'refreshPlaylist':
-        onRefreshPlaylist?.();
-        break;
-      case 'structureLock':
-        onToggleStructureLock?.();
-        break;
-      case 'delete':
-        onDelete();
-        break;
-    }
+    entries.find((entry) => entry.id === id)?.run();
   };
 
   return (
@@ -112,74 +128,18 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
                 <Drawer.Heading>{t.detail.menu.title}</Drawer.Heading>
               </Drawer.Header>
               <Drawer.Body className="space-y-1 pb-6">
-                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('addToList')}>
-                  <ListPlus className="w-4 h-4 mr-3" />
-                  {t.detail.menu.addToList}
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('resume')}>
-                  <Clock className="w-4 h-4 mr-3" />
-                  {t.detail.menu.recordResumeTime}
-                </Button>
-                {titleState.status !== 'completed' && titleState.status !== 'caught_up' && (
-                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('markAll')}>
-                    <CheckCheck className="w-4 h-4 mr-3" />
-                    {t.detail.menu.markAllWatched}
-                  </Button>
-                )}
-                {title.manualState !== null ? (
-                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('clearManual')}>
-                    <PlayCircle className="w-4 h-4 mr-3" />
-                    {t.detail.menu.clearManualState}
-                  </Button>
-                ) : (
-                  <>
-                    <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('pause')}>
-                      <PauseCircle className="w-4 h-4 mr-3" />
-                      {t.detail.menu.pause}
-                    </Button>
-                    <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('drop')}>
-                      <XCircle className="w-4 h-4 mr-3" />
-                      {t.detail.menu.drop}
-                    </Button>
-                  </>
-                )}
-                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('lang')}>
-                  <Languages className="w-4 h-4 mr-3" />
-                  {t.detail.menu.titleLanguage}
-                </Button>
-                <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('edit')}>
-                  <Edit3 className="w-4 h-4 mr-3" />
-                  {t.detail.menu.editMetadata}
-                </Button>
-                {title.source === 'tmdb' && (
-                  <Button variant="ghost" className="w-full justify-start" onPress={() => handleAction('refresh')}>
-                    <RefreshCw className="w-4 h-4 mr-3" />
-                    {t.detail.menu.refreshMetadata}
-                  </Button>
-                )}
-                {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
+                {entries.map(({ id, label, icon: Icon, danger }) => (
                   <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onPress={() => handleAction('refreshPlaylist')}
+                    key={id}
+                    variant={danger ? 'danger-soft' : 'ghost'}
+                    fullWidth
+                    className="justify-start"
+                    onPress={() => runEntry(id)}
                   >
-                    <RefreshCw className="w-4 h-4 mr-3" />
-                    {t.detail.menu.refreshPlaylist}
+                    <Icon className="size-4 shrink-0" />
+                    {label}
                   </Button>
-                )}
-                {titleState.isEpisodic && onToggleStructureLock && (
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onPress={() => handleAction('structureLock')}
-                  >
-                    {title.structureLocked ? t.upstream.unlock : t.upstream.lock}
-                  </Button>
-                )}
-                <Button variant="danger-soft" className="w-full justify-start" onPress={() => handleAction('delete')}>
-                  <Trash2 className="w-4 h-4 mr-3" />
-                  {t.detail.menu.deleteTitle}
-                </Button>
+                ))}
               </Drawer.Body>
             </Drawer.Dialog>
           </Drawer.Content>
@@ -192,67 +152,13 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
             <MoreHorizontal className="w-5 h-5" />
           </Button>
           <Dropdown.Popover>
-            <Dropdown.Menu onAction={(k) => handleAction(String(k))}>
-              <Dropdown.Item id="addToList">
-                <ListPlus className="w-4 h-4 mr-2" />
-                <Label>{t.detail.menu.addToList}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="resume">
-                <Clock className="w-4 h-4 mr-2" />
-                <Label>{t.detail.menu.recordResumeTime}</Label>
-              </Dropdown.Item>
-              {titleState.status !== 'completed' && titleState.status !== 'caught_up' && (
-                <Dropdown.Item id="markAll">
-                  <CheckCheck className="w-4 h-4 mr-2" />
-                  <Label>{t.detail.menu.markAllWatched}</Label>
+            <Dropdown.Menu onAction={(key) => runEntry(String(key))}>
+              {entries.map(({ id, label, icon: Icon, danger }) => (
+                <Dropdown.Item key={id} id={id} textValue={label} variant={danger ? 'danger' : undefined}>
+                  <Icon className={`size-4 shrink-0 ${danger ? 'text-danger' : 'text-muted'}`} />
+                  <Label>{label}</Label>
                 </Dropdown.Item>
-              )}
-              {title.manualState !== null ? (
-                <Dropdown.Item id="clearManual">
-                  <PlayCircle className="w-4 h-4 mr-2" />
-                  <Label>{t.detail.menu.clearManualState}</Label>
-                </Dropdown.Item>
-              ) : (
-                <>
-                  <Dropdown.Item id="pause">
-                    <PauseCircle className="w-4 h-4 mr-2" />
-                    <Label>{t.detail.menu.pause}</Label>
-                  </Dropdown.Item>
-                  <Dropdown.Item id="drop">
-                    <XCircle className="w-4 h-4 mr-2" />
-                    <Label>{t.detail.menu.drop}</Label>
-                  </Dropdown.Item>
-                </>
-              )}
-              <Dropdown.Item id="lang">
-                <Languages className="w-4 h-4 mr-2" />
-                <Label>{t.detail.menu.titleLanguage}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="edit">
-                <Edit3 className="w-4 h-4 mr-2" />
-                <Label>{t.detail.menu.editMetadata}</Label>
-              </Dropdown.Item>
-              {title.source === 'tmdb' && (
-                <Dropdown.Item id="refresh">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  <Label>{t.detail.menu.refreshMetadata}</Label>
-                </Dropdown.Item>
-              )}
-              {title.source === 'url' && title.sourceId && onRefreshPlaylist && (
-                <Dropdown.Item id="refreshPlaylist">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  <Label>{t.detail.menu.refreshPlaylist}</Label>
-                </Dropdown.Item>
-              )}
-              {titleState.isEpisodic && onToggleStructureLock && (
-                <Dropdown.Item id="structureLock">
-                  <Label>{title.structureLocked ? t.upstream.unlock : t.upstream.lock}</Label>
-                </Dropdown.Item>
-              )}
-              <Dropdown.Item id="delete" variant="danger">
-                <Trash2 className="w-4 h-4 mr-2" />
-                <Label>{t.detail.menu.deleteTitle}</Label>
-              </Dropdown.Item>
+              ))}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>

@@ -148,6 +148,7 @@ export const zhCN = {
     PASSWORD_NOT_SET: '尚未设置密码，请先完成首次设置',
     SETUP_CODE_INVALID: '设置码不正确，请检查服务器日志或 SETUP_CODE 环境变量',
     WRONG_PASSWORD: '密码错误，请重试',
+    SESSION_COOKIE_REJECTED: '密码正确，但浏览器拒绝保存登录 Cookie。请通过 HTTPS 地址访问帧迹（参见部署文档）。',
     TOO_MANY_ATTEMPTS: '登录尝试次数过多，请 15 分钟后再试',
     UNAUTHENTICATED: '未登录或会话已过期',
     SESSION_EXPIRED: '会话已过期，请重新登录',
@@ -188,6 +189,14 @@ export const zhCN = {
     SECONDS_OVER_59: '秒数应小于 60',
     NON_POSITIVE: '观看时间需大于 0 秒',
     EXCEEDS_RUNTIME: (mins: number) => `超出正片时长（最长 ${mins} 分钟）`,
+  },
+  dnd: {
+    instructions: '如需调整顺序，按空格键或回车键拿起条目，用方向键移动，再按空格键或回车键放下；按 Esc 取消。',
+    pickedUp: (item: string) => `已拿起「${item}」。`,
+    movedOver: (item: string, target: string) => `「${item}」已移到「${target}」的位置。`,
+    dropped: (item: string, target: string) => `已将「${item}」放到「${target}」的位置。`,
+    droppedInPlace: (item: string) => `「${item}」已放回原位。`,
+    cancelled: (item: string) => `已取消排序，「${item}」回到原位。`,
   },
   home: {
     title: '首页',
@@ -444,7 +453,8 @@ export const zhCN = {
       zhNameLabel: '中文名称',
       originalNameLabel: '原始名称',
       posterPathLabel: '海报链接',
-      overviewLabel: '剧情简介',
+      overviewLabelZh: '剧情简介（中文）',
+      overviewLabelEn: '剧情简介（英文）',
     },
     playthroughs: {
       title: '观看记录',

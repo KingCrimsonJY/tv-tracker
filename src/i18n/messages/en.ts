@@ -175,6 +175,8 @@ export const en: MessageCatalog = {
     PASSWORD_NOT_SET: 'Password is not set yet. Complete initial setup first.',
     SETUP_CODE_INVALID: 'Invalid setup code. Check server logs or SETUP_CODE.',
     WRONG_PASSWORD: 'Incorrect password. Please try again.',
+    SESSION_COOKIE_REJECTED:
+      'Signed in, but the browser refused the session cookie. Open Zhenji over HTTPS (see the deployment guide).',
     TOO_MANY_ATTEMPTS: 'Too many login attempts. Please try again in 15 minutes.',
     UNAUTHENTICATED: 'Not signed in or session expired',
     SESSION_EXPIRED: 'Session expired. Please sign in again.',
@@ -215,6 +217,15 @@ export const en: MessageCatalog = {
     SECONDS_OVER_59: 'Seconds must be less than 60',
     NON_POSITIVE: 'Timestamp must be greater than 0 seconds',
     EXCEEDS_RUNTIME: (mins: number) => `Exceeds runtime (max ${mins} min)`,
+  },
+  dnd: {
+    instructions:
+      'To reorder, press Space or Enter to pick up an item, use the arrow keys to move it, then press Space or Enter to drop it, or Escape to cancel.',
+    pickedUp: (item: string) => `Picked up ${item}.`,
+    movedOver: (item: string, target: string) => `${item} moved to the position of ${target}.`,
+    dropped: (item: string, target: string) => `Dropped ${item} at the position of ${target}.`,
+    droppedInPlace: (item: string) => `${item} was dropped in its original position.`,
+    cancelled: (item: string) => `Reordering cancelled. ${item} returned to its original position.`,
   },
   home: {
     title: 'Home',
@@ -478,7 +489,8 @@ export const en: MessageCatalog = {
       zhNameLabel: 'Localized Title',
       originalNameLabel: 'Original Title',
       posterPathLabel: 'Poster URL',
-      overviewLabel: 'Overview',
+      overviewLabelZh: 'Overview (Chinese)',
+      overviewLabelEn: 'Overview (English)',
     },
     playthroughs: {
       title: 'Watch history',
