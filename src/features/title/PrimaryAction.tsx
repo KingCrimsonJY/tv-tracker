@@ -41,7 +41,7 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
         : t.detail.primaryAction.caughtUpStartRewatch;
     return (
       <Button variant="secondary" onPress={onStartRewatch}>
-        <RotateCcw className="w-4 h-4 mr-1.5" />
+        <RotateCcw className="w-4 h-4" />
         {label}
       </Button>
     );
@@ -83,7 +83,7 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
     return (
       <>
         <Button variant="primary" onPress={onMarkMovieWatched}>
-          <Check className="w-4 h-4 mr-1.5" />
+          <Check className="w-4 h-4" />
           {t.detail.primaryAction.markMovieWatched}
         </Button>
         {resumeNode}
@@ -102,7 +102,7 @@ export const PrimaryAction: React.FC<PrimaryActionProps> = ({
     return (
       <>
         <Button variant="primary" onPress={() => onToggleEpisode(targetEpKey)}>
-          <Check className="w-4 h-4 mr-1.5" />
+          <Check className="w-4 h-4" />
           {label}
         </Button>
         {resumeNode}

@@ -55,7 +55,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
             </SearchField>
 
             {filtered.length === 0 ? (
-              <p className="text-center text-sm text-[var(--muted)] py-8">{t.lists.allTitlesAdded}</p>
+              <p className="text-center text-sm text-muted py-8">{t.lists.allTitlesAdded}</p>
             ) : (
               <div className="space-y-2">
                 {filtered.map((title) => {
@@ -69,10 +69,10 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                   return (
                     <div
                       key={title.id}
-                      className="flex items-center justify-between gap-3 p-2 rounded-lg bg-[var(--surface-secondary)]"
+                      className="flex items-center justify-between gap-3 p-2 rounded-lg bg-surface-secondary"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-14 rounded overflow-hidden bg-[var(--surface)] shrink-0">
+                        <div className="w-10 h-14 rounded overflow-hidden bg-surface shrink-0">
                           <MediaImage
                             src={pickPoster(title, locale)}
                             alt={displayTitle}
@@ -84,7 +84,7 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-medium truncate">{displayTitle}</div>
-                          <div className="text-xs text-[var(--muted)]">{title.year ?? ''}</div>
+                          <div className="text-xs text-muted">{title.year ?? ''}</div>
                         </div>
                       </div>
                       <Button

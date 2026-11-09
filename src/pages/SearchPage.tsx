@@ -84,7 +84,7 @@ export const SearchPage: React.FC = () => {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.search.title}</h1>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onPress={() => setLinkDialogOpen(true)}>
-            <Link2 className="w-4 h-4 mr-1.5" />
+            <Link2 className="w-4 h-4" />
             {t.search.tabLinkImport}
           </Button>
           <Button
@@ -95,7 +95,7 @@ export const SearchPage: React.FC = () => {
               setManualDialogOpen(true);
             }}
           >
-            <PlusCircle className="w-4 h-4 mr-1.5" />
+            <PlusCircle className="w-4 h-4" />
             {t.search.tabManual}
           </Button>
         </div>
@@ -116,7 +116,7 @@ export const SearchPage: React.FC = () => {
       {searching ? (
         <div className="space-y-3" aria-label={t.search.searching}>
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-[var(--surface)]">
+            <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-surface">
               <Skeleton className="w-14 h-20 rounded-lg shrink-0" />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-5 w-48 rounded" />
@@ -127,11 +127,11 @@ export const SearchPage: React.FC = () => {
         </div>
       ) : query.trim() === '' ? (
         <div className="py-16 text-center space-y-1">
-          <p className="text-sm font-medium text-[var(--foreground)]">{t.search.searchPromptTitle}</p>
-          <p className="text-xs text-[var(--muted)]">{t.search.searchPromptSubtitle}</p>
+          <p className="text-sm font-medium text-foreground">{t.search.searchPromptTitle}</p>
+          <p className="text-xs text-muted">{t.search.searchPromptSubtitle}</p>
         </div>
       ) : results.length === 0 && !searchError ? (
-        <div className="py-16 text-center text-sm text-[var(--muted)]">{t.search.noResults}</div>
+        <div className="py-16 text-center text-sm text-muted">{t.search.noResults}</div>
       ) : (
         <SearchResults
           results={results}

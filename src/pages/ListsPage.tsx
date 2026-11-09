@@ -21,6 +21,7 @@ import { computeListProgress, sortListEntries } from '../domain/ordering';
 import { pickPoster, resolveDisplayTitle } from '../domain/progress';
 import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
+import { withPendingSpinner } from '../components/pendingContent';
 
 export const ListsPage: React.FC = () => {
   const { loadingData, titles, seasonsByTitle, lists, entriesByList, settings, getActiveProgress, createList } =
@@ -76,10 +77,8 @@ export const ListsPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 space-y-6">
       <header className="flex items-center justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">{t.lists.title}</h1>
-          <span className="text-xs sm:text-sm text-[var(--muted)] tabular-nums">
-            {t.lists.countLabel(sortedLists.length)}
-          </span>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t.lists.title}</h1>
+          <span className="text-xs sm:text-sm text-muted tabular-nums">{t.lists.countLabel(sortedLists.length)}</span>
         </div>
 
         <Button variant="primary" size="sm" onPress={() => setCreateOpen(true)}>
@@ -95,12 +94,12 @@ export const ListsPage: React.FC = () => {
           ))}
         </div>
       ) : sortedLists.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 text-center max-w-lg mx-auto my-8 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--accent-subtle)] text-[var(--accent-text)] flex items-center justify-center mx-auto">
+        <div className="rounded-2xl border border-border bg-surface p-10 text-center max-w-lg mx-auto my-8 space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-accent-soft text-accent-soft-foreground flex items-center justify-center mx-auto">
             <Layers className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">{t.lists.emptyListsTitle}</h2>
-          <p className="text-sm text-[var(--muted)] leading-relaxed">{t.lists.emptyListsDescription}</p>
+          <h2 className="text-lg font-semibold text-foreground">{t.lists.emptyListsTitle}</h2>
+          <p className="text-sm text-muted leading-relaxed">{t.lists.emptyListsDescription}</p>
           <Button variant="primary" onPress={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4" />
             <span>{t.lists.createList}</span>
@@ -133,16 +132,16 @@ export const ListsPage: React.FC = () => {
               <Link
                 key={list.id}
                 to={`/lists/${list.id}`}
-                className="group flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-secondary)] overflow-hidden transition-colors"
+                className="group flex flex-col rounded-2xl border border-border bg-surface hover:bg-surface-secondary overflow-hidden transition-colors"
               >
                 {/* 4-Poster Collage */}
-                <div className="grid grid-cols-4 gap-1 p-3 bg-[var(--surface-secondary)] border-b border-[var(--separator)]">
+                <div className="grid grid-cols-4 gap-1 p-3 bg-surface-secondary border-b border-separator">
                   {[0, 1, 2, 3].map((slot) => {
                     const item = collageTitles[slot];
                     return (
                       <div
                         key={slot}
-                        className="aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
+                        className="aspect-[2/3] rounded-lg overflow-hidden bg-surface border border-border"
                       >
                         {item ? (
                           <MediaImage
@@ -156,7 +155,7 @@ export const ListsPage: React.FC = () => {
                             compact
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-[var(--muted)]/40">
+                          <div className="w-full h-full flex items-center justify-center text-muted/40">
                             <Film className="w-4 h-4" />
                           </div>
                         )}
@@ -168,8 +167,8 @@ export const ListsPage: React.FC = () => {
                 {/* Card Body */}
                 <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                      <span className="flex items-center gap-1.5 font-medium text-[var(--accent-text)]">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted">
+                      <span className="flex items-center gap-1.5 font-medium text-accent-soft-foreground">
                         {list.kind === 'ordered' ? (
                           <ListOrdered className="w-3.5 h-3.5" />
                         ) : (
@@ -179,22 +178,22 @@ export const ListsPage: React.FC = () => {
                       </span>
 
                       {list.pinned && (
-                        <span className="flex items-center gap-1 text-[var(--muted)]">
+                        <span className="flex items-center gap-1 text-muted">
                           <Pin className="w-3 h-3" />
                           <span>{t.lists.pinnedBadge}</span>
                         </span>
                       )}
                     </div>
 
-                    <h2 className="text-base font-semibold text-[var(--foreground)] group-hover:text-[var(--accent-text)] transition-colors truncate">
+                    <h2 className="text-base font-semibold text-foreground group-hover:text-accent-soft-foreground transition-colors truncate">
                       {list.name}
                     </h2>
 
-                    {list.description && <p className="text-xs text-[var(--muted)] line-clamp-1">{list.description}</p>}
+                    {list.description && <p className="text-xs text-muted line-clamp-1">{list.description}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-[var(--muted)] tabular-nums">
+                    <div className="flex items-center justify-between text-xs text-muted tabular-nums">
                       <span>{t.lists.totalTitlesLabel(stats.totalCount)}</span>
                       <span>{t.lists.progressLabel(stats.completedCount, stats.totalCount)}</span>
                     </div>
@@ -303,7 +302,7 @@ export const ListsPage: React.FC = () => {
                   {t.lists.createModal.cancel}
                 </Button>
                 <Button type="submit" variant="primary" size="sm" isPending={creating}>
-                  {t.lists.createModal.submit}
+                  {withPendingSpinner(t.lists.createModal.submit)}
                 </Button>
               </Modal.Footer>
             </form>

@@ -123,7 +123,7 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
             </TextField>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-[var(--muted)]">{t.search.manual.typeLabel}</Label>
+              <Label className="text-xs text-muted">{t.search.manual.typeLabel}</Label>
               <div>
                 <ToggleButtonGroup
                   aria-label={t.search.manual.typeLabel}
@@ -213,8 +213,8 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
             </TextField>
 
             {initialSeed?.episodes && initialSeed.episodes.length > 0 && mediaType !== 'movie' && (
-              <div className="p-3 rounded-lg bg-[var(--surface-secondary)] text-xs text-[var(--muted)] space-y-1 max-h-36 overflow-y-auto">
-                <div className="font-medium text-[var(--foreground)]">
+              <div className="p-3 rounded-lg bg-surface-secondary text-xs text-muted space-y-1 max-h-36 overflow-y-auto">
+                <div className="font-medium text-foreground">
                   {t.search.linkImport.playlistPreviewLabel(initialSeed.episodes.length)}
                 </div>
                 {initialSeed.episodes.slice(0, 10).map((ep, idx) => (

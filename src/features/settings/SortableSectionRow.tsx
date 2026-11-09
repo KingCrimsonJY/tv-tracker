@@ -28,7 +28,7 @@ export const SortableSectionRow: React.FC<{
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)]"
+      className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-secondary border border-border"
     >
       <div className="flex items-center gap-3 min-w-0">
         <Button
@@ -39,13 +39,13 @@ export const SortableSectionRow: React.FC<{
           // Let dnd-kit own handle events while HeroUI supplies button styling.
           render={(props) => <button {...props} {...attributes} {...listeners} />}
           aria-label={t.settings.homeSections.dragHandleAria(sectionLabel)}
-          className="w-8 h-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] touch-none cursor-grab active:cursor-grabbing shrink-0"
+          className="w-8 h-8 flex items-center justify-center text-muted hover:text-foreground touch-none cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </Button>
         <div className="min-w-0">
-          <div className="text-sm font-medium text-[var(--foreground)] truncate">{sectionLabel}</div>
-          <div className="text-xs text-[var(--muted)] truncate">{t.home.sectionDescriptions[section.id]}</div>
+          <div className="text-sm font-medium text-foreground truncate">{sectionLabel}</div>
+          <div className="text-xs text-muted truncate">{t.home.sectionDescriptions[section.id]}</div>
         </div>
       </div>
 

@@ -77,7 +77,7 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             <Modal.Heading>{t.search.linkImport.title}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4">
-            <p className="text-xs text-[var(--muted)] leading-relaxed">{t.search.linkImport.description}</p>
+            <p className="text-xs text-muted leading-relaxed">{t.search.linkImport.description}</p>
             <TextField
               value={url}
               onChange={(value) => {
@@ -92,11 +92,11 @@ export const LinkImportDialog: React.FC<LinkImportDialogProps> = ({
             </TextField>
 
             {tmdbSuggestion && (
-              <div className="p-3.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border)] space-y-2.5">
-                <div className="text-sm font-medium text-[var(--foreground)] break-words">
+              <div className="p-3.5 rounded-xl bg-surface-secondary border border-border space-y-2.5">
+                <div className="text-sm font-medium text-foreground break-words">
                   {t.search.linkImport.tmdbSuggestionTitle(tmdbSuggestion.seriesTitle || tmdbSuggestion.title)}
                 </div>
-                <p className="text-xs text-[var(--muted)]">{t.search.linkImport.tmdbSuggestionDescription}</p>
+                <p className="text-xs text-muted">{t.search.linkImport.tmdbSuggestionDescription}</p>
                 <div className="flex flex-col gap-2">
                   {tmdbSuggestion.tmdbMatches?.map((hit) => (
                     <Button

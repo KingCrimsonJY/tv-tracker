@@ -31,7 +31,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   if (!src || failed) {
     return (
       <div
-        className={`relative overflow-hidden bg-gradient-to-br from-[var(--surface-tertiary)] via-[var(--surface-secondary)] to-[var(--surface)] flex flex-col items-center justify-center ${
+        className={`relative overflow-hidden bg-gradient-to-br from-surface-tertiary via-surface-secondary to-surface flex flex-col items-center justify-center ${
           compact ? 'p-1' : 'p-3'
         } text-center select-none ${aspectClass} ${className}`}
         role="img"
@@ -40,7 +40,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
         <div
           className={`${
             compact ? 'w-5 h-5 mb-0.5' : 'w-9 h-9 mb-2'
-          } rounded-full bg-[var(--surface)]/60 flex items-center justify-center text-[var(--muted)] shrink-0`}
+          } rounded-full bg-surface/60 flex items-center justify-center text-muted shrink-0`}
         >
           {mediaType === 'tv' ? (
             <Tv className={compact ? 'w-3 h-3' : 'w-4 h-4'} />
@@ -51,7 +51,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
         <span
           className={`${
             compact ? 'text-[10px] leading-tight' : 'text-xs leading-snug'
-          } font-medium text-[var(--foreground-secondary)] line-clamp-2 px-0.5 break-words`}
+          } font-medium text-foreground-secondary line-clamp-2 px-0.5 break-words`}
         >
           {alt}
         </span>
@@ -60,7 +60,7 @@ export const MediaImage: React.FC<MediaImageProps> = ({
   }
 
   return (
-    <div className={`relative overflow-hidden bg-[var(--surface)] ${aspectClass} ${className}`}>
+    <div className={`relative overflow-hidden bg-surface ${aspectClass} ${className}`}>
       <img
         {...responsiveImage(src, aspect)}
         alt={alt}

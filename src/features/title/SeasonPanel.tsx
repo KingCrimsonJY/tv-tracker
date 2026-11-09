@@ -137,13 +137,13 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
 
     return (
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-surface border border-border">
           <div className="space-y-1.5 flex-1 max-w-md">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-[var(--foreground)]">
+              <span className="font-medium text-foreground">
                 {resolvedSeasonName} · {t.detail.seasons.progressText(sState.watchedCount, sState.airedCount)}
               </span>
-              <span className="text-[var(--muted)]">{pct}%</span>
+              <span className="text-muted">{pct}%</span>
             </div>
             <ProgressBar
               aria-label={t.detail.seasons.progressAria(season.seasonNumber)}
@@ -165,12 +165,12 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             >
               {allAiredWatched ? (
                 <>
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   {t.detail.seasons.unmarkWholeSeason}
                 </>
               ) : (
                 <>
-                  <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
+                  <CheckCheck className="w-3.5 h-3.5" />
                   {t.detail.seasons.markWholeSeason}
                 </>
               )}
@@ -297,14 +297,16 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
         ))}
 
       {specialSeason && specialSeason.episodes.length > 0 && specialState && (
-        <Disclosure className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
+        <Disclosure className="rounded-xl border border-border bg-surface p-3.5">
           <Disclosure.Heading>
             <Disclosure.Trigger className="w-full justify-between">
               <span>{t.detail.seasons.specialsCollapsedTitle(specialState.watchedCount, specialState.airedCount)}</span>
               <Disclosure.Indicator />
             </Disclosure.Trigger>
           </Disclosure.Heading>
-          <Disclosure.Content className="pt-3">{renderSeasonBlock(specialSeason)}</Disclosure.Content>
+          <Disclosure.Content>
+            <Disclosure.Body className="pt-3">{renderSeasonBlock(specialSeason)}</Disclosure.Body>
+          </Disclosure.Content>
         </Disclosure>
       )}
     </div>

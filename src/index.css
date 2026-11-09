@@ -2,6 +2,15 @@
 @import '@heroui/styles';
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* App-specific tokens, exposed as Tailwind utilities (bg-surface-glass, from-scrim-strong, ...).
+   Everything else uses HeroUI's semantic tokens (text-muted, bg-surface, bg-accent-soft, ...). */
+@theme inline {
+  --color-surface-glass: var(--surface-glass);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-scrim-strong: var(--scrim-strong);
+  --color-scrim-mid: var(--scrim-mid);
+}
+
 @layer base {
   :root,
   .dark,
@@ -30,26 +39,15 @@
     --border-width-field: 1px;
     --accent: rgb(59 130 246);
     --accent-hover: rgb(37 99 235);
-    --accent-subtle: rgb(59 130 246 / 0.16);
-    --accent-text: rgb(96 165 250);
     --accent-foreground: rgb(255 255 255);
     --focus: rgb(59 130 246);
     --border: rgb(255 255 255 / 0.08);
     --separator: rgb(255 255 255 / 0.06);
     --success: rgb(16 185 129);
-    --success-subtle: rgb(16 185 129 / 0.16);
     --warning: rgb(245 158 11);
-    --warning-subtle: rgb(245 158 11 / 0.16);
     --danger: rgb(239 68 68);
-    --danger-subtle: rgb(239 68 68 / 0.16);
-    --on-scrim: rgb(248 250 252);
-    --on-scrim-muted: rgb(203 213 225);
     --scrim-strong: rgb(9 9 12 / 0.88);
     --scrim-mid: rgb(9 9 12 / 0.45);
-    --scrim-soft: rgb(9 9 12 / 0.18);
-    --scrim-chip: rgb(15 15 20 / 0.65);
-    --scrim-track: rgb(255 255 255 / 0.25);
-    --backdrop-scrim: rgb(9 9 12 / 0.72);
     color-scheme: dark;
   }
 
@@ -79,26 +77,15 @@
     --border-width-field: 1px;
     --accent: rgb(37 99 235);
     --accent-hover: rgb(29 78 216);
-    --accent-subtle: rgb(37 99 235 / 0.12);
-    --accent-text: rgb(37 99 235);
     --accent-foreground: rgb(255 255 255);
     --focus: rgb(37 99 235);
     --border: rgb(15 23 42 / 0.1);
     --separator: rgb(15 23 42 / 0.07);
     --success: rgb(5 150 105);
-    --success-subtle: rgb(5 150 105 / 0.12);
     --warning: rgb(217 119 6);
-    --warning-subtle: rgb(217 119 6 / 0.12);
     --danger: rgb(220 38 38);
-    --danger-subtle: rgb(220 38 38 / 0.12);
-    --on-scrim: rgb(248 250 252);
-    --on-scrim-muted: rgb(226 232 240);
     --scrim-strong: rgb(9 9 12 / 0.85);
     --scrim-mid: rgb(9 9 12 / 0.42);
-    --scrim-soft: rgb(9 9 12 / 0.16);
-    --scrim-chip: rgb(15 15 20 / 0.65);
-    --scrim-track: rgb(255 255 255 / 0.28);
-    --backdrop-scrim: rgb(15 23 42 / 0.55);
     color-scheme: light;
   }
 

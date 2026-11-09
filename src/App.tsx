@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { Alert, Button, Card, Input, I18nProvider, Label, Skeleton, Spinner, TextField, Toast } from '@heroui/react';
 import { NavigationScroll } from './components/NavigationScroll';
+import { withPendingSpinner } from './components/pendingContent';
 import { AppShell } from './components/AppShell.tsx';
 import { TrackerProvider, useTracker } from './context/TrackerContext.tsx';
 import { useI18n } from './i18n/index.ts';
@@ -61,20 +62,18 @@ const AuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
+    <div className="min-h-dvh bg-background text-foreground flex items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <Card.Content className="flex flex-col items-center space-y-6">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-2xl shadow-lg">
+          <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center text-accent-foreground font-bold text-2xl shadow-lg">
             {t.app.logoChar}
           </div>
 
           <div className="space-y-1.5 text-center">
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               {needsSetup ? t.app.setupPasswordTitle : t.app.loginTitle}
             </h1>
-            <p className="text-sm text-[var(--muted)]">
-              {needsSetup ? t.app.setupPasswordSubtitle : t.app.loginSubtitle}
-            </p>
+            <p className="text-sm text-muted">{needsSetup ? t.app.setupPasswordSubtitle : t.app.loginSubtitle}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="w-full space-y-4">
@@ -121,8 +120,7 @@ const AuthScreen: React.FC = () => {
             )}
 
             <Button type="submit" variant="primary" size="lg" fullWidth isPending={submitting}>
-              {submitting && <Spinner size="sm" color="current" />}
-              <span>{needsSetup ? t.app.setupPasswordSubmit : t.app.loginSubmit}</span>
+              {withPendingSpinner(<span>{needsSetup ? t.app.setupPasswordSubmit : t.app.loginSubmit}</span>)}
             </Button>
           </form>
         </Card.Content>
@@ -146,23 +144,19 @@ const OfflineScreen: React.FC = () => {
   };
 
   return (
-    <div
-      role="alert"
-      className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6"
-    >
+    <div role="alert" className="min-h-dvh bg-background text-foreground flex items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <Card.Content className="flex flex-col items-center text-center space-y-5">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--danger-subtle)] text-[var(--danger)] flex items-center justify-center">
+          <div className="w-14 h-14 rounded-2xl bg-danger-soft text-danger flex items-center justify-center">
             <WifiOff className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)]">{t.app.offlineTitle}</h1>
-            <p className="text-sm text-[var(--muted)] leading-relaxed">{t.app.offlineDescription}</p>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">{t.app.offlineTitle}</h1>
+            <p className="text-sm text-muted leading-relaxed">{t.app.offlineDescription}</p>
           </div>
           <div className="w-full pt-2">
             <Button variant="primary" size="lg" fullWidth isPending={retrying} onPress={handleRetry}>
-              {retrying ? <Spinner size="sm" color="current" /> : <RefreshCw className="w-4 h-4" />}
-              <span>{t.app.offlineRetry}</span>
+              {withPendingSpinner(<span>{t.app.offlineRetry}</span>, <RefreshCw className="w-4 h-4" />)}
             </Button>
           </div>
         </Card.Content>
@@ -181,7 +175,7 @@ const AppRoutes: React.FC = () => {
 
   if (!authReady) {
     return (
-      <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex items-center justify-center p-6">
+      <div className="min-h-dvh bg-background text-foreground flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <Card.Content className="space-y-5">
             <Skeleton className="w-14 h-14 rounded-2xl mx-auto" />

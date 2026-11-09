@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { ButtonLink } from './ButtonLink';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Bookmark, Download, Film, Home, Layers, ListOrdered, LogOut, Search, Settings } from 'lucide-react';
 import { Button, Modal } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext.tsx';
@@ -12,7 +13,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
 
   const navItems = [
     { to: '/', label: t.nav.home, icon: Home, end: true },
@@ -26,18 +26,18 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     .sort((a, b) => (a.rank < b.rank ? -1 : 1));
 
   return (
-    <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)] flex flex-col sm:flex-row">
+    <div className="min-h-dvh bg-background text-foreground flex flex-col sm:flex-row">
       {/* Desktop Left Sidebar (>= 1024px) */}
       <aside
         aria-label={t.app.desktopNavAria}
-        className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 bg-[var(--surface)] border-r border-[var(--border)] z-30 select-none"
+        className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 bg-surface border-r border-border z-30 select-none"
       >
-        <div className="h-16 px-6 flex items-center justify-between border-b border-[var(--separator)]">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-separator">
           <NavLink
             to="/"
-            className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-[var(--foreground)] whitespace-nowrap"
+            className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-foreground whitespace-nowrap"
           >
-            <span className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-sm">
+            <span className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-accent-foreground font-bold text-sm">
               {t.app.logoChar}
             </span>
             <span>{t.app.name}</span>
@@ -55,8 +55,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
                     isActive
-                      ? 'bg-[var(--accent-subtle)] text-[var(--accent-text)]'
-                      : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)]'
+                      ? 'bg-accent-soft text-accent-soft-foreground'
+                      : 'text-muted hover:text-foreground hover:bg-surface-secondary'
                   }`
                 }
               >
@@ -67,10 +67,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           })}
 
           {pinnedLists.length > 0 && (
-            <div className="pt-6 mt-6 border-t border-[var(--separator)]">
-              <div className="px-3.5 mb-2 text-xs font-medium text-[var(--muted)] tracking-wider">
-                {t.nav.pinnedListsHeader}
-              </div>
+            <div className="pt-6 mt-6 border-t border-separator">
+              <div className="px-3.5 mb-2 text-xs font-medium text-muted tracking-wider">{t.nav.pinnedListsHeader}</div>
               <div className="space-y-1">
                 {pinnedLists.map((list) => (
                   <NavLink
@@ -79,15 +77,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     className={({ isActive }) =>
                       `flex items-center gap-2.5 px-3.5 py-2 min-h-[40px] rounded-lg text-sm transition-colors truncate ${
                         isActive
-                          ? 'bg-[var(--surface-secondary)] text-[var(--foreground)] font-medium'
-                          : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)]'
+                          ? 'bg-surface-secondary text-foreground font-medium'
+                          : 'text-muted hover:text-foreground hover:bg-surface-secondary'
                       }`
                     }
                   >
                     {list.kind === 'ordered' ? (
-                      <ListOrdered className="w-4 h-4 shrink-0 text-[var(--accent-text)]" />
+                      <ListOrdered className="w-4 h-4 shrink-0 text-accent-soft-foreground" />
                     ) : (
-                      <Bookmark className="w-4 h-4 shrink-0 text-[var(--muted)]" />
+                      <Bookmark className="w-4 h-4 shrink-0 text-muted" />
                     )}
                     <span className="truncate">{list.name}</span>
                   </NavLink>
@@ -97,7 +95,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           )}
         </nav>
 
-        <div className="p-4 border-t border-[var(--separator)] space-y-2">
+        <div className="p-4 border-t border-separator space-y-2">
           {!isInstalled && (isInstallable || isIOS) && (
             <Button
               variant="secondary"
@@ -111,17 +109,17 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             </Button>
           )}
 
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-[var(--surface-secondary)]">
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-surface-secondary">
             <NavLink
               to="/settings"
-              className="flex items-center gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 rounded-lg hover:bg-[var(--surface-tertiary)] transition-colors"
+              className="flex items-center gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 rounded-lg hover:bg-surface-tertiary transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent-text)] shrink-0 font-semibold text-xs">
+              <div className="w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center text-accent-soft-foreground shrink-0 font-semibold text-xs">
                 {t.app.logoChar}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-[var(--foreground)] truncate">{t.settings.title}</p>
-                <p className="text-[11px] text-[var(--muted)] truncate">{t.app.syncConnected}</p>
+                <p className="text-xs font-medium text-foreground truncate">{t.settings.title}</p>
+                <p className="text-[11px] text-muted truncate">{t.app.syncConnected}</p>
               </div>
             </NavLink>
             <Button variant="ghost" size="sm" isIconOnly onPress={() => void signOut()} aria-label={t.app.signOut}>
@@ -134,12 +132,12 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       {/* Tablet Left Navigation Rail (640px - 1024px) */}
       <aside
         aria-label={t.app.tabletNavAria}
-        className="hidden sm:flex lg:hidden sm:w-20 sm:flex-col sm:fixed sm:inset-y-0 sm:left-0 bg-[var(--surface)] border-r border-[var(--border)] z-30 items-center py-4 select-none"
+        className="hidden sm:flex lg:hidden sm:w-20 sm:flex-col sm:fixed sm:inset-y-0 sm:left-0 bg-surface border-r border-border z-30 items-center py-4 select-none"
       >
         <NavLink
           to="/"
           aria-label={t.app.name}
-          className="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center text-[var(--accent-foreground)] font-bold text-base mb-6"
+          className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-accent-foreground font-bold text-base mb-6"
         >
           {t.app.logoChar}
         </NavLink>
@@ -155,8 +153,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 className={({ isActive }) =>
                   `w-full py-2.5 min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
                     isActive
-                      ? 'bg-[var(--accent-subtle)] text-[var(--accent-text)]'
-                      : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-secondary)]'
+                      ? 'bg-accent-soft text-accent-soft-foreground'
+                      : 'text-muted hover:text-foreground hover:bg-surface-secondary'
                   }`
                 }
               >
@@ -168,9 +166,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         </nav>
 
         <div className="mt-auto flex flex-col items-center gap-2">
-          <Button variant="secondary" isIconOnly onPress={() => navigate('/settings')} aria-label={t.settings.title}>
+          <ButtonLink to="/settings" variant="secondary" isIconOnly aria-label={t.settings.title}>
             <Settings className="w-4 h-4" />
-          </Button>
+          </ButtonLink>
           <Button variant="secondary" isIconOnly onPress={() => void signOut()} aria-label={t.app.signOut}>
             <LogOut className="w-4 h-4" />
           </Button>
@@ -187,7 +185,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       {/* Phone Bottom Tab Bar (< 640px): height = 64px + env(safe-area-inset-bottom), icons & labels inside 64px area */}
       <nav
         aria-label={t.app.mobileNavAria}
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--surface-glass)] backdrop-blur-md border-t border-[var(--border)] h-[calc(64px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-2 select-none"
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-glass backdrop-blur-md border-t border-border h-[calc(64px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-2 select-none"
       >
         <div className="grid grid-cols-4 items-center h-[64px] w-full">
           {navItems.map((item) => {
@@ -200,9 +198,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 end={item.end}
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center h-[52px] min-w-[44px] rounded-lg transition-colors ${
-                    isActive || isDetailActive
-                      ? 'text-[var(--accent-text)]'
-                      : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                    isActive || isDetailActive ? 'text-accent-soft-foreground' : 'text-muted hover:text-foreground'
                   }`
                 }
               >

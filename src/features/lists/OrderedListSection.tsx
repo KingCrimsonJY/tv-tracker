@@ -68,9 +68,7 @@ const SortableOrderedRow: React.FC<{
       ref={setNodeRef}
       style={style}
       className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-        isNextUp
-          ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/40'
-          : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--muted)]/40'
+        isNextUp ? 'bg-accent-soft border-accent/40' : 'bg-surface border-border hover:border-muted/40'
       }`}
     >
       {isSorting && (
@@ -82,16 +80,16 @@ const SortableOrderedRow: React.FC<{
           // Let dnd-kit own handle events while HeroUI supplies button styling.
           render={(props) => <button {...props} {...attributes} {...listeners} />}
           aria-label={t.lists.dragHandleAria(displayTitle)}
-          className="w-11 h-11 flex items-center justify-center text-[var(--muted)] hover:text-[var(--foreground)] touch-none cursor-grab active:cursor-grabbing shrink-0"
+          className="w-11 h-11 flex items-center justify-center text-muted hover:text-foreground touch-none cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-5 h-5" />
         </Button>
       )}
 
-      <div className="w-7 text-center font-mono text-sm font-semibold text-[var(--muted)] shrink-0">{index + 1}</div>
+      <div className="w-7 text-center font-mono text-sm font-semibold text-muted shrink-0">{index + 1}</div>
 
       <Link to={`/title/${item.title.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="w-11 h-16 rounded-lg overflow-hidden bg-[var(--surface-secondary)] shrink-0">
+        <div className="w-11 h-16 rounded-lg overflow-hidden bg-surface-secondary shrink-0">
           <MediaImage
             src={pickPoster(item.title, locale)}
             alt={displayTitle}
@@ -110,7 +108,7 @@ const SortableOrderedRow: React.FC<{
               </Chip>
             )}
           </div>
-          <div className="text-xs text-[var(--muted)] mt-0.5">{item.title.year ?? ''}</div>
+          <div className="text-xs text-muted mt-0.5">{item.title.year ?? ''}</div>
         </div>
       </Link>
 

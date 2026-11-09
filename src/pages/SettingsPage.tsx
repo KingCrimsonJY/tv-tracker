@@ -34,6 +34,7 @@ import { AppSettingsDoc, DefaultTitleLang, HomeSectionConfig, UiLangSetting } fr
 import { SortableSectionRow } from '../features/settings/SortableSectionRow';
 import { AboutSection } from '../features/settings/AboutSection';
 import { useI18n } from '../i18n';
+import { withPendingSpinner } from '../components/pendingContent';
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -147,7 +148,7 @@ export const SettingsPage: React.FC = () => {
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-2xl mx-auto">
       <div className="space-y-1">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t.settings.title}</h1>
-        <p className="text-xs sm:text-sm text-[var(--muted)]">{t.settings.subtitle}</p>
+        <p className="text-xs sm:text-sm text-muted">{t.settings.subtitle}</p>
       </div>
 
       <Card>
@@ -295,15 +296,15 @@ export const SettingsPage: React.FC = () => {
         </Card.Header>
         <Card.Content className="flex flex-wrap gap-3">
           <Button variant="secondary" size="sm" onPress={handleExport}>
-            <Download className="w-4 h-4 mr-1.5" />
+            <Download className="w-4 h-4" />
             {t.settings.dataManagement.exportJson}
           </Button>
           <Button variant="secondary" size="sm" onPress={() => fileInputRef.current?.click()}>
-            <Upload className="w-4 h-4 mr-1.5" />
+            <Upload className="w-4 h-4" />
             {t.settings.dataManagement.importJson}
           </Button>
           <Button variant="secondary" size="sm" isDisabled={refreshingMeta !== null} onPress={handleRefreshAllMeta}>
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshingMeta ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${refreshingMeta ? 'animate-spin' : ''}`} />
             {refreshingMeta
               ? t.settings.dataManagement.refreshingAllToast(refreshingMeta.done, refreshingMeta.total)
               : t.settings.dataManagement.refreshAllMetadata}
@@ -323,14 +324,14 @@ export const SettingsPage: React.FC = () => {
           <Card.Title className="text-base">{t.settings.account.label}</Card.Title>
         </Card.Header>
         <Card.Content className="flex flex-wrap items-center justify-between gap-4">
-          <div className="text-xs text-[var(--muted)]">{t.settings.account.description}</div>
+          <div className="text-xs text-muted">{t.settings.account.description}</div>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onPress={() => void signOut()}>
-              <LogOut className="w-4 h-4 mr-1.5" />
+              <LogOut className="w-4 h-4" />
               {t.settings.account.signOut}
             </Button>
             <Button variant="danger-soft" size="sm" onPress={() => void signOutAll()}>
-              <ShieldAlert className="w-4 h-4 mr-1.5" />
+              <ShieldAlert className="w-4 h-4" />
               {t.settings.account.signOutAll}
             </Button>
           </div>
@@ -346,14 +347,14 @@ export const SettingsPage: React.FC = () => {
               <AlertDialog.Heading>{t.settings.dataManagement.importConfirmTitle}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p className="text-sm text-[var(--muted)]">{t.settings.dataManagement.importConfirmDescription}</p>
+              <p className="text-sm text-muted">{t.settings.dataManagement.importConfirmDescription}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer className="gap-2">
               <Button variant="tertiary" onPress={() => setImportDialogOpen(false)}>
                 {t.app.cancel}
               </Button>
-              <Button variant="danger" onPress={confirmImport} isDisabled={importing}>
-                {t.app.confirm}
+              <Button variant="danger" onPress={confirmImport} isPending={importing}>
+                {withPendingSpinner(t.app.confirm)}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

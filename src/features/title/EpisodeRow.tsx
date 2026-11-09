@@ -111,12 +111,12 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = React.memo(
                   if (key === 'record-time') onRecordTime(episode.key);
                 }}
               >
-                <Dropdown.Item id="mark-up-to">
-                  <CheckCheck className="w-4 h-4 mr-2" />
+                <Dropdown.Item id="mark-up-to" textValue={t.detail.seasons.episodeMenu.markUpToHere}>
+                  <CheckCheck className="size-4 shrink-0 text-muted" />
                   <Label>{t.detail.seasons.episodeMenu.markUpToHere}</Label>
                 </Dropdown.Item>
-                <Dropdown.Item id="record-time">
-                  <Clock className="w-4 h-4 mr-2" />
+                <Dropdown.Item id="record-time" textValue={t.detail.seasons.episodeMenu.recordTime}>
+                  <Clock className="size-4 shrink-0 text-muted" />
                   <Label>{t.detail.seasons.episodeMenu.recordTime}</Label>
                 </Dropdown.Item>
               </Dropdown.Menu>
