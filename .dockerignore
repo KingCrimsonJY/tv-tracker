@@ -7,7 +7,6 @@ data/
 data-demo/
 .git/
 .gitignore
-.aistudio/
 .playwright-cli/
 .bin/
 .DS_Store
