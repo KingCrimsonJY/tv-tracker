@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { SearchField, Button, Skeleton, toast } from '@heroui/react';
 import { Link2, PlusCircle } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
@@ -9,6 +9,7 @@ import { LinkImportDialog } from '../features/search/LinkImportDialog';
 import type { ManualSeed } from '../features/search/linkImportModel';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
 import { useI18n } from '../i18n';
+import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
 
 // Recent results survive opening a title and coming back, so Back shows the list without a refetch.
 const recentSearches = new Map<string, TmdbSearchItem[]>();
@@ -23,13 +24,8 @@ export const SearchPage: React.FC = () => {
   const { titles, lists, addTitleFromTmdb } = useTracker((state) => [state.titles, state.lists]);
   const { t, locale, translateError } = useI18n();
 
-  // Keep the query in the URL so browser Back from a result returns to the same search.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const query = searchParams.get('q') ?? '';
-  const setQuery = useCallback(
-    (value: string) => setSearchParams(value ? { q: value } : {}, { replace: true }),
-    [setSearchParams],
-  );
+  // Mirrored into ?q= so browser Back from a result returns to the same search.
+  const [query, setQuery] = useSearchQueryParam('q');
   const searchLang = locale === 'en' ? 'en-US' : 'zh-CN';
   const [results, setResults] = useState<TmdbSearchItem[]>(
     () => recentSearches.get(`${searchLang}:${query.trim()}`) ?? [],

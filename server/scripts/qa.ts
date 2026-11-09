@@ -146,6 +146,26 @@ try {
     detailsBefore,
     'Detail cache missed on route return',
   );
+  // Chinese IME input: composition text must never be committed into the search field.
+  // QA runs without a TMDB key; answer the debounced search locally so it stays offline and error-free.
+  await pages[0].route('**/api/tmdb/search**', (route) => route.fulfill({ json: { configured: true, results: [] } }));
+  await pages[0].goto(baseUrl + '/search');
+  const searchInput = pages[0].getByRole('searchbox');
+  await searchInput.click();
+  const ime = await pages[0].context().newCDPSession(pages[0]);
+  for (const text of ['f', 'fa', 'fan', "fan'r", "fan'ren"]) {
+    await ime.send('Input.imeSetComposition', { text, selectionStart: text.length, selectionEnd: text.length });
+    await pages[0].waitForTimeout(40);
+  }
+  await ime.send('Input.insertText', { text: '凡人' });
+  await pages[0].waitForTimeout(400);
+  assert.equal(await searchInput.inputValue(), '凡人', 'IME composition text leaked into the search field');
+  assert.equal(new URL(pages[0].url()).searchParams.get('q'), '凡人');
+  await ime.detach();
+  await pages[0].unroute('**/api/tmdb/search**');
+  await pages[0].goto(baseUrl + '/title/' + title.id);
+  await pages[0].getByRole('heading', { level: 1 }).waitFor();
+
   const backup = repo.exportData();
   delete backup.titles[title.id];
   delete backup.seasonsByTitle[title.id];
@@ -161,6 +181,7 @@ try {
     crossDeviceToggle: 'passed',
     detailCache: 'passed',
     backupReplacement: 'passed',
+    imeSearchInput: 'passed',
   };
   writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report));
