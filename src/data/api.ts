@@ -16,7 +16,6 @@ import type {
 } from '../domain/types.ts';
 
 export type { LinkImportResult, SystemInfoResponse, TmdbSearchItem };
-export type TmdbSearchHit = TmdbSearchItem;
 
 const IFRAME_TOKEN_STORAGE_KEY = 'zhenji_iframe_session_token';
 
@@ -234,47 +233,6 @@ export async function putSeasonsApi(titleId: string, seasons: SeasonDoc[]): Prom
     method: 'PUT',
     body: JSON.stringify({ seasons }),
   });
-}
-
-export async function putProgressApi(
-  titleId: string,
-  playthroughId: string,
-  payload: { watched: Record<string, number>; movieWatchedAt?: number },
-): Promise<StateMutationResult> {
-  return apiJson<StateMutationResult>(
-    `/api/titles/${encodeURIComponent(titleId)}/progress/${encodeURIComponent(playthroughId)}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    },
-  );
-}
-
-export async function patchProgressApi(
-  titleId: string,
-  playthroughId: string,
-  patch: {
-    set?: Record<string, number>;
-    unset?: string[];
-    movieWatchedAt?: number | null;
-  },
-): Promise<StateMutationResult> {
-  return apiJson<StateMutationResult>(
-    `/api/titles/${encodeURIComponent(titleId)}/progress/${encodeURIComponent(playthroughId)}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    },
-  );
-}
-
-export async function deleteProgressApi(titleId: string, playthroughId: string): Promise<StateMutationResult> {
-  return apiJson<StateMutationResult>(
-    `/api/titles/${encodeURIComponent(titleId)}/progress/${encodeURIComponent(playthroughId)}`,
-    {
-      method: 'DELETE',
-    },
-  );
 }
 
 export async function putListApi(listId: string, payload: Omit<WatchListDoc, 'id'>): Promise<StateMutationResult> {

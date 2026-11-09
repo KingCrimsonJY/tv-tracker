@@ -131,13 +131,6 @@ const baseTitleFields = {
   lastActivityAt: z.number().nonnegative(),
 };
 
-export const titleDocWithoutIdSchema: z.ZodType<Omit<TitleDoc, 'id'>> = z
-  .object(baseTitleFields)
-  .refine((doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId), {
-    message: 'activePlaythroughId must exist in playthroughs',
-    path: ['activePlaythroughId'],
-  });
-
 export const titleDocSchema: z.ZodType<TitleDoc> = z
   .object({
     id: z.string().min(1),
@@ -203,12 +196,6 @@ export const seasonDocSchema: z.ZodType<SeasonDoc> = z.object({
 const archivedWatchedSchema = z
   .array(z.object({ episode: episodeMetaSchema, watchedAt: z.number().nonnegative() }))
   .optional();
-
-export const progressDataSchema = z.object({
-  archivedWatched: archivedWatchedSchema,
-  watched: z.record(z.string(), z.number().nonnegative()),
-  movieWatchedAt: z.number().nonnegative().optional(),
-});
 
 export const progressDocSchema: z.ZodType<ProgressDoc> = z.object({
   archivedWatched: archivedWatchedSchema,
