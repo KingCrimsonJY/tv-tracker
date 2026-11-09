@@ -187,16 +187,16 @@ Open `http://localhost:3000`, enter the setup code from the terminal (or the `SE
 
 All environment variables are read exclusively on the server from `.env` (see [`.env.example`](./.env.example)):
 
-| Variable            |     Required      | Default       | Purpose                                                                                                          | Where to Get / Notes                                                                                           |
-| :------------------ | :---------------: | :------------ | :--------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
-| `TMDB_READ_TOKEN`   |   **Required**    | Empty         | TMDB Read Access Token (Bearer) or v3 API Key (auto-detected) for search and metadata                            | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
-| `OMDB_API_KEY`      |     Optional      | Empty         | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days)                             | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)           |
-| `DATA_DIR`          |     Optional      | `./data`      | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports                            | Mounted at `/data` inside Docker                                                                               |
-| `YTDLP_PATH`        | Optional override | Auto-detected | Custom path to the `yt-dlp` binary (not listed in `.env.example`; set only to override the default lookup order) | When unset or empty, checks `/opt/yt-dlp/yt-dlp`, `./.bin/yt-dlp`, then `yt-dlp` on `PATH`                     |
-| `SETUP_CODE`        |     Optional      | Random        | One-time verification code required on the first-run password setup screen                                       | If omitted, a random code is printed to server logs on first boot                                              |
-| `APP_PASSWORD_HASH` |     Optional      | Empty         | `scrypt` password hash override (takes priority over the database password hash)                                 | Generate interactively via `npm run set-password`                                                              |
-| `TRUST_PROXY`       |     Optional      | `0`           | Set to `1` to read client IP from `CF-Connecting-IP` or `X-Forwarded-For` for login rate limiting                | Enable (`1`) when behind Cloudflare Tunnel or a reverse proxy                                                  |
-| `PORT`              |     Optional      | `3000`        | HTTP server port                                                                                                 | Defaults to `3000`                                                                                             |
+| Variable            |     Required      | Default       | Purpose                                                                                                                                                             | Where to Get / Notes                                                                                                              |
+| :------------------ | :---------------: | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------- |
+| `TMDB_READ_TOKEN`   |   **Required**    | Empty         | TMDB Read Access Token (Bearer) or v3 API Key (auto-detected) for search and metadata                                                                               | Request a free API Read Access Token at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)                    |
+| `OMDB_API_KEY`      |     Optional      | Empty         | Fetches IMDb, Rotten Tomatoes, and Metacritic ratings by IMDb ID (cached for 7 days)                                                                                | Request a free key (1,000 req/day) at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)                              |
+| `DATA_DIR`          |     Optional      | `./data`      | Single portable directory storing `tracker.db`, daily backups, and daily JSON exports                                                                               | Mounted at `/data` inside Docker                                                                                                  |
+| `YTDLP_PATH`        | Optional override | Auto-detected | Custom path to the `yt-dlp` binary (not listed in `.env.example`; set only to override the default lookup order)                                                    | When unset or empty, checks `/opt/yt-dlp/yt-dlp`, `./.bin/yt-dlp`, then `yt-dlp` on `PATH`                                        |
+| `SETUP_CODE`        |     Optional      | Random        | One-time verification code required on the first-run password setup screen                                                                                          | If omitted, a random code is printed to server logs on first boot                                                                 |
+| `APP_PASSWORD_HASH` |     Optional      | Empty         | `scrypt` password hash override (takes priority over the database password hash)                                                                                    | Generate interactively via `npm run set-password`                                                                                 |
+| `TRUST_PROXY`       |     Optional      | `0`           | Set to `1` to trust proxy headers: `CF-Connecting-IP` or the last `X-Forwarded-For` entry for login rate limiting, and `X-Forwarded-Host` for the CSRF origin check | Enable only behind Cloudflare Tunnel or a reverse proxy that overwrites these headers; keep `0` when the port is exposed directly |
+| `PORT`              |     Optional      | `3000`        | HTTP server port                                                                                                                                                    | Defaults to `3000`                                                                                                                |
 
 ## Deployment
 
@@ -213,6 +213,8 @@ docker compose up -d --build
 # Read the one-time setup code on first start
 docker compose logs zhenji | grep "First-run setup code"
 ```
+
+> **Serve Zhenji over HTTPS.** In production the session cookie is `Secure`, so browsers only keep it over HTTPS (or on `localhost`). Opening `http://<LAN IP>:<port>` cannot sign in even with the right password; the sign-in screen explains why.
 
 By default, the container binds to `127.0.0.1:8080:3000` on the host and includes optional `cloudflare` (`cloudflared` with `TUNNEL_TOKEN`) and `tailscale` (Tailscale Funnel with `TS_AUTHKEY`) Compose profiles. See **[`docs/deployment.md`](./docs/deployment.md)** for full instructions on installing Docker on Linux, tunnel setup, updating, backups, migrating machines, resetting passwords, and preventing host sleep.
 
@@ -258,7 +260,32 @@ npm run set-password
 
 # Build the curated demo database in ./data-demo (never touches ./data)
 npm run seed:demo
+
+# Check formatting (also run in CI)
+npm run format:check
+
+# Regenerate the README screenshots in docs/screenshots from the demo database (run seed:demo and build first)
+npm run screenshots
 ```
+
+### Performance and UI checks
+
+The performance and UI scripts need Playwright's Chromium (run them inside the development container):
+
+```sh
+npx playwright install --with-deps chromium
+npm run build
+npm run perf
+npm run qa
+```
+
+The performance script uses its own temporary SQLite database and never reads or overwrites `DATA_DIR`. The fixture holds 300 titles: regular 40-episode series, 150-episode series, 564-episode collections and 12 movies. The browser uses a 390 × 844 viewport, 4× CPU throttling, 150 ms latency, 1.6 Mbps down and 750 Kbps up, with cache and Service Worker disabled, and measures a cold start.
+
+Bilingual text comes from a fixed seed and images from local fixtures; no API key or upstream request is needed. Results exclude Cloudflare Tunnel and external image latency. The report lists each budget; set `PERF_ENFORCE_BUDGETS=1` to fail when one is exceeded. `PERF_OUTPUT_DIR` sets the report directory. The optional `PERF_PROFILE` path records a CPU profile for diagnosis only; leave it off for comparisons.
+
+The library index omits episode names, overviews and stills; the detail page loads and caches them on demand. Exports always read the full server data and keep the v2 backup format.
+
+The UI script captures English and Chinese movie pages, upstream-change pages, preview dialogs and episode-range selectors at 320, 390 and 1280 px, and checks two-device sync, the detail cache and backup replacement. `QA_OUTPUT_DIR` sets the screenshot and report directory; without it a temporary directory is created. Screenshots and run data are not committed.
 
 ## Credits & Data Attribution
 

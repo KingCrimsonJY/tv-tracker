@@ -8,6 +8,10 @@
 - Data changes require migrations. Keep both v1 and v2 backup imports working; retain the existing v2 export envelope.
 - Use strict TypeScript. No `any` and no non-null assertions.
 - Prefer HeroUI v3 components to raw interactive elements. Use `className` on HeroUI components for layout only; use documented variants and composition for appearance and behavior. Keep business components as clear compositions of these primitives.
+- Style with HeroUI semantic utilities (`text-muted`, `bg-surface`, `border-border`, `bg-accent-soft`, `text-accent-soft-foreground`, ...), not arbitrary `[var(--token)]` classes. Add an app-specific token only when HeroUI has none, define it for both themes in `src/index.css` and register it with `@theme inline`.
+- Navigation is a link: use `ButtonLink` (`buttonVariants` on a router `Link`), never a Button that calls `navigate()` on press.
+- Give every `Dropdown.Item` and `ListBox.Item` a `textValue`. Async confirm buttons use `isPending` with `withPendingSpinner` and `usePendingAction` so repeated presses cannot send twice.
+- Dialogs capture their form state when they open. Synced updates to the underlying title must not reset what the user is typing, and saving an untouched form must not write anything.
 - Put every user-facing string in `src/i18n/messages`, in both `zh-CN` and `en`. Servers return error codes, not user-facing text.
 - Keep files under about 400 lines; extract cohesive modules when needed.
 - Use Vitest only. Tests must not call real upstream networks. Add a meaningful regression test for every bug.
@@ -19,6 +23,7 @@
 - A failed upstream request must never remove local metadata or progress. Metadata refresh is a single server-side transaction.
 - Refresh All reports updated, needs review, partial, failed and skipped separately, including missing provider configuration.
 - CI must run lint, Vitest and the production build, build the Docker image, start it and verify `/healthz`.
+- Proxy headers (`CF-Connecting-IP`, `X-Forwarded-For`, `X-Forwarded-Host`) are trusted only with `TRUST_PROXY=1`; use the last `X-Forwarded-For` entry. Unexpected 500 responses return only the error code.
 - `npm start` serves the production build without requiring the caller to set `NODE_ENV`. README offline timing must match the heartbeat watchdog and countdown.
 
 ## Synchronization
@@ -26,6 +31,7 @@
 - All open devices converge to server state, including out-of-order mutation responses/SSE events, the initial SSE connection, reconnects and backup replacement.
 - Backup import replaces state on all devices; it must not leave deleted entities behind through merge semantics.
 - Concurrent attempts to start a rewatch must produce a conflict, never overwrite playthroughs or orphan progress.
+- Every progress or playthrough write sends `expectedActivePlaythroughId`. The server rejects structural changes without it, removals that do not delete the matching progress, and progress written to any playthrough but the resulting active one.
 
 ## Upstream changes
 
@@ -57,6 +63,7 @@
 - Poster columns depend on available content width, including the sidebar. Keep labels readable at 320 px and 1024 px layouts.
 - Use camelCase i18n keys and HeroUI NumberField for numeric add-dialog inputs.
 - Regression coverage includes deleted upstream entries, removed/split seasons, locked structure, returning episodes, every rejected link category, and bangumi with/without TMDB matches.
+- When screens shown in the README change, run `npm run seed:demo`, `npm run build` and `npm run screenshots`, and review the regenerated `docs/screenshots`.
 - Verify changed screens at 320, 390 and 1280 px in both languages with a clean browser console. Report lint, tests, frontend build, Docker build and health results, and mark each numbered request done, partly done or skipped with a brief explanation.
 
 ## Design
