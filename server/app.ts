@@ -369,16 +369,20 @@ export function createApp(options: CreateAppOptions): Express {
       sendApiError(res, 409, err.code, err.message);
       return;
     }
-    if (
-      typeof err === 'object' &&
-      err !== null &&
-      'type' in err &&
-      (err as { type?: string }).type === 'entity.too.large'
-    ) {
+    // Body-parser failures carry the raw request body (which can hold a password) on the error object.
+    // They are client errors: answer 400/413 and never log them.
+    const bodyParserType =
+      typeof err === 'object' && err !== null && 'type' in err ? (err as { type?: unknown }).type : undefined;
+    if (bodyParserType === 'entity.too.large') {
       sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request payload is too large.');
       return;
     }
-    console.error('Unhandled API error:', err);
+    if (typeof bodyParserType === 'string' && bodyParserType.length > 0) {
+      sendApiError(res, 400, 'VALIDATION_ERROR', 'Request body could not be parsed.');
+      return;
+    }
+    // Log the stack only: enumerable properties of unknown errors may include request data.
+    console.error('Unhandled API error:', err instanceof Error ? (err.stack ?? err.message) : typeof err);
     sendApiError(res, 500, 'INTERNAL_ERROR', 'Internal server error.');
   });
 

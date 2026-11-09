@@ -370,4 +370,26 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     expect(body).toContain('INTERNAL_ERROR');
     expect(body).not.toContain('/srv/private');
   });
+
+  it('answers malformed JSON with 400 and never logs the request body', async () => {
+    const logged: unknown[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(...args);
+    };
+    try {
+      for (const path of ['/api/auth/login', '/api/auth/setup', '/api/import']) {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+          body: '{"password":"secret-marker-123",',
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ code: 'VALIDATION_ERROR' });
+      }
+    } finally {
+      console.error = originalError;
+    }
+    expect(JSON.stringify(logged.map(String))).not.toContain('secret-marker-123');
+  });
 });
