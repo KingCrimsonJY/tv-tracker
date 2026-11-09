@@ -246,7 +246,7 @@ export function createApp(options: CreateAppOptions): Express {
     }
     const isMutating =
       req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE';
-    if (viaCookie && isMutating && !isSameOriginRequest(req)) {
+    if (viaCookie && isMutating && !isSameOriginRequest(req, trustProxy)) {
       sendApiError(res, 403, 'CSRF_ORIGIN_MISMATCH', 'Cross-origin request rejected (Origin check failed).');
       return;
     }
@@ -379,7 +379,7 @@ export function createApp(options: CreateAppOptions): Express {
       return;
     }
     console.error('Unhandled API error:', err);
-    sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : 'Internal server error.');
+    sendApiError(res, 500, 'INTERNAL_ERROR', 'Internal server error.');
   });
 
   return app;

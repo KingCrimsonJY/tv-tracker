@@ -353,4 +353,21 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     });
     expect(badId.status).toBe(400);
   });
+
+  it('does not leak internal error messages in 500 responses', async () => {
+    const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
+    });
+    const cookiePair = (setupRes.headers.get('set-cookie') || '').split(';')[0];
+    repo.getState = () => {
+      throw new Error('SQLITE_CORRUPT at /srv/private/tracker.db');
+    };
+    const res = await fetch(`${baseUrl}/api/state`, { headers: { Cookie: cookiePair } });
+    expect(res.status).toBe(500);
+    const body = await res.text();
+    expect(body).toContain('INTERNAL_ERROR');
+    expect(body).not.toContain('/srv/private');
+  });
 });
