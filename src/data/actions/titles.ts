@@ -225,7 +225,7 @@ export function createTitleActions(
       backdropPath: prevTitle.source !== 'tmdb' ? posterUrl || prevTitle.backdropPath : prevTitle.backdropPath,
       overview: {
         ...prevTitle.overview,
-        ...(input.overview !== undefined ? { zh: input.overview.trim() } : {}),
+        ...(input.overview !== undefined ? { [input.overviewLang ?? 'zh']: input.overview.trim() } : {}),
       },
       ...(input.uploader !== undefined ? { uploader: input.uploader?.trim() || null } : {}),
       updatedAt: now,

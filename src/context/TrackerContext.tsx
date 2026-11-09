@@ -9,6 +9,7 @@ import {
   fetchAuthStatus,
   fetchStateSnapshot,
   fetchTmdbGenresApi,
+  assertSessionEstablished,
   loginPasswordApi,
   logoutAllApi,
   logoutApi,
@@ -83,6 +84,7 @@ export interface TrackerContextValue {
   tmdbGenres: { zh: Record<number, string>; en: Record<number, string> } | null;
   removeTitle: (titleId: string) => Promise<void>;
   toggleEpisode: (titleId: string, episodeKey: string) => Promise<void>;
+  markEpisodeWatched: (titleId: string, episodeKey: string) => Promise<void>;
   toggleSeason: (titleId: string, seasonNumber: number, markWatched: boolean) => Promise<void>;
   markUpTo: (titleId: string, episodeKey: string) => Promise<void>;
   markWholeTitle: (titleId: string, markWatched: boolean) => Promise<void>;
@@ -304,6 +306,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setupPassword = useCallback(
     async (password: string, setupCode: string) => {
       await setupPasswordApi(password, setupCode);
+      await assertSessionEstablished();
       setNeedsSetup(false);
       setAuthenticated(true);
       setLoadingData(true);
@@ -315,6 +318,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const loginWithPassword = useCallback(
     async (password: string) => {
       await loginPasswordApi(password);
+      await assertSessionEstablished();
       setNeedsSetup(false);
       setAuthenticated(true);
       setLoadingData(true);

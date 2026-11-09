@@ -148,6 +148,7 @@ export const zhCN = {
     PASSWORD_NOT_SET: '尚未设置密码，请先完成首次设置',
     SETUP_CODE_INVALID: '设置码不正确，请检查服务器日志或 SETUP_CODE 环境变量',
     WRONG_PASSWORD: '密码错误，请重试',
+    SESSION_COOKIE_REJECTED: '密码正确，但浏览器拒绝保存登录 Cookie。请通过 HTTPS 地址访问帧迹（参见部署文档）。',
     TOO_MANY_ATTEMPTS: '登录尝试次数过多，请 15 分钟后再试',
     UNAUTHENTICATED: '未登录或会话已过期',
     SESSION_EXPIRED: '会话已过期，请重新登录',
@@ -444,7 +445,8 @@ export const zhCN = {
       zhNameLabel: '中文名称',
       originalNameLabel: '原始名称',
       posterPathLabel: '海报链接',
-      overviewLabel: '剧情简介',
+      overviewLabelZh: '剧情简介（中文）',
+      overviewLabelEn: '剧情简介（英文）',
     },
     playthroughs: {
       title: '观看记录',

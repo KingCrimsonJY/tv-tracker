@@ -26,7 +26,7 @@ export const HomePage: React.FC = () => {
     entriesByList,
     settings,
     getActiveProgress,
-    toggleEpisode,
+    markEpisodeWatched,
     markWholeTitle,
   } = useTracker();
   const { locale, t } = useI18n();
@@ -116,8 +116,8 @@ export const HomePage: React.FC = () => {
             <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--foreground)]">
               {t.home.sections.continue_watching}
             </h2>
-            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory no-scrollbar">
-              {continueWatchingItems.map(({ title, seasons, state }) => {
+            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
+              {continueWatchingItems.map(({ title, seasons, progress, state }) => {
                 const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
                 const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
                 const pct = Math.max(3, Math.min(100, Math.round(ratio * 100)));
@@ -135,7 +135,11 @@ export const HomePage: React.FC = () => {
                   subtitle = t.home.nextEpisodeLabel(state.nextUp.seasonNumber, state.nextUp.number);
                 }
 
-                const quickMarkEpisodeKey = title.resume?.episodeKey || state.nextUp?.key;
+                // A resume point can sit on an episode that is already watched (e.g. a rewatch of one
+                // episode); the quick action then targets the next unwatched episode instead.
+                const resumeKey = title.resume?.episodeKey;
+                const quickMarkEpisodeKey =
+                  resumeKey && progress?.watched[resumeKey] === undefined ? resumeKey : state.nextUp?.key;
 
                 return (
                   <div
@@ -179,7 +183,7 @@ export const HomePage: React.FC = () => {
                           size="sm"
                           isIconOnly
                           onPress={() => {
-                            void toggleEpisode(title.id, quickMarkEpisodeKey);
+                            void markEpisodeWatched(title.id, quickMarkEpisodeKey);
                           }}
                           aria-label={t.home.markNextWatchedAria(primary, quickMarkEpisodeKey.toUpperCase())}
                         >

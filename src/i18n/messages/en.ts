@@ -175,6 +175,8 @@ export const en: MessageCatalog = {
     PASSWORD_NOT_SET: 'Password is not set yet. Complete initial setup first.',
     SETUP_CODE_INVALID: 'Invalid setup code. Check server logs or SETUP_CODE.',
     WRONG_PASSWORD: 'Incorrect password. Please try again.',
+    SESSION_COOKIE_REJECTED:
+      'Signed in, but the browser refused the session cookie. Open Zhenji over HTTPS (see the deployment guide).',
     TOO_MANY_ATTEMPTS: 'Too many login attempts. Please try again in 15 minutes.',
     UNAUTHENTICATED: 'Not signed in or session expired',
     SESSION_EXPIRED: 'Session expired. Please sign in again.',
@@ -478,7 +480,8 @@ export const en: MessageCatalog = {
       zhNameLabel: 'Localized Title',
       originalNameLabel: 'Original Title',
       posterPathLabel: 'Poster URL',
-      overviewLabel: 'Overview',
+      overviewLabelZh: 'Overview (Chinese)',
+      overviewLabelEn: 'Overview (English)',
     },
     playthroughs: {
       title: 'Watch history',

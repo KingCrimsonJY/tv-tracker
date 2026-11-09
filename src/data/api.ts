@@ -163,6 +163,18 @@ export async function loginPasswordApi(password: string): Promise<void> {
   }
 }
 
+/**
+ * The session cookie is `Secure` in production. Over plain HTTP (for example a LAN IP) the browser drops it,
+ * which used to look like a login that silently did nothing. Confirm the session before entering the app.
+ */
+export async function assertSessionEstablished(
+  fetchStatus: () => Promise<{ authenticated: boolean }> = fetchAuthStatus,
+): Promise<void> {
+  if (getIframeBearerToken()) return;
+  const status = await fetchStatus();
+  if (!status.authenticated) throw new ApiError(401, 'SESSION_COOKIE_REJECTED', 'SESSION_COOKIE_REJECTED');
+}
+
 export async function logoutApi(): Promise<void> {
   try {
     await apiJson('/api/auth/logout', { method: 'POST' });

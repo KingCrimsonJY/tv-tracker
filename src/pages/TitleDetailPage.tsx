@@ -10,10 +10,12 @@ import { PlaythroughHistory } from '../features/title/PlaythroughHistory';
 import { ResumeDialog } from '../features/title/ResumeDialog';
 import { TitleModals } from '../features/title/TitleModals';
 import { useI18n } from '../i18n';
+import { useBackNavigation } from '../components/useBackNavigation';
 
 export const TitleDetailPage: React.FC = () => {
   const detail = useTitleDetail();
   const { t } = useI18n();
+  const goBack = useBackNavigation('/library');
 
   if (!detail.title || !detail.titleState) {
     return (
@@ -36,7 +38,7 @@ export const TitleDetailPage: React.FC = () => {
         displayTitle={detail.displayTitle}
         showOriginalSub={detail.showOriginalSub}
         metaParts={detail.metaParts}
-        onBack={() => detail.navigate(-1)}
+        onBack={goBack}
       >
         <RatingsRow title={title} />
 

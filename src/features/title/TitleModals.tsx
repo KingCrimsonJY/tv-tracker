@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, AlertDialog, RadioGroup, Radio, TextField, Label, Input, TextArea, Button } from '@heroui/react';
+import React from 'react';
+import { Modal, AlertDialog, RadioGroup, Radio, Label, Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { DisplayLang, WatchListDoc, ListEntryDoc, TitleDoc } from '../../domain/types';
 import { UpdateTitleDetailsInput } from '../../data/actions/types';
 import { useI18n } from '../../i18n';
+import { EditTitleDialog } from './EditTitleDialog';
 
 interface TitleModalsProps {
   title: TitleDoc;
@@ -55,20 +56,6 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
   onConfirmDeletePlaythrough,
 }) => {
   const { t } = useI18n();
-  const [editZhTitle, setEditZhTitle] = useState(title.names.zh || '');
-  const [editOriginalTitle, setEditOriginalTitle] = useState(title.names.original || '');
-  const [editPosterUrl, setEditPosterUrl] = useState(title.posterPath ?? '');
-  const [editOverview, setEditOverview] = useState(title.overview.zh || title.overview.en || '');
-
-  useEffect(() => {
-    if (editModalOpen) {
-      setEditZhTitle(title.names.zh || '');
-      setEditOriginalTitle(title.names.original || '');
-      setEditPosterUrl(title.posterPath ?? '');
-      setEditOverview(title.overview.zh || title.overview.en || '');
-    }
-  }, [editModalOpen, title]);
-
   const languageOptions: Array<{ value: DisplayLang | 'default'; label: string; name?: string }> = [
     { value: 'default', label: t.detail.languageOptions.default },
     { value: 'zh', label: t.detail.languageOptions.zh, name: title.names.zh || '-' },
@@ -161,53 +148,12 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         </Modal.Container>
       </Modal.Backdrop>
 
-      <Modal.Backdrop isOpen={editModalOpen} onOpenChange={onEditModalOpenChange}>
-        <Modal.Container size="md" scroll="inside">
-          <Modal.Dialog>
-            <Modal.CloseTrigger aria-label={t.app.close} />
-            <Modal.Header>
-              <Modal.Heading>{t.detail.editModal.title}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="space-y-4">
-              <TextField value={editZhTitle} onChange={setEditZhTitle}>
-                <Label>{t.detail.editModal.zhNameLabel}</Label>
-                <Input />
-              </TextField>
-              <TextField value={editOriginalTitle} onChange={setEditOriginalTitle}>
-                <Label>{t.detail.editModal.originalNameLabel}</Label>
-                <Input />
-              </TextField>
-              <TextField value={editPosterUrl} onChange={setEditPosterUrl}>
-                <Label>{t.detail.editModal.posterPathLabel}</Label>
-                <Input type="url" />
-              </TextField>
-              <TextField value={editOverview} onChange={setEditOverview}>
-                <Label>{t.detail.editModal.overviewLabel}</Label>
-                <TextArea rows={3} />
-              </TextField>
-            </Modal.Body>
-            <Modal.Footer className="gap-2">
-              <Button variant="tertiary" onPress={() => onEditModalOpenChange(false)}>
-                {t.app.cancel}
-              </Button>
-              <Button
-                variant="primary"
-                onPress={() => {
-                  onUpdateTitle({
-                    name: editZhTitle.trim() || title.names.zh || title.names.original,
-                    originalName: editOriginalTitle.trim() || title.names.original,
-                    posterPath: editPosterUrl.trim() || null,
-                    overview: editOverview.trim(),
-                  });
-                  onEditModalOpenChange(false);
-                }}
-              >
-                {t.app.save}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
+      <EditTitleDialog
+        title={title}
+        isOpen={editModalOpen}
+        onOpenChange={onEditModalOpenChange}
+        onSave={onUpdateTitle}
+      />
 
       <AlertDialog.Backdrop isOpen={deleteConfirmOpen} onOpenChange={onDeleteConfirmOpenChange}>
         <AlertDialog.Container>

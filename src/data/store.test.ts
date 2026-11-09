@@ -537,3 +537,28 @@ describe('progress actions name the playthrough they were computed from', () => 
     for (const payload of payloads) expect(payload.expectedActivePlaythroughId).toBe('p1');
   });
 });
+
+describe('home quick mark', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('never unmarks an episode that is already watched', async () => {
+    const store = createTrackerStore();
+    const { snapshot } = makeFixtureState();
+    store.applySnapshot({
+      ...snapshot,
+      progressByTitle: { tmdb_tv_1: { p1: { playthroughId: 'p1', watched: { s1e1: 1 } } } },
+    });
+    const post = vi.spyOn(api, 'postTitleActionApi');
+    const actions = createTrackerActions({
+      getState: store.getState,
+      setState: store.setState,
+      applyServerMutation: (mut) => store.applyMutation(mut),
+      showToast: () => {},
+    });
+    await actions.markEpisodeWatched('tmdb_tv_1', 's1e1');
+    expect(post).not.toHaveBeenCalled();
+    expect(store.getState().progressByTitle.tmdb_tv_1.p1.watched.s1e1).toBe(1);
+  });
+});

@@ -250,6 +250,14 @@ export function createProgressActions(
     await commitComputedMutation(prevTitle, prevProgress, res, now);
   }
 
+  /** Idempotent quick action: a repeated tap or a stale shortcut never unmarks a watched episode. */
+  async function markEpisodeWatched(titleId: string, episodeKey: string): Promise<void> {
+    const state = getState();
+    const title = state.titles[titleId];
+    if (!title || getActiveProgressFromState(state, title).watched[episodeKey] !== undefined) return;
+    await toggleEpisode(titleId, episodeKey);
+  }
+
   async function toggleSeason(titleId: string, seasonNumber: number, markWatched: boolean): Promise<void> {
     const state = getState();
     const prevTitle = state.titles[titleId];
@@ -466,6 +474,7 @@ export function createProgressActions(
 
   return {
     toggleEpisode,
+    markEpisodeWatched,
     toggleSeason,
     markUpTo,
     markWholeTitle,
