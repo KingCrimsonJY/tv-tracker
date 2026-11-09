@@ -15,6 +15,7 @@ import {
   pickBackdrop,
   pickPoster,
   resolveDisplayTitle,
+  watchProgressPercent,
 } from '../domain/progress';
 import type { AppStateSnapshot, HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
@@ -130,8 +131,7 @@ export const HomePage: React.FC = () => {
               {continueWatchingItems.map(({ title, seasons, progress, state }) => {
                 const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
                 const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
-                // Report the real value to assistive technology; the fill's min width keeps a visible sliver.
-                const pct = Math.min(100, ratio * 100);
+                const pct = watchProgressPercent(ratio);
 
                 let subtitle: string = t.status[state.status];
                 if (title.resume && title.resume.seconds > 0) {

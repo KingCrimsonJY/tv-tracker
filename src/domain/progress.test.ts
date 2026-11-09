@@ -17,6 +17,7 @@ import {
   setSeasonWatched,
   startRewatch,
   toggleEpisodeWatched,
+  watchProgressPercent,
 } from './progress.ts';
 import { makeBaseTvTitle, makeSampleSeasons, TODAY } from './testFixtures.ts';
 import type { ProgressDoc, SeasonDoc } from './types.ts';
@@ -473,4 +474,11 @@ registerTest('Starting a rewatch of a caught-up returning series finishes the ou
   assert.equal(rewatch.playthroughs.find((p) => p.id === 'p1')?.completedAt, 5000);
   assert.equal(rewatch.playthroughs.find((p) => p.id === 'p2')?.completedAt, undefined);
   assert.equal(countCompletedPlaythroughs(rewatch.playthroughs), 1);
+});
+
+registerTest('Watch progress bars report the real percentage, never a visual minimum', () => {
+  assert.ok(watchProgressPercent(1 / 564) < 1);
+  assert.equal(watchProgressPercent(1 / 50), 2);
+  assert.equal(watchProgressPercent(1.2), 100);
+  assert.equal(watchProgressPercent(Number.NaN), 0);
 });
