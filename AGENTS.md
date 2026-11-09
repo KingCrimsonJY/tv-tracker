@@ -2,6 +2,12 @@
 
 Product, data-safety and code rules for 帧迹 Zhenji. They are not derivable from the code alone; keep them when changing behavior.
 
+## Commands
+
+- `npm run dev` starts the server with Vite on port 3000. `npm run format:check`, `npm run lint` (tsc + ESLint), `npm test` and `npm run build` must pass before a PR; `npm run qa` checks responsive UI and sync against the build.
+- `npm run seed:demo` creates `./data-demo`; `npm run screenshots` regenerates the README images from it.
+- The PWA manifest is defined in `vite.config.ts`; do not add one under `public/`.
+
 ## Workflow
 
 - Work on a branch from the latest `main` with focused commits. PR descriptions are concise English and include validation results.
@@ -11,16 +17,16 @@ Product, data-safety and code rules for 帧迹 Zhenji. They are not derivable fr
 
 ## Code
 
-- Strict TypeScript: no `any`, no non-null assertions. Keep files under about 400 lines.
-- Every user-facing string lives in `src/i18n/messages` in both `zh-CN` and `en`, with camelCase keys. Servers return error codes, not text.
+- Strict TypeScript: no `any`, no non-null assertions. Keep source files under about 400 lines by extracting cohesive modules; tests, fixtures and message catalogs may be longer.
+- Every user-facing string lives in `src/i18n/messages` in both `zh-CN` and `en`. Keys are camelCase, except maps keyed by domain ids (statuses, home sections). Servers return error codes, not text.
 - Vitest only. Tests never call real upstream networks. Every bug gets a meaningful regression test; coverage includes deleted upstream entries, removed or split seasons, locked structure, returning episodes, every rejected link category, and bangumi with and without TMDB matches.
 
 ## HeroUI and UI code
 
 - Check the installed HeroUI v3 version as well as the current docs; examples can differ from the release.
-- Prefer HeroUI components to raw interactive elements. `className` on HeroUI components is for layout; appearance comes from documented variants and composition.
+- Prefer HeroUI components to raw interactive elements; use a raw element only through a component's documented `render` prop or where HeroUI has no component (file input). `className` on HeroUI components is for layout; appearance comes from documented variants and composition.
 - Style with HeroUI semantic utilities (`text-muted`, `bg-surface`, `border-border`, `bg-accent-soft`, `text-accent-soft-foreground`, ...), not `[var(--token)]` classes. Add an app token only when HeroUI has none: define it for both themes in `src/index.css` and register it with `@theme inline`.
-- Navigation is a link: `ButtonLink` (`buttonVariants` on a router `Link`), never a Button calling `navigate()`.
+- Navigation is a link: router `Link`/`NavLink`, or `ButtonLink` (`buttonVariants` on a `Link`) when it should look like a button. Never a Button that calls `navigate()` on press.
 - Every `Dropdown.Item` and `ListBox.Item` has a `textValue`. Async confirm buttons use `isPending`, `withPendingSpinner` and `usePendingAction`. Numeric inputs use `NumberField`.
 - Dialogs capture form state when they open; synced updates must not reset typing, and saving an untouched form writes nothing.
 - Preserve accessible labels, keyboard interaction and visible focus.
