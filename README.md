@@ -264,7 +264,8 @@ npm run seed:demo
 # 检查代码格式（CI 同样执行）
 npm run format:check
 
-# 基于演示数据库重新生成 README 截图至 docs/screenshots（需先 seed:demo 与 build）
+# 基于演示数据库重新生成 README 截图至 docs/screenshots（需先 seed:demo 与 build；
+# 两步都应在 TMDB_READ_TOKEN 与 OMDB_API_KEY 为空时执行，以使用仓库内置的固定数据）
 npm run screenshots
 ```
 

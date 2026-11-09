@@ -5,7 +5,7 @@ Product, data-safety and code rules for 帧迹 Zhenji. They are not derivable fr
 ## Commands
 
 - `npm run dev` starts the server with Vite on port 3000. `npm run format:check`, `npm run lint` (tsc + ESLint), `npm test` and `npm run build` must pass before a PR; `npm run qa` checks responsive UI and sync against the build.
-- `npm run seed:demo` creates `./data-demo`; `npm run screenshots` regenerates the README images from it.
+- `npm run seed:demo` creates `./data-demo`; `npm run screenshots` regenerates the README images from it. Run both with `TMDB_READ_TOKEN` and `OMDB_API_KEY` empty so the images use the bundled fixtures and stay reproducible.
 - The PWA manifest is defined in `vite.config.ts`; do not add one under `public/`.
 
 ## Workflow

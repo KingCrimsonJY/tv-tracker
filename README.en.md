@@ -264,7 +264,8 @@ npm run seed:demo
 # Check formatting (also run in CI)
 npm run format:check
 
-# Regenerate the README screenshots in docs/screenshots from the demo database (run seed:demo and build first)
+# Regenerate the README screenshots in docs/screenshots from the demo database (run seed:demo and build first;
+# run both with TMDB_READ_TOKEN and OMDB_API_KEY empty so the images use the bundled fixtures)
 npm run screenshots
 ```
 
