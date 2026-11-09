@@ -23,6 +23,7 @@ import { MediaImage } from '../../components/MediaImage';
 import { DefaultTitleLang, ListEntryDoc, TitleDoc } from '../../domain/types';
 import { ComputedTitleState, pickPoster, resolveDisplayTitle } from '../../domain/progress';
 import { useI18n } from '../../i18n';
+import { sortableAccessibility } from '../../components/sortableAccessibility';
 
 interface ItemRow {
   entry: ListEntryDoc;
@@ -157,6 +158,12 @@ export const OrderedListSection: React.FC<OrderedListSectionProps> = ({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const { t, locale } = useI18n();
+  const accessibility = sortableAccessibility(t, (id) => {
+    const item = items.find((row) => row.entry.id === id);
+    return item ? resolveDisplayTitle(item.title.names, item.title.displayLang, defaultLang, locale).primary : '';
+  });
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -164,7 +171,12 @@ export const OrderedListSection: React.FC<OrderedListSectionProps> = ({
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      accessibility={accessibility}
+      onDragEnd={handleDragEnd}
+    >
       <SortableContext items={items.map((x) => x.entry.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2.5">
           {items.map((item, idx) => (

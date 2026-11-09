@@ -218,6 +218,15 @@ export const en: MessageCatalog = {
     NON_POSITIVE: 'Timestamp must be greater than 0 seconds',
     EXCEEDS_RUNTIME: (mins: number) => `Exceeds runtime (max ${mins} min)`,
   },
+  dnd: {
+    instructions:
+      'To reorder, press Space or Enter to pick up an item, use the arrow keys to move it, then press Space or Enter to drop it, or Escape to cancel.',
+    pickedUp: (item: string) => `Picked up ${item}.`,
+    movedOver: (item: string, target: string) => `${item} moved to the position of ${target}.`,
+    dropped: (item: string, target: string) => `Dropped ${item} at the position of ${target}.`,
+    droppedInPlace: (item: string) => `${item} was dropped in its original position.`,
+    cancelled: (item: string) => `Reordering cancelled. ${item} returned to its original position.`,
+  },
   home: {
     title: 'Home',
     sections: {

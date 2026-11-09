@@ -190,6 +190,14 @@ export const zhCN = {
     NON_POSITIVE: '观看时间需大于 0 秒',
     EXCEEDS_RUNTIME: (mins: number) => `超出正片时长（最长 ${mins} 分钟）`,
   },
+  dnd: {
+    instructions: '如需调整顺序，按空格键或回车键拿起条目，用方向键移动，再按空格键或回车键放下；按 Esc 取消。',
+    pickedUp: (item: string) => `已拿起「${item}」。`,
+    movedOver: (item: string, target: string) => `「${item}」已移到「${target}」的位置。`,
+    dropped: (item: string, target: string) => `已将「${item}」放到「${target}」的位置。`,
+    droppedInPlace: (item: string) => `「${item}」已放回原位。`,
+    cancelled: (item: string) => `已取消排序，「${item}」回到原位。`,
+  },
   home: {
     title: '首页',
     sections: {

@@ -30,7 +30,8 @@ import {
 } from '@dnd-kit/sortable';
 import { Download, Upload, LogOut, ShieldAlert, RefreshCw } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
-import { AppSettingsDoc, DefaultTitleLang, HomeSectionConfig, UiLangSetting } from '../domain/types';
+import { AppSettingsDoc, DefaultTitleLang, HomeSectionConfig, HomeSectionId, UiLangSetting } from '../domain/types';
+import { sortableAccessibility } from '../components/sortableAccessibility';
 import { SortableSectionRow } from '../features/settings/SortableSectionRow';
 import { AboutSection } from '../features/settings/AboutSection';
 import { useI18n } from '../i18n';
@@ -278,7 +279,12 @@ export const SettingsPage: React.FC = () => {
           <Card.Description className="text-xs">{t.settings.homeSections.description}</Card.Description>
         </Card.Header>
         <Card.Content className="space-y-2">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            accessibility={sortableAccessibility(t, (id) => t.home.sections[id as HomeSectionId] ?? '')}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={settings.homeSections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               {settings.homeSections.map((section) => (
                 <SortableSectionRow
