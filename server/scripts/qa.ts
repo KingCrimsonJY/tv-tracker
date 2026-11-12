@@ -198,6 +198,8 @@ async function verifyBatchManagement(viewport: Viewport, locale: Locale) {
   assert(await done.evaluate((button) => button === document.activeElement), 'Focus was lost entering selection');
   assert.equal(await count.innerText(), text.selectedCount(0));
   assert(await action(text.delete).isDisabled(), 'Batch actions must be disabled with nothing selected');
+  // The checkboxes arrive with the grid's deferred render, which a slow machine finishes later.
+  await cards.nth(total - 1).waitFor({ state: 'attached' });
   assert.equal(await cards.count(), total);
 
   // The bar stays inside the content area and never covers the phone tab bar.
