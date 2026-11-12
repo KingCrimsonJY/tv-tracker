@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRandomId } from '../domain/id.ts';
 import type { AppStateSnapshot, SeasonDoc, StateMutationResult, TitleDoc } from '../domain/types.ts';
 import * as api from './api.ts';
-import { createTrackerActions } from './actions.ts';
+import { createTestActions } from './testSupport.ts';
 import { applyMutationResult, applyStateSnapshot, createInitialAppState, createTrackerStore } from './store.ts';
 
 function makeFixtureState(): {
@@ -225,14 +225,7 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
     });
 
     const toasts: string[] = [];
-    const actions = createTrackerActions({
-      getState: store.getState,
-      setState: store.setState,
-      applyServerMutation: (mut) => {
-        store.applyMutation(mut);
-      },
-      showToast: (msg) => toasts.push(msg),
-    });
+    const actions = createTestActions(store, {}).actions;
 
     // Fire two episode toggles synchronously back-to-back
     const p1 = actions.toggleEpisode('tmdb_tv_1', 's1e1');
@@ -293,17 +286,12 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
 
     const toasts: string[] = [];
     let refetchCalls = 0;
-    const actions = createTrackerActions({
-      getState: store.getState,
-      setState: store.setState,
-      applyServerMutation: (mut) => {
-        store.applyMutation(mut);
-      },
+    const actions = createTestActions(store, {
       showToast: (msg) => toasts.push(msg),
-      refetchState: async () => {
+      reconcile: async () => {
         refetchCalls += 1;
       },
-    });
+    }).actions;
 
     // Tap s1e1 (will fail) and immediately tap s1e2 (will succeed)
     const p1 = actions.toggleEpisode('tmdb_tv_1', 's1e1');
@@ -384,14 +372,7 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
       };
     });
 
-    const actions = createTrackerActions({
-      getState: store.getState,
-      setState: store.setState,
-      applyServerMutation: (mut) => {
-        store.applyMutation(mut);
-      },
-      showToast: () => {},
-    });
+    const actions = createTestActions(store, {}).actions;
 
     // Undo 3rd -> 2nd
     await actions.cancelTitleRewatch('tmdb_tv_1');
@@ -466,14 +447,7 @@ describe('write reliability: rapid toggles & targeted rollback', () => {
       deletes: {},
     });
 
-    const actions = createTrackerActions({
-      getState: store.getState,
-      setState: store.setState,
-      applyServerMutation: (mut) => {
-        store.applyMutation(mut);
-      },
-      showToast: () => {},
-    });
+    const actions = createTestActions(store, {}).actions;
 
     await actions.refreshTitleMetadata('tmdb_tv_1');
     expect(refreshSpy).toHaveBeenCalledTimes(1);
@@ -520,14 +494,7 @@ describe('progress actions name the playthrough they were computed from', () => 
       payloads.push(payload);
       return { version: store.getState().version, upserts: {}, deletes: {} };
     });
-    const actions = createTrackerActions({
-      getState: store.getState,
-      setState: store.setState,
-      applyServerMutation: (mut) => {
-        store.applyMutation(mut, { allowSameOrLowerVersion: true });
-      },
-      showToast: () => {},
-    });
+    const actions = createTestActions(store, {}).actions;
 
     await actions.toggleEpisode('tmdb_tv_1', 's1e1');
     await actions.saveResume('tmdb_tv_1', { episodeKey: 's1e2', seconds: 30 });
@@ -551,12 +518,7 @@ describe('home quick mark', () => {
       progressByTitle: { tmdb_tv_1: { p1: { playthroughId: 'p1', watched: { s1e1: 1 } } } },
     });
     const post = vi.spyOn(api, 'postTitleActionApi');
-    const actions = createTrackerActions({
-      getState: store.getState,
-      setState: store.setState,
-      applyServerMutation: (mut) => store.applyMutation(mut),
-      showToast: () => {},
-    });
+    const actions = createTestActions(store, {}).actions;
     await actions.markEpisodeWatched('tmdb_tv_1', 's1e1');
     expect(post).not.toHaveBeenCalled();
     expect(store.getState().progressByTitle.tmdb_tv_1.p1.watched.s1e1).toBe(1);

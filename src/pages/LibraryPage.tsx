@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import type { AppStateSnapshot } from '../domain/types';
 import { NO_SEASONS } from '../domain/stableRefs';
 import { ButtonLink } from '../components/ButtonLink';
 import { Film, Plus } from 'lucide-react';
 import { Button, ScrollShadow, Label, ListBox, Select, Skeleton, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
+import { selectProgressByTitle, selectSeasonsByTitle, selectSettings, selectTitles } from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { computeTitleState, resolveDisplayTitle } from '../domain/progress';
 import { useI18n } from '../i18n';
 
@@ -13,15 +14,12 @@ type StatusFilter = 'all' | 'watching' | 'unwatched' | 'completed' | 'paused_dro
 type TypeFilter = 'all' | 'movie' | 'tv' | 'other';
 type SortMode = 'recent' | 'added' | 'year' | 'name';
 
-const selectLibraryData = (state: AppStateSnapshot) => [
-  state.titles,
-  state.seasonsByTitle,
-  state.progressByTitle,
-  state.settings,
-];
-
 export const LibraryPage: React.FC = () => {
-  const { loadingData, titles, seasonsByTitle, settings, progressByTitle } = useTracker(selectLibraryData);
+  const { loadingData } = useTracker();
+  const titles = useTrackerState(selectTitles);
+  const seasonsByTitle = useTrackerState(selectSeasonsByTitle);
+  const progressByTitle = useTrackerState(selectProgressByTitle);
+  const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');

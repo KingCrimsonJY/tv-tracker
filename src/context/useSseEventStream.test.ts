@@ -24,7 +24,7 @@ test.each([0, 1])(
     useSseEventStream({
       authenticated: true,
       reconnectTrigger,
-      setAuthenticated: vi.fn(),
+      onSignedOut: vi.fn(),
       setServerUnreachable: vi.fn(),
       applyServerMutation: vi.fn(),
       refreshStateFromServer: refresh,

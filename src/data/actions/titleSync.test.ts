@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import * as api from '../api.ts';
-import { createTrackerActions } from '../actions.ts';
+import { createTestActions } from '../testSupport.ts';
 import { createTrackerStore } from '../store.ts';
 import { makeBaseTvTitle } from '../../domain/testFixtures.ts';
 afterEach(() => vi.restoreAllMocks());
@@ -24,12 +24,7 @@ test('Refresh All counts updated, partial, failed and skipped separately', async
       status: id === 'partial' ? 'partial' : id === 'needsReview' ? 'needsReview' : 'updated',
     };
   });
-  const actions = createTrackerActions({
-    getState: store.getState,
-    setState: store.setState,
-    applyServerMutation: store.applyMutation,
-    showToast: vi.fn(),
-  });
+  const actions = createTestActions(store, {}).actions;
   expect(await actions.refreshAllTmdbMetadata()).toEqual({
     updated: 1,
     needsReview: 1,

@@ -1,4 +1,5 @@
 import { saveUpstream } from './upstreamStorage.ts';
+import { applyProgressMutation } from '../../src/domain/progressMutation.ts';
 import { titleDocSchema } from '../../src/domain/schemas.ts';
 import type {
   ProgressDoc,
@@ -259,34 +260,9 @@ export function applyTitleAtomicAction(
           .prepare('SELECT data FROM progress WHERE title_id = ? AND playthrough_id = ?')
           .get(titleId, ptId) as { data: string } | undefined;
 
-        const current: StoredProgressData = row ? (JSON.parse(row.data) as StoredProgressData) : { watched: {} };
-
-        const watched: Record<string, number> =
-          progInput.replaceWatched !== undefined ? { ...progInput.replaceWatched } : { ...(current.watched || {}) };
-
-        if (progInput.set) {
-          for (const [epKey, ts] of Object.entries(progInput.set)) {
-            watched[epKey] = ts;
-          }
-        }
-        if (progInput.unset) {
-          for (const epKey of progInput.unset) {
-            delete watched[epKey];
-          }
-        }
-
-        let movieWatchedAt = current.movieWatchedAt;
-        if (progInput.movieWatchedAt === null) {
-          movieWatchedAt = undefined;
-        } else if (typeof progInput.movieWatchedAt === 'number') {
-          movieWatchedAt = progInput.movieWatchedAt;
-        }
-
-        const updatedData: StoredProgressData = {
-          archivedWatched: current.archivedWatched,
-          watched,
-          ...(movieWatchedAt !== undefined ? { movieWatchedAt } : {}),
-        };
+        const stored = row ? (JSON.parse(row.data) as StoredProgressData) : undefined;
+        const doc = applyProgressMutation(stored ? { ...stored, playthroughId: ptId } : undefined, ptId, progInput);
+        const { playthroughId: _playthroughId, ...data } = doc;
 
         ctx.db
           .prepare(
@@ -294,14 +270,7 @@ export function applyTitleAtomicAction(
              VALUES (?, ?, ?)
              ON CONFLICT(title_id, playthrough_id) DO UPDATE SET data = excluded.data`,
           )
-          .run(titleId, ptId, JSON.stringify(updatedData));
-
-        const doc: ProgressDoc = {
-          playthroughId: ptId,
-          watched: updatedData.watched,
-          archivedWatched: updatedData.archivedWatched,
-          ...(updatedData.movieWatchedAt !== undefined ? { movieWatchedAt: updatedData.movieWatchedAt } : {}),
-        };
+          .run(titleId, ptId, JSON.stringify(data satisfies StoredProgressData));
 
         upserts.progressByTitle = {
           [titleId]: {

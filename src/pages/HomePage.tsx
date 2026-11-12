@@ -6,6 +6,15 @@ import { Button, ProgressBar, Skeleton } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
+import {
+  selectEntriesByList,
+  selectLists,
+  selectProgressByTitle,
+  selectSeasonsByTitle,
+  selectSettings,
+  selectTitles,
+} from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { compareRank, computeListProgress, sortListEntries } from '../domain/ordering';
 import { activeProgressOf, NO_SEASONS } from '../domain/stableRefs';
 import {
@@ -17,30 +26,17 @@ import {
   resolveDisplayTitle,
   watchProgressPercent,
 } from '../domain/progress';
-import type { AppStateSnapshot, HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
+import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
 
-const selectHomeData = (state: AppStateSnapshot) => [
-  state.titles,
-  state.seasonsByTitle,
-  state.progressByTitle,
-  state.lists,
-  state.entriesByList,
-  state.settings,
-];
-
 export const HomePage: React.FC = () => {
-  const {
-    loadingData,
-    titles,
-    seasonsByTitle,
-    progressByTitle,
-    lists,
-    entriesByList,
-    settings,
-    markEpisodeWatched,
-    markWholeTitle,
-  } = useTracker(selectHomeData);
+  const { loadingData, markEpisodeWatched, markWholeTitle } = useTracker();
+  const titles = useTrackerState(selectTitles);
+  const seasonsByTitle = useTrackerState(selectSeasonsByTitle);
+  const progressByTitle = useTrackerState(selectProgressByTitle);
+  const lists = useTrackerState(selectLists);
+  const entriesByList = useTrackerState(selectEntriesByList);
+  const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
 
   const allTitles = Object.values(titles);

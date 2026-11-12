@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { apiFetch } from '../data/api.ts';
-import { trackerStore } from '../data/store.ts';
 import type { StateMutationResult } from '../domain/types.ts';
 
 const SSE_WATCHDOG_TIMEOUT_MS = 15_000;
@@ -9,7 +8,8 @@ const OFFLINE_OVERLAY_DELAY_MS = 5_000;
 export function useSseEventStream(params: {
   authenticated: boolean;
   reconnectTrigger: number;
-  setAuthenticated: (val: boolean) => void;
+  /** The session ended on the server (expired, or signed out from another device). */
+  onSignedOut: () => void;
   setServerUnreachable: (val: boolean) => void;
   applyServerMutation: (mutation: StateMutationResult) => void;
   refreshStateFromServer: () => Promise<void>;
@@ -17,7 +17,7 @@ export function useSseEventStream(params: {
   const {
     authenticated,
     reconnectTrigger,
-    setAuthenticated,
+    onSignedOut,
     setServerUnreachable,
     applyServerMutation,
     refreshStateFromServer,
@@ -78,10 +78,7 @@ export function useSseEventStream(params: {
         });
         if (res.status === 401) {
           clearWatchdog();
-          if (!cancelled) {
-            setAuthenticated(false);
-            trackerStore.reset();
-          }
+          if (!cancelled) onSignedOut();
           return;
         }
         if (!res.ok || !res.body) throw new Error(`SSE HTTP ${res.status}`);
@@ -140,12 +137,5 @@ export function useSseEventStream(params: {
       if (offlineTimer) clearTimeout(offlineTimer);
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [
-    authenticated,
-    reconnectTrigger,
-    setAuthenticated,
-    setServerUnreachable,
-    applyServerMutation,
-    refreshStateFromServer,
-  ]);
+  }, [authenticated, reconnectTrigger, onSignedOut, setServerUnreachable, applyServerMutation, refreshStateFromServer]);
 }

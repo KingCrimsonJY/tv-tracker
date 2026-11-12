@@ -5,11 +5,14 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Bookmark, Download, Film, Home, Layers, ListOrdered, LogOut, Search, Settings } from 'lucide-react';
 import { Button, Modal } from '@heroui/react';
 import { useTracker } from '../context/TrackerContext.tsx';
+import { selectLists } from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { usePWAInstall } from '../hooks/usePWAInstall.ts';
 import { useI18n } from '../i18n/index.ts';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { lists, signOut } = useTracker((state) => state.lists);
+  const { signOut } = useTracker();
+  const lists = useTrackerState(selectLists);
   const { t } = useI18n();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);

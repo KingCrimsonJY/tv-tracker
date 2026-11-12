@@ -22,7 +22,7 @@ const TitleDetailPage = lazy(() =>
 );
 
 const AuthScreen: React.FC = () => {
-  const { needsSetup, setupPassword, loginWithPassword } = useTracker(() => null);
+  const { needsSetup, setupPassword, loginWithPassword } = useTracker();
   const { t, translateError } = useI18n();
   const [setupCode, setSetupCode] = useState('');
   const [password, setPassword] = useState('');
@@ -130,7 +130,7 @@ const AuthScreen: React.FC = () => {
 };
 
 const OfflineScreen: React.FC = () => {
-  const { retryConnection } = useTracker(() => null);
+  const { retryConnection } = useTracker();
   const { t } = useI18n();
   const [retrying, setRetrying] = useState(false);
 
@@ -167,7 +167,7 @@ const OfflineScreen: React.FC = () => {
 
 const AppRoutes: React.FC = () => {
   const { t } = useI18n();
-  const { authReady, authenticated, serverUnreachable } = useTracker(() => null);
+  const { authReady, authenticated, serverUnreachable } = useTracker();
 
   if (serverUnreachable) {
     return <OfflineScreen />;

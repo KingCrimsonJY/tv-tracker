@@ -5,6 +5,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Chip, Switch, AlertDialog, Dropdown, Label } from '@heroui/react';
 import { ArrowLeft, Plus, Trash2, Pin, ListOrdered, Bookmark, ArrowUpDown, GripVertical } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
+import {
+  selectEntriesByList,
+  selectLists,
+  selectProgressByTitle,
+  selectSeasonsByTitle,
+  selectSettings,
+  selectTitles,
+} from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { computeListProgress, sortListEntries } from '../domain/ordering';
 import { computeTitleState } from '../domain/status';
 import { CollectionSort, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
@@ -18,27 +27,14 @@ import { withPendingSpinner } from '../components/pendingContent';
 export const ListDetailPage: React.FC = () => {
   const { listId: id } = useParams<{ listId: string }>();
   const navigate = useNavigate();
-  const {
-    lists,
-    entriesByList,
-    titles,
-    seasonsByTitle,
-    settings,
-    progressByTitle,
-    deleteList,
-    togglePinList,
-    updateCollectionSort,
-    addTitleToList,
-    removeEntryFromList,
-    reorderListEntry,
-  } = useTracker((state) => [
-    state.titles,
-    state.seasonsByTitle,
-    state.progressByTitle,
-    state.lists,
-    state.entriesByList,
-    state.settings,
-  ]);
+  const { deleteList, togglePinList, updateCollectionSort, addTitleToList, removeEntryFromList, reorderListEntry } =
+    useTracker();
+  const titles = useTrackerState(selectTitles);
+  const seasonsByTitle = useTrackerState(selectSeasonsByTitle);
+  const progressByTitle = useTrackerState(selectProgressByTitle);
+  const lists = useTrackerState(selectLists);
+  const entriesByList = useTrackerState(selectEntriesByList);
+  const settings = useTrackerState(selectSettings);
   const { t, locale } = useI18n();
 
   const [isSorting, setIsSorting] = useState(false);

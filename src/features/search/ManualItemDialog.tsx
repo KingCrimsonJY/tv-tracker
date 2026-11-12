@@ -26,7 +26,7 @@ interface ManualItemDialogProps {
 }
 
 export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOpenChange, initialSeed, onCreated }) => {
-  const { createCustomOrLinkTitle } = useTracker(() => null);
+  const { createCustomOrLinkTitle } = useTracker();
   const { t, translateError } = useI18n();
 
   const [title, setTitle] = useState('');

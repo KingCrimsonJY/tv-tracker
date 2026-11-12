@@ -1,8 +1,11 @@
 import { useTitleEpisodes } from './useTitleEpisodes';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
+import { selectEntriesByList, selectLists, selectSettings } from '../../data/selectors';
+import { useTrackerState } from '../../data/useTrackerState';
+import type { AppStateSnapshot } from '../../domain/types';
 import { toLocalDateString } from '../../domain/airing';
 import { computeTitleState } from '../../domain/status';
 import { resolveDisplayTitle, resolveOverviewText } from '../../domain/ordering';
@@ -17,22 +20,19 @@ export function useTitleDetail() {
   const navigate = useNavigate();
   const highlightEpKey = searchParams.get('ep');
 
-  const tracker = useTracker((state) => [
-    id ? state.titles[id] : null,
-    id ? state.seasonsByTitle[id] : null,
-    id ? state.progressByTitle[id] : null,
-    state.settings,
-  ]);
+  const tracker = useTracker();
+  const title = useTrackerState(useCallback((state: AppStateSnapshot) => (id ? state.titles[id] : undefined), [id]));
+  const compactSeasons = useTrackerState(
+    useCallback((state: AppStateSnapshot) => (id ? state.seasonsByTitle[id] : undefined), [id]),
+  );
+  const progressDocs = useTrackerState(
+    useCallback((state: AppStateSnapshot) => (id ? state.progressByTitle[id] : undefined), [id]),
+  );
+  const settings = useTrackerState(selectSettings);
+  const lists = useTrackerState(selectLists);
+  const entriesByList = useTrackerState(selectEntriesByList);
   const { t, locale, translateError } = useI18n();
-  const {
-    titles,
-    seasonsByTitle,
-    settings,
-    getActiveProgress,
-    refreshTitleMetadata,
-    refreshLinkTitlePlaylist,
-    fetchAndCacheTitleRatings,
-  } = tracker;
+  const { refreshTitleMetadata, refreshLinkTitlePlaylist, fetchAndCacheTitleRatings } = tracker;
 
   const [overviewExpanded, setOverviewExpanded] = useState(false);
   const [resumeDialogOpen, setResumeDialogOpen] = useState(false);
@@ -44,13 +44,14 @@ export function useTitleDetail() {
   const [undoPlaythroughOpen, setUndoPlaythroughOpen] = useState(false);
   const [deletePlaythroughId, setDeletePlaythroughId] = useState<string | null>(null);
 
-  const title = id ? titles[id] : undefined;
-  const seasons = useTitleEpisodes(
-    id,
-    id ? seasonsByTitle[id] : undefined,
-    title?.episodeDetailsVersion ?? title?.metaFetchedAt,
+  const seasons = useTitleEpisodes(id, compactSeasons, title?.episodeDetailsVersion ?? title?.metaFetchedAt);
+  const activeProgress = useMemo(
+    () =>
+      title
+        ? (progressDocs?.[title.activePlaythroughId] ?? { playthroughId: title.activePlaythroughId, watched: {} })
+        : undefined,
+    [title, progressDocs],
   );
-  const activeProgress = title ? getActiveProgress(title) : undefined;
   const today = toLocalDateString();
 
   const titleState = useMemo(() => {
@@ -201,6 +202,8 @@ export function useTitleDetail() {
 
   return {
     ...tracker,
+    lists,
+    entriesByList,
     title,
     titleState,
     activeProgress,

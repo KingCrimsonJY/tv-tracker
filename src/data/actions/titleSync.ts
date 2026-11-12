@@ -1,4 +1,4 @@
-import type { ListEntryDoc, Ratings, MetadataRefreshStatus, MetadataRefreshCounts } from '../../domain/types.ts';
+import type { Ratings, MetadataRefreshStatus, MetadataRefreshCounts } from '../../domain/types.ts';
 import { getActiveCatalog, translateErrorObject } from '../../i18n/index.ts';
 import {
   changeTitleSourceApi,
@@ -9,15 +9,14 @@ import {
   patchTitleApi,
   refreshLinkPlaylistApi,
 } from '../api.ts';
+import { patchTitle, removeTitles } from '../overlays.ts';
+import type { Commit } from './commit.ts';
 import type { TrackerActionDeps } from './types.ts';
 
 export function createTitleSyncActions(
-  deps: TrackerActionDeps & {
-    triggerRefetch: () => Promise<void>;
-  },
+  { getState, applyServerMutation, showToast }: TrackerActionDeps,
+  { commit }: Commit,
 ) {
-  const { getState, setState, applyServerMutation, showToast, triggerRefetch } = deps;
-
   async function fetchAndCacheTitleRatings(titleId: string): Promise<void> {
     const current = getState().titles[titleId];
     if (!current || current.source === 'custom' || current.source === 'url') return;
@@ -36,61 +35,20 @@ export function createTitleSyncActions(
 
       const latest = getState().titles[titleId];
       if (!latest) return;
-      const prevRatings = latest.ratings;
-      const prevUpdatedAt = latest.updatedAt;
-
-      const mergedRatings: Ratings = {
-        ...latest.ratings,
-        ...(data.ratings?.imdb ? { imdb: data.ratings.imdb } : {}),
-        ...(data.ratings?.imdbVotes ? { imdbVotes: data.ratings.imdbVotes } : {}),
-        ...(data.ratings?.rottenTomatoes ? { rottenTomatoes: data.ratings.rottenTomatoes } : {}),
-        ...(data.ratings?.metacritic ? { metacritic: data.ratings.metacritic } : {}),
-        fetchedAt: now,
+      const patch = {
+        ratings: {
+          ...latest.ratings,
+          ...(data.ratings?.imdb ? { imdb: data.ratings.imdb } : {}),
+          ...(data.ratings?.imdbVotes ? { imdbVotes: data.ratings.imdbVotes } : {}),
+          ...(data.ratings?.rottenTomatoes ? { rottenTomatoes: data.ratings.rottenTomatoes } : {}),
+          ...(data.ratings?.metacritic ? { metacritic: data.ratings.metacritic } : {}),
+          fetchedAt: now,
+        } satisfies Ratings,
+        updatedAt: now,
       };
-
-      setState((prev) =>
-        prev.titles[titleId]
-          ? {
-              ...prev,
-              titles: {
-                ...prev.titles,
-                [titleId]: {
-                  ...prev.titles[titleId],
-                  ratings: mergedRatings,
-                  updatedAt: now,
-                },
-              },
-            }
-          : prev,
-      );
-
-      try {
-        const mut = await patchTitleApi(titleId, {
-          ratings: mergedRatings,
-          updatedAt: now,
-        });
-        applyServerMutation(mut);
-      } catch {
-        setState((curr) =>
-          curr.titles[titleId]
-            ? {
-                ...curr,
-                titles: {
-                  ...curr.titles,
-                  [titleId]: {
-                    ...curr.titles[titleId],
-                    ratings: prevRatings,
-                    updatedAt: prevUpdatedAt,
-                  },
-                },
-              }
-            : curr,
-        );
-        showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
-        await triggerRefetch();
-      }
+      await commit(patchTitle(titleId, patch), () => patchTitleApi(titleId, patch));
     } catch {
-      // Ignore silent background ratings fetch failure
+      // Ratings are a background nicety; a failed lookup is not worth interrupting the user.
     }
   }
 
@@ -168,65 +126,8 @@ export function createTitleSyncActions(
   }
 
   async function removeTitle(titleId: string): Promise<void> {
-    const state = getState();
-    const removedTitle = state.titles[titleId];
-    if (!removedTitle) return;
-    const removedSeasons = state.seasonsByTitle[titleId];
-    const removedProgress = state.progressByTitle[titleId];
-    const removedEntriesByList: Record<string, ListEntryDoc[]> = {};
-    for (const [listId, entries] of Object.entries(state.entriesByList)) {
-      const matching = entries.filter((e) => e.titleId === titleId);
-      if (matching.length > 0) {
-        removedEntriesByList[listId] = matching;
-      }
-    }
-
-    setState((prev) => {
-      const nextTitles = { ...prev.titles };
-      delete nextTitles[titleId];
-      const nextSeasons = { ...prev.seasonsByTitle };
-      delete nextSeasons[titleId];
-      const nextProgress = { ...prev.progressByTitle };
-      delete nextProgress[titleId];
-      const nextEntries: Record<string, ListEntryDoc[]> = {};
-      for (const [listId, entries] of Object.entries(prev.entriesByList)) {
-        nextEntries[listId] = entries.filter((e) => e.titleId !== titleId);
-      }
-      return {
-        ...prev,
-        titles: nextTitles,
-        seasonsByTitle: nextSeasons,
-        progressByTitle: nextProgress,
-        entriesByList: nextEntries,
-      };
-    });
-
-    try {
-      const mut = await deleteTitleApi(titleId);
-      applyServerMutation(mut);
-    } catch {
-      setState((curr) => {
-        const nextEntries = { ...curr.entriesByList };
-        for (const [listId, entriesToRestore] of Object.entries(removedEntriesByList)) {
-          const existing = nextEntries[listId] || [];
-          const existingIds = new Set(existing.map((e) => e.id));
-          nextEntries[listId] = [...existing, ...entriesToRestore.filter((e) => !existingIds.has(e.id))];
-        }
-        return {
-          ...curr,
-          titles: { ...curr.titles, [titleId]: removedTitle },
-          ...(removedSeasons !== undefined
-            ? { seasonsByTitle: { ...curr.seasonsByTitle, [titleId]: removedSeasons } }
-            : {}),
-          ...(removedProgress !== undefined
-            ? { progressByTitle: { ...curr.progressByTitle, [titleId]: removedProgress } }
-            : {}),
-          entriesByList: nextEntries,
-        };
-      });
-      showToast(getActiveCatalog().app.writeRollbackToast, 'danger');
-      await triggerRefetch();
-    }
+    if (!getState().titles[titleId]) return;
+    await commit(removeTitles([titleId]), () => deleteTitleApi(titleId));
   }
 
   async function setStructureLock(id: string, locked: boolean) {

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { SearchField, Button, Skeleton, toast } from '@heroui/react';
 import { Link2, PlusCircle } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
+import { selectLists, selectTitles } from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { searchTmdbApi, TmdbSearchItem } from '../data/api';
 import { SearchResults } from '../features/search/SearchResults';
 import { LinkImportDialog } from '../features/search/LinkImportDialog';
@@ -21,7 +23,9 @@ const rememberSearch = (key: string, results: TmdbSearchItem[]) => {
 
 export const SearchPage: React.FC = () => {
   const navigate = useNavigate();
-  const { titles, lists, addTitleFromTmdb } = useTracker((state) => [state.titles, state.lists]);
+  const { addTitleFromTmdb } = useTracker();
+  const titles = useTrackerState(selectTitles);
+  const lists = useTrackerState(selectLists);
   const { t, locale, translateError } = useI18n();
 
   // Mirrored into ?q= so browser Back from a result returns to the same search.
