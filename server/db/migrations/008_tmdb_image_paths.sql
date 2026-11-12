@@ -1,1 +1,0 @@
--- Image paths are normalized by migrateImages in the same transaction.

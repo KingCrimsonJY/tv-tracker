@@ -284,11 +284,8 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zhenji-mig002-test-'));
     const dbPath = path.join(tmpDir, 'tracker.db');
     try {
+      new TrackerRepository({ dataDir: tmpDir, migrateTo: 1 }).close();
       const db = new DatabaseSync(dbPath);
-      const migrationsDir = path.resolve(import.meta.dirname, '../../server/db/migrations');
-      const m001 = fs.readFileSync(path.join(migrationsDir, '001_initial.sql'), 'utf-8');
-      db.exec(m001);
-      db.exec('PRAGMA user_version = 1;');
 
       const legacyTitle = {
         source: 'url',

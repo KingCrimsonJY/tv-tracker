@@ -1,8 +1,6 @@
 import { normalizeTmdbImages } from '../../src/domain/images.ts';
-import { migrateImages } from './imageMigration.ts';
-import { completeSupersededPlaythroughs } from './supersededPlaythroughs.ts';
 import { fillEpisodeMetadataBatch, enrichmentDue, claimEnrichment } from './enrichmentRepo.ts';
-import { runMigration002InTx, runMigration003InTx, runMigration004InTx } from './legacyMigrations.ts';
+import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations.ts';
 import { appendPlaylistEpisodes } from './linkMetadataRepo.ts';
 import { previewStructure, decideStructure, convertToManual } from './structureRepo.ts';
 import { readSeasons, refreshMetadata } from './metadataRepo.ts';
@@ -82,7 +80,6 @@ export class TrackerRepository {
   private readonly db: DatabaseSync;
   private readonly isMemory: boolean;
   private readonly dataDir: string | null;
-  private readonly migrationsDir: string;
   private readonly ctx: DbContext;
 
   constructor(options: RepositoryOptions = {}) {
@@ -92,7 +89,6 @@ export class TrackerRepository {
 
     const dbPath = options.dbPath || (resolvedDataDir ? path.join(resolvedDataDir, 'tracker.db') : ':memory:');
     this.isMemory = dbPath === ':memory:';
-    this.migrationsDir = options.migrationsDir || path.resolve(import.meta.dirname, 'migrations');
 
     if (!this.isMemory && this.dataDir) {
       assertDataDirWritable(this.dataDir);
@@ -109,13 +105,12 @@ export class TrackerRepository {
       db: this.db,
       isMemory: this.isMemory,
       dataDir: this.dataDir,
-      migrationsDir: this.migrationsDir,
       runInTransaction: <T>(fn: () => T) => this.runInTransaction(fn),
       bumpVersionInTx: () => this.bumpVersionInTx(),
       getVersion: () => this.getVersion(),
     };
 
-    this.applyMigrations();
+    this.applyMigrations(options.migrateTo ?? LATEST_SCHEMA_VERSION);
   }
 
   public close(): void {
@@ -127,45 +122,25 @@ export class TrackerRepository {
     return Number(row?.user_version ?? 0);
   }
 
-  private applyMigrations(): void {
-    if (!fs.existsSync(this.migrationsDir)) return;
-
+  private applyMigrations(target: number): void {
     const currentVersion = this.getUserVersion();
-    const files = fs
-      .readdirSync(this.migrationsDir)
-      .filter((f) => /^\d+_.*\.sql$/.test(f))
-      .sort();
-
-    const pending = files
-      .map((filename) => {
-        const match = filename.match(/^(\d+)_/);
-        const version = match ? Number.parseInt(match[1], 10) : 0;
-        return { filename, version };
-      })
-      .filter((m) => m.version > currentVersion);
-
+    if (currentVersion > LATEST_SCHEMA_VERSION) {
+      // Written by a newer release: running old code against it could corrupt data it does not understand.
+      this.db.close();
+      throw new Error(
+        `Database schema version ${currentVersion} is newer than this release supports (${LATEST_SCHEMA_VERSION}). ` +
+          'Update the app, or restore a backup made by this release.',
+      );
+    }
+    const pending = MIGRATIONS.filter((m) => m.version > currentVersion && m.version <= target);
     if (pending.length === 0) return;
 
-    if (!this.isMemory && this.dataDir && currentVersion > 0) {
-      this.createSafetyBackup('pre-migration');
-    }
+    if (currentVersion > 0) this.createSafetyBackup('pre-migration');
 
     for (const migration of pending) {
-      const sqlPath = path.join(this.migrationsDir, migration.filename);
-      const sqlContent = fs.readFileSync(sqlPath, 'utf-8');
       this.runInTransaction(() => {
-        this.db.exec(sqlContent);
-        if (migration.version === 2) {
-          runMigration002InTx(this.db);
-        }
-        if (migration.version === 3) {
-          runMigration003InTx(this.db);
-        }
-        if (migration.version === 8) migrateImages(this.db);
-        if (migration.version === 10) completeSupersededPlaythroughs(this.db);
-        if (migration.version === 4) {
-          runMigration004InTx(this.db);
-        }
+        if (migration.sql) this.db.exec(migration.sql);
+        migration.run?.(this.db);
         this.db.exec(`PRAGMA user_version = ${migration.version};`);
       });
     }

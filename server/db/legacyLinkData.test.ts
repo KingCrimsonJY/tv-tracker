@@ -8,13 +8,8 @@ import { makeBaseTvTitle, makeSampleSeasons } from '../../src/domain/testFixture
 
 test('migration removes retired live status and placeholder dates without deleting titles or watched marks', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'link-migration-'));
-  const migrations = path.join(root, 'migrations');
-  fs.mkdirSync(migrations);
-  const current = path.resolve(import.meta.dirname, 'migrations');
-  for (const name of fs.readdirSync(current).filter((name) => Number(name.slice(0, 3)) <= 5))
-    fs.copyFileSync(path.join(current, name), path.join(migrations, name));
   const dataDir = path.join(root, 'data');
-  const old = new TrackerRepository({ dataDir, migrationsDir: migrations });
+  const old = new TrackerRepository({ dataDir, migrateTo: 5 });
   const seasons = makeSampleSeasons();
   seasons[0].episodes[0].airDate = '2020-01-01';
   const title = { ...makeBaseTvTitle({ source: 'url' }), liveStatus: 'live' };
