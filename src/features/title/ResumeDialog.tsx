@@ -109,7 +109,7 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
               >
                 <Label>{t.detail.resumeModal.episodeLabel}</Label>
                 <Select.Trigger>
-                  <Select.Value />
+                  <Select.Value className="whitespace-nowrap" />
                   <Select.Indicator />
                 </Select.Trigger>
                 <Select.Popover>

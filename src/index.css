@@ -2,8 +2,10 @@
 @import '@heroui/styles';
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* App-specific tokens, exposed as Tailwind utilities (bg-surface-glass, from-scrim-strong, ...).
-   Everything else uses HeroUI's semantic tokens (text-muted, bg-surface, bg-accent-soft, ...). */
+/* The theme is HeroUI's token set with this app's palette. HeroUI components are never restyled through
+   their internal class names here: appearance comes from their variants, layout from a className at the
+   call site. Only tokens HeroUI lacks are added below and exposed as Tailwind utilities
+   (bg-surface-glass, text-foreground-secondary, from-scrim-strong, via-scrim-mid). */
 @theme inline {
   --color-surface-glass: var(--surface-glass);
   --color-foreground-secondary: var(--foreground-secondary);
@@ -95,11 +97,6 @@
       'Microsoft YaHei', sans-serif;
     background-color: var(--background);
     color: var(--foreground);
-    color-scheme: dark;
-  }
-
-  html.light {
-    color-scheme: light;
   }
 
   body {
@@ -108,63 +105,6 @@
     min-height: 100dvh;
     overflow-x: hidden;
   }
-}
-
-@layer components {
-  .select__value {
-    @apply whitespace-nowrap;
-  }
-
-  /* Tabs: keep horizontal tab lists content-sized instead of stretching into a long
-        empty pill, prevent tab labels from wrapping, and align tab panels flush with content. */
-  .tabs__list-container {
-    @apply w-fit max-w-full;
-  }
-
-  .tabs__list[data-orientation='horizontal'] {
-    @apply min-w-0;
-  }
-
-  .tabs__tab {
-    @apply w-fit shrink-0 whitespace-nowrap;
-  }
-
-  .tabs__panel {
-    @apply p-0;
-  }
-
-  /* Toast: keep bottom toast region clear of the mobile tab bar, and vertically align
-        the indicator icon, text content, and action button on a single row. */
-  .toast-region--bottom {
-    @apply max-sm:bottom-[calc(64px+env(safe-area-inset-bottom,0px)+12px)];
-  }
-
-  .toast {
-    @apply grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0;
-  }
-
-  .toast__indicator,
-  .toast__content,
-  .toast__action {
-    @apply row-start-1 self-center;
-  }
-
-  .toast__action {
-    @apply col-start-3;
-  }
-
-  /* ToggleButtonGroup: never wrap pill segments across multiple rows; keep labels on one line. */
-  .toggle-button-group {
-    @apply flex-nowrap shrink-0;
-  }
-
-  .toggle-button {
-    @apply shrink-0 whitespace-nowrap;
-  }
-}
-
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

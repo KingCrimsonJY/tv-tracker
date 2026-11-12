@@ -5,6 +5,7 @@ import { Check, ChevronRight, Film, ListOrdered, Plus, Settings } from 'lucide-r
 import { Button, ProgressBar, Skeleton } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
+import { InstallAppButton } from '../components/InstallAppButton';
 import { useTracker } from '../context/TrackerContext';
 import {
   selectEntriesByList,
@@ -321,6 +322,8 @@ export const HomePage: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>{t.library.addMediaButton}</span>
           </ButtonLink>
+          {/* The sidebar and the rail carry this on wider screens. */}
+          <InstallAppButton compact size="sm" className="sm:hidden" />
           <ButtonLink to="/settings" variant="secondary" size="sm" isIconOnly aria-label={t.settings.title}>
             <Settings className="w-4 h-4" />
           </ButtonLink>

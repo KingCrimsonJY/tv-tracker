@@ -1,7 +1,19 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useHref, useNavigate } from 'react-router-dom';
 import { RefreshCw, WifiOff } from 'lucide-react';
-import { Alert, Button, Card, Input, I18nProvider, Label, Skeleton, Spinner, TextField, Toast } from '@heroui/react';
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  I18nProvider,
+  Label,
+  RouterProvider,
+  Skeleton,
+  Spinner,
+  TextField,
+  Toast,
+} from '@heroui/react';
 import { NavigationScroll } from './components/NavigationScroll';
 import { withPendingSpinner } from './components/pendingContent';
 import { AppShell } from './components/AppShell.tsx';
@@ -210,17 +222,33 @@ const AppRoutes: React.FC = () => {
   );
 };
 
+/** Lets HeroUI components with an `href` (menu items, links) navigate through React Router instead of reloading. */
+const AriaRouter: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
+  return (
+    <RouterProvider navigate={(to) => void navigate(to)} useHref={useHref}>
+      {children}
+    </RouterProvider>
+  );
+};
+
 export default function App() {
   const { locale } = useI18n();
   return (
     <I18nProvider locale={locale}>
       <BrowserRouter>
-        <TrackerProvider>
-          <Toast.Provider placement="bottom" />
-          <NavigationScroll>
-            <AppRoutes />
-          </NavigationScroll>
-        </TrackerProvider>
+        <AriaRouter>
+          <TrackerProvider>
+            {/* Toasts stay clear of the phone tab bar. */}
+            <Toast.Provider
+              placement="bottom"
+              className="max-sm:bottom-[calc(64px+env(safe-area-inset-bottom,0px)+12px)]"
+            />
+            <NavigationScroll>
+              <AppRoutes />
+            </NavigationScroll>
+          </TrackerProvider>
+        </AriaRouter>
       </BrowserRouter>
     </I18nProvider>
   );
