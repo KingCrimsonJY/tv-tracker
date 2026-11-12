@@ -122,6 +122,57 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     expect(expiredRes.status).toBe(401);
   });
 
+  it('limits wrong setup codes like wrong passwords, so a short SETUP_CODE cannot be guessed', async () => {
+    const attempt = (setupCode: string) =>
+      fetch(`${baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.9' },
+        body: JSON.stringify({ password: VALID_PASSWORD, setupCode }),
+      });
+    for (let i = 0; i < 5; i++) expect((await attempt('guess-' + i)).status).toBe(403);
+    const blocked = await attempt(TEST_SETUP_CODE);
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json()).toEqual({ code: 'TOO_MANY_ATTEMPTS' });
+    currentNow += 15 * 60 * 1000 + 1;
+    expect((await attempt(TEST_SETUP_CODE)).status).toBe(200);
+  });
+
+  it('refreshes the sliding session expiry at most once an hour and purges expired sessions daily', async () => {
+    const setup = await fetch(`${baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
+    });
+    const { token } = (await setup.json()) as { token: string };
+    const auth = { Authorization: `Bearer ${token}` };
+    const tokenHash = (await import('./auth.ts')).hashSessionToken(token);
+    const db = (repo as unknown as { db: import('node:sqlite').DatabaseSync }).db;
+    const session = () =>
+      db.prepare('SELECT last_seen_at, expires_at FROM sessions WHERE token_hash = ?').get(tokenHash) as
+        { last_seen_at: number; expires_at: number } | undefined;
+    const created = currentNow;
+
+    currentNow += 59 * 60 * 1000;
+    expect((await fetch(`${baseUrl}/api/state`, { headers: auth })).status).toBe(200);
+    expect(session()).toEqual({ last_seen_at: created, expires_at: created + SESSION_TTL_MS });
+
+    currentNow += 2 * 60 * 1000;
+    expect((await fetch(`${baseUrl}/api/state`, { headers: auth })).status).toBe(200);
+    expect(session()).toEqual({ last_seen_at: currentNow, expires_at: currentNow + SESSION_TTL_MS });
+
+    repo.runDailyMaintenance('2024-03-10', currentNow + SESSION_TTL_MS - 1);
+    expect(session()).toBeDefined();
+    repo.runDailyMaintenance('2024-03-10', currentNow + SESSION_TTL_MS);
+    expect(session()).toBeUndefined();
+  });
+
+  it('sends no referrer to poster hosts, forbids MIME sniffing and hides the framework', async () => {
+    const res = await fetch(`${baseUrl}/healthz`);
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-powered-by')).toBeNull();
+  });
+
   it('rate-limits failed logins after 5 attempts within 15 minutes per client IP', async () => {
     await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',

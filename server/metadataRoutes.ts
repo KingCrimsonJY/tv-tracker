@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import { z } from 'zod';
-import { sendApiError } from './app.ts';
+import { sendApiError } from './http.ts';
 import { ConflictError, NotFoundError } from './db/repository.ts';
 import { refreshTmdbTitle } from './metadataService.ts';
 import type { ProviderRoutesOptions } from './providerRoutes.ts';
@@ -59,21 +59,21 @@ export function registerMetadataRoutes(
       if (title.mediaType !== 'other' && title.mediaType !== input.mediaType)
         throw new ConflictError('STRUCTURE_CONFLICT', 'STRUCTURE_CONFLICT');
       if (!isTmdbConfigured()) {
-        sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_NOT_CONFIGURED');
+        sendApiError(res, 503, 'TMDB_NOT_CONFIGURED');
         return;
       }
       let data;
       try {
         data = await fetchTmdbTitleDetails(input.mediaType, input.sourceId);
       } catch {
-        sendApiError(res, 502, 'TMDB_UNAVAILABLE', 'TMDB_UNAVAILABLE');
+        sendApiError(res, 502, 'TMDB_UNAVAILABLE');
         return;
       }
       const latest = repo.getTitle(id);
       if (!latest || latest.source !== title.source || latest.sourceId !== title.sourceId)
         throw new ConflictError('STRUCTURE_CONFLICT', 'STRUCTURE_CONFLICT');
       if (data.failedSeasons?.length) {
-        sendApiError(res, 502, 'TMDB_UNAVAILABLE', 'TMDB_UNAVAILABLE');
+        sendApiError(res, 502, 'TMDB_UNAVAILABLE');
         return;
       }
       res.json(broadcastMutation(repo.refreshMetadata(id, data, nowFn(), true)));

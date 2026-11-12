@@ -25,10 +25,10 @@ import type {
 import { backupDatabase, createSafetyBackup, todayDateStr, writeDailyExport } from './backup.ts';
 import { exportData, getState, importData } from './importExportRepo.ts';
 import { deleteList, deleteListEntry, patchList, patchListEntry, putList, putListEntry } from './listsRepo.ts';
-import { deleteProgress, patchProgress, putProgress } from './progressRepo.ts';
 import {
   createSession,
   deleteAllSessions,
+  deleteExpiredSessions,
   deleteSession,
   getSettings,
   getStoredPasswordHash,
@@ -48,9 +48,10 @@ export class DataDirPermissionError extends Error {
     const uid = typeof process.getuid === 'function' ? process.getuid() : 'unknown';
     const message = [
       `Error: DATA_DIR "${dataDir}" is not writable by the current process (uid=${uid}).`,
-      `If ./data did not exist before the first "docker compose up", Docker created it owned by root.`,
-      `Fix it on the host before starting the container:`,
-      `  mkdir -p data && sudo chown 1000:1000 data`,
+      `Give that user write access to the directory, then start again. In a container the app runs as uid 1000:`,
+      `  Docker:           mkdir -p data && sudo chown 1000:1000 data`,
+      `  Rootless Podman:  add --userns=keep-id:uid=1000,gid=1000 (and :Z on the volume under SELinux)`,
+      `See docs/deployment.md.`,
     ].join('\n');
     super(message, { cause });
     this.name = 'DataDirPermissionError';
@@ -190,7 +191,8 @@ export class TrackerRepository {
     return writeDailyExport(this.ctx, () => this.exportData(), dateStr);
   }
 
-  public runDailyMaintenance(dateStr = todayDateStr()): void {
+  public runDailyMaintenance(dateStr = todayDateStr(), now = Date.now()): void {
+    deleteExpiredSessions(this.ctx, now);
     this.backupDatabase(dateStr);
     this.writeDailyExport(dateStr);
   }
@@ -278,30 +280,6 @@ export class TrackerRepository {
 
   public applyTitleAtomicAction(titleId: string, input: TitleAtomicActionInput): StateMutationResult {
     return applyTitleAtomicAction(this.ctx, titleId, input);
-  }
-
-  public putProgress(
-    titleId: string,
-    playthroughId: string,
-    input: { watched: Record<string, number>; movieWatchedAt?: number },
-  ): StateMutationResult {
-    return putProgress(this.ctx, titleId, playthroughId, input);
-  }
-
-  public patchProgress(
-    titleId: string,
-    playthroughId: string,
-    patch: {
-      set?: Record<string, number>;
-      unset?: string[];
-      movieWatchedAt?: number | null;
-    },
-  ): StateMutationResult {
-    return patchProgress(this.ctx, titleId, playthroughId, patch);
-  }
-
-  public deleteProgress(titleId: string, playthroughId: string): StateMutationResult {
-    return deleteProgress(this.ctx, titleId, playthroughId);
   }
 
   public putList(id: string, listInput: Omit<WatchListDoc, 'id'>): StateMutationResult {

@@ -204,20 +204,6 @@ export const progressDocSchema: z.ZodType<ProgressDoc> = z.object({
   movieWatchedAt: z.number().nonnegative().optional(),
 });
 
-export const putProgressRequestSchema = z.object({
-  playthroughId: z.string().min(1).optional(),
-  watched: z.record(z.string(), z.number().nonnegative()).default({}),
-  movieWatchedAt: z.number().nonnegative().optional(),
-});
-
-export const patchProgressRequestSchema = z
-  .object({
-    set: z.record(z.string(), z.number().nonnegative()).optional(),
-    unset: z.array(z.string()).optional(),
-    movieWatchedAt: z.number().nonnegative().nullable().optional(),
-  })
-  .strict();
-
 export const titleAtomicProgressMutationSchema = z
   .object({
     playthroughId: z.string().min(1).optional(),

@@ -113,8 +113,6 @@ export function undoLatestPlaythrough(
   };
 }
 
-export const cancelRewatch = undoLatestPlaythrough;
-
 export function deletePlaythrough(
   title: Pick<TitleDoc, 'playthroughs' | 'activePlaythroughId' | 'manualState' | 'resume'>,
   playthroughId: string,

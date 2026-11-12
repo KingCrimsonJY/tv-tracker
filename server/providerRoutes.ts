@@ -1,4 +1,3 @@
-import { toTmdbSearchItem } from './providers/tmdbSearchItem.ts';
 import { suggestBangumiMatches } from './providers/bangumi.ts';
 import { registerMetadataRoutes } from './metadataRoutes.ts';
 import fs from 'node:fs';
@@ -6,7 +5,7 @@ import path from 'node:path';
 import type { Express } from 'express';
 import { linkImportRequestSchema } from '../src/domain/schemas.ts';
 import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
-import { sendApiError } from './app.ts';
+import { route, sendApiError } from './http.ts';
 import { ConflictError, NotFoundError, type TrackerRepository } from './db/repository.ts';
 import { type LinkImportDependencies, resolveLinkMetadata } from './providers/linkImport.ts';
 import {
@@ -40,133 +39,108 @@ export interface ProviderRoutesOptions {
   scheduleEnrichment?: (id: string) => void;
 }
 
-function classifyProviderError(
-  err: unknown,
-  fallbackCode: ServerErrorCode,
-): {
-  code: ServerErrorCode;
-  message: string;
-} {
-  if (err instanceof LinkImportError) return { code: err.code, message: err.message };
-  if (err instanceof UnsafeUrlError) {
-    return { code: err.code as ServerErrorCode, message: err.message };
+/** Keep provider diagnostics on the server and answer with a stable code. */
+function providerErrorCode(err: unknown, fallback: ServerErrorCode): ServerErrorCode {
+  if (
+    err instanceof LinkImportError ||
+    err instanceof UnsafeUrlError ||
+    err instanceof YtdlpNotInstalledError ||
+    err instanceof YtdlpExecutionError
+  ) {
+    return err.code as ServerErrorCode;
   }
-  if (err instanceof YtdlpNotInstalledError) {
-    return { code: err.code as ServerErrorCode, message: err.message };
-  }
-  if (err instanceof YtdlpExecutionError) {
-    return { code: err.code as ServerErrorCode, message: err.message };
-  }
-  return {
-    code: fallbackCode,
-    message: err instanceof Error ? err.message : fallbackCode,
-  };
+  return fallback;
 }
 
 export function registerProviderRoutes(app: Express, options: ProviderRoutesOptions): void {
   registerMetadataRoutes(app, options);
   const { repo, broadcastMutation, nowFn = () => Date.now(), linkDeps = {} } = options;
 
-  app.get('/api/system/info', async (_req, res) => {
-    const ytdlpVersion = await getYtdlpVersion({
-      binaryPath: linkDeps.ytdlpPath,
-      execFn: linkDeps.execFn,
-    });
-    res.json({
-      appVersion: APP_VERSION,
-      ytdlpInstalled: Boolean(ytdlpVersion),
-      ytdlpVersion,
-    });
-  });
+  app.get(
+    '/api/system/info',
+    route(async (_req, res) => {
+      const ytdlpVersion = await getYtdlpVersion({ binaryPath: linkDeps.ytdlpPath, execFn: linkDeps.execFn });
+      res.json({ appVersion: APP_VERSION, ytdlpInstalled: Boolean(ytdlpVersion), ytdlpVersion });
+    }),
+  );
 
-  app.get('/api/tmdb/status', (_req, res) => {
-    res.json({ configured: isTmdbConfigured() });
-  });
+  app.get(
+    '/api/tmdb/genres',
+    route(async (_req, res) => {
+      res.json(await fetchTmdbGenres());
+    }),
+  );
 
-  app.get('/api/tmdb/genres', async (_req, res) => {
-    const genres = await fetchTmdbGenres();
-    res.json(genres);
-  });
+  app.get(
+    '/api/tmdb/search',
+    route(async (req, res) => {
+      const query = String(req.query.q || '').trim();
+      const rawLang = String(req.query.lang || '').trim();
+      const lang: 'zh-CN' | 'en-US' = rawLang === 'en' || rawLang === 'en-US' ? 'en-US' : 'zh-CN';
+      if (!isTmdbConfigured()) {
+        sendApiError(res, 503, 'TMDB_NOT_CONFIGURED');
+        return;
+      }
+      if (!query) {
+        res.json({ results: [] });
+        return;
+      }
+      try {
+        res.json({ results: await searchTmdb(query, lang) });
+      } catch {
+        sendApiError(res, 502, 'TMDB_UNAVAILABLE');
+      }
+    }),
+  );
 
-  app.get('/api/tmdb/search', async (req, res) => {
-    const query = String(req.query.q || '').trim();
-    const rawLang = String(req.query.lang || '').trim();
-    const lang: 'zh-CN' | 'en-US' = rawLang === 'en' || rawLang === 'en-US' ? 'en-US' : 'zh-CN';
+  app.get(
+    '/api/tmdb/:mediaType/:id',
+    route(async (req, res) => {
+      const mediaType = String(req.params.mediaType || '');
+      const sourceId = String(req.params.id || '');
+      if (mediaType !== 'movie' && mediaType !== 'tv') {
+        sendApiError(res, 400, 'TMDB_INVALID_MEDIA_TYPE');
+        return;
+      }
+      if (!/^\d+$/.test(sourceId)) {
+        sendApiError(res, 400, 'TMDB_INVALID_ID');
+        return;
+      }
+      if (!isTmdbConfigured()) {
+        sendApiError(res, 503, 'TMDB_NOT_CONFIGURED');
+        return;
+      }
+      try {
+        res.json(await fetchTmdbTitleDetails(mediaType, sourceId));
+      } catch {
+        sendApiError(res, 502, 'TMDB_UNAVAILABLE');
+      }
+    }),
+  );
 
-    if (!isTmdbConfigured()) {
-      sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_READ_TOKEN is not configured.');
-      return;
-    }
-    if (!query) {
-      res.json({ results: [] });
-      return;
-    }
-    try {
-      const results = await searchTmdb(query, lang);
-      res.json({ results: results.map((item) => toTmdbSearchItem(item, lang)) });
-    } catch (error) {
-      sendApiError(
-        res,
-        502,
-        'TMDB_UNAVAILABLE',
-        error instanceof Error ? error.message : 'TMDB search request failed.',
-      );
-    }
-  });
+  app.get(
+    '/api/ratings',
+    route(async (req, res) => {
+      res.json(await fetchCombinedRatings({ imdbId: String(req.query.imdbId || '').trim() }));
+    }),
+  );
 
-  app.get('/api/tmdb/:mediaType/:id', async (req, res) => {
-    const mediaType = String(req.params.mediaType || '');
-    const sourceId = String(req.params.id || '');
-
-    if (mediaType !== 'movie' && mediaType !== 'tv') {
-      sendApiError(res, 400, 'TMDB_INVALID_MEDIA_TYPE', 'Invalid media type: must be movie or tv.');
-      return;
-    }
-    if (!/^\d+$/.test(sourceId)) {
-      sendApiError(res, 400, 'TMDB_INVALID_ID', 'Invalid TMDB ID: must be numeric.');
-      return;
-    }
-    if (!isTmdbConfigured()) {
-      sendApiError(res, 503, 'TMDB_NOT_CONFIGURED', 'TMDB_READ_TOKEN is not configured.');
-      return;
-    }
-
-    try {
-      const details = await fetchTmdbTitleDetails(mediaType, sourceId);
-      res.json(details);
-    } catch (error) {
-      sendApiError(
-        res,
-        502,
-        'TMDB_UNAVAILABLE',
-        error instanceof Error ? error.message : 'Failed to fetch TMDB title details.',
-      );
-    }
-  });
-
-  app.get('/api/ratings', async (req, res) => {
-    const imdbId = String(req.query.imdbId || '').trim();
-    const result = await fetchCombinedRatings({ imdbId });
-    res.json(result);
-  });
-
-  app.post('/api/import/link', async (req, res) => {
-    const parsed = linkImportRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      sendApiError(res, 400, 'INVALID_LINK_URL', 'Please enter a valid http:// or https:// URL.');
-      return;
-    }
-    try {
-      const data = await resolveLinkMetadata(parsed.data.url, {
-        ...linkDeps,
-        forceImport: parsed.data.force,
-      });
-      res.json(await suggestBangumiMatches(data));
-    } catch (err) {
-      const classified = classifyProviderError(err, 'LINK_PARSE_FAILED');
-      sendApiError(res, 400, classified.code, classified.message);
-    }
-  });
+  app.post(
+    '/api/import/link',
+    route(async (req, res) => {
+      const parsed = linkImportRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        sendApiError(res, 400, 'INVALID_LINK_URL');
+        return;
+      }
+      try {
+        const data = await resolveLinkMetadata(parsed.data.url, { ...linkDeps, forceImport: parsed.data.force });
+        res.json(await suggestBangumiMatches(data));
+      } catch (err) {
+        sendApiError(res, 400, providerErrorCode(err, 'LINK_PARSE_FAILED'));
+      }
+    }),
+  );
 
   app.post('/api/titles/:id/refresh-link', async (req, res, next) => {
     let requestedSource: string | null = null;
@@ -177,7 +151,7 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         throw new NotFoundError(`Title not found: ${id}`, 'TITLE_NOT_FOUND');
       }
       if (title.source !== 'url' || !title.sourceId) {
-        sendApiError(res, 400, 'REFRESH_LINK_ONLY_URL', 'Only link-imported titles support playlist refresh.');
+        sendApiError(res, 400, 'REFRESH_LINK_ONLY_URL');
         return;
       }
 
@@ -212,14 +186,14 @@ export function registerProviderRoutes(app: Express, options: ProviderRoutesOpti
         next(err);
         return;
       }
-      const classified = classifyProviderError(err, 'REFRESH_LINK_FAILED');
-      if (classified.code === 'LINK_UNAVAILABLE') {
+      const code = providerErrorCode(err, 'REFRESH_LINK_FAILED');
+      if (code === 'LINK_UNAVAILABLE') {
         const id = String(req.params.id);
         const current = repo.getTitle(id);
         if (requestedSource && current?.source === 'url' && current.sourceId === requestedSource)
           broadcastMutation(repo.patchTitle(id, { sourceUnavailable: true, updatedAt: nowFn() }));
       }
-      sendApiError(res, 400, classified.code, classified.message);
+      sendApiError(res, 400, code);
     }
   });
 }

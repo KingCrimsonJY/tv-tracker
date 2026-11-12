@@ -66,6 +66,12 @@ async function startServer(): Promise<void> {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    // Vite fingerprints everything under /assets, so those files never change; the HTML shell and the
+    // service worker must be revalidated so a new release is picked up.
+    app.use(
+      '/assets',
+      express.static(path.join(distPath, 'assets'), { immutable: true, maxAge: '1y', fallthrough: false }),
+    );
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -94,8 +100,10 @@ async function startServer(): Promise<void> {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  // HOST limits which interface accepts connections, e.g. 127.0.0.1 behind a reverse proxy on the same machine.
+  const HOST = process.env.HOST?.trim() || '0.0.0.0';
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
   });
 }
 

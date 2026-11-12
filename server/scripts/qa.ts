@@ -28,8 +28,11 @@ const source: SeasonDoc[] = Array.from({ length: 5 }, (_, index) => ({
   })),
 }));
 repo.refreshMetadata(title.id, { title, seasons: source });
-repo.patchProgress(PERF_LONG_TITLE, 'p1', {
-  set: Object.fromEntries(Array.from({ length: 120 }, (_, index) => ['s1e' + (index + 1), Date.now()])),
+repo.applyTitleAtomicAction(PERF_LONG_TITLE, {
+  progress: {
+    playthroughId: 'p1',
+    set: Object.fromEntries(Array.from({ length: 120 }, (_, index) => ['s1e' + (index + 1), Date.now()])),
+  },
 });
 repo.setStoredPasswordHash(hashPassword('qa-only-not-a-user-password'));
 const { token, tokenHash } = generateSessionToken();
