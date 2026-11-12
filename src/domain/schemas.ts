@@ -1,3 +1,4 @@
+import { BATCH_MAX_TITLES, BATCH_STATUSES } from './batch.ts';
 import { DEFAULT_APP_SETTINGS } from './defaultSettings.ts';
 export { DEFAULT_APP_SETTINGS } from './defaultSettings.ts';
 import { z } from 'zod';
@@ -225,6 +226,25 @@ export const titleAtomicActionRequestSchema: z.ZodType<TitleAtomicActionInput> =
   .refine((val) => val.progress !== undefined || val.title !== undefined, {
     message: 'At least one of progress or title must be provided',
   });
+
+export const batchTitlesRequestSchema = z
+  .object({
+    titleIds: z.array(z.string().min(1)).min(1).max(BATCH_MAX_TITLES),
+    action: z.discriminatedUnion('type', [
+      z
+        .object({
+          type: z.literal('status'),
+          status: z.enum(BATCH_STATUSES),
+          /** The sender's local calendar date: "aired" means the same on the server as on the device. */
+          todayStr: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          now: z.number().int().positive(),
+        })
+        .strict(),
+      z.object({ type: z.literal('addToList'), listId: z.string().min(1), now: z.number().int().positive() }).strict(),
+      z.object({ type: z.literal('delete') }).strict(),
+    ]),
+  })
+  .strict();
 
 export const putTitleRequestSchema = z.union([
   z.object({

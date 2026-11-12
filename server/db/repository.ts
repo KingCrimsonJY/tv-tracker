@@ -22,7 +22,9 @@ import type {
   WatchListDoc,
   ZhenjiExportV2,
 } from '../../src/domain/types.ts';
+import type { BatchAction } from '../../src/domain/batch.ts';
 import { backupDatabase, createSafetyBackup, todayDateStr, writeDailyExport } from './backup.ts';
+import { applyTitleBatch } from './batchRepo.ts';
 import { exportData, getState, importData } from './importExportRepo.ts';
 import { deleteList, deleteListEntry, patchList, patchListEntry, putList, putListEntry } from './listsRepo.ts';
 import {
@@ -280,6 +282,10 @@ export class TrackerRepository {
 
   public applyTitleAtomicAction(titleId: string, input: TitleAtomicActionInput): StateMutationResult {
     return applyTitleAtomicAction(this.ctx, titleId, input);
+  }
+
+  public applyTitleBatch(titleIds: readonly string[], action: BatchAction): StateMutationResult {
+    return applyTitleBatch(this.ctx, titleIds, action);
   }
 
   public putList(id: string, listInput: Omit<WatchListDoc, 'id'>): StateMutationResult {

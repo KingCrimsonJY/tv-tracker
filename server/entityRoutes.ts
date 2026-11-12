@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { toLocalDateString } from '../src/domain/airing.ts';
 import {
+  batchTitlesRequestSchema,
   importPayloadSchema,
   patchListEntryRequestSchema,
   patchListRequestSchema,
@@ -36,6 +37,17 @@ export function registerEntityRoutes(
       }
       res.setHeader('Cache-Control', 'private, no-cache');
       res.json({ seasons: repo.getSeasons(id) });
+    }),
+  );
+
+  // Registered before the /api/titles/:id routes so "batch" is never read as a title id.
+  app.post(
+    '/api/titles/batch',
+    route((req, res) => {
+      const { titleIds, action } = batchTitlesRequestSchema.parse(req.body);
+      const mutation = repo.applyTitleBatch(titleIds, action);
+      const changed = Object.keys(mutation.upserts).length > 0 || Object.keys(mutation.deletes).length > 0;
+      res.json(changed ? broadcastMutation(mutation) : mutation);
     }),
   );
 
