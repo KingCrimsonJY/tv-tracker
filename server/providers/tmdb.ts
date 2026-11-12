@@ -153,16 +153,24 @@ export async function fetchTmdbTitleDetails(
   const enTrans =
     translations.find((t) => t.iso_639_1 === 'en' && t.iso_3166_1 === 'US') ||
     translations.find((t) => t.iso_639_1 === 'en');
-  const zhTrans =
-    translations.find((t) => t.iso_639_1 === 'zh' && t.iso_3166_1 === 'CN' && (t.data?.title || t.data?.name)) ||
-    translations.find((t) => t.iso_639_1 === 'zh' && (t.data?.title || t.data?.name));
+  // Simplified Chinese first, then the other Chinese editions in order of how close they read to it.
+  const zhTrans = ['CN', 'SG', 'HK', 'TW']
+    .map((region) =>
+      translations.find(
+        (t) => t.iso_639_1 === 'zh' && t.iso_3166_1 === region && Boolean(t.data?.title || t.data?.name),
+      ),
+    )
+    .find(Boolean);
 
   const originalName =
     (mediaType === 'movie' ? detail.original_title : detail.original_name) || detail.title || detail.name || 'Untitled';
   const primaryZh = (mediaType === 'movie' ? detail.title : detail.name) || '';
   const transZh = zhTrans?.data?.title || zhTrans?.data?.name || '';
+  // Without a zh-CN title TMDB answers with the original one. For a foreign work another Chinese edition is
+  // then the better name; for a work whose original language is Chinese, the original already is the name.
+  const originalIsChinese = /^(?:zh|cn)$/i.test(detail.original_language ?? '');
   const zhName =
-    primaryZh && primaryZh !== originalName
+    primaryZh && (primaryZh !== originalName || originalIsChinese)
       ? primaryZh
       : transZh && transZh !== originalName
         ? transZh
