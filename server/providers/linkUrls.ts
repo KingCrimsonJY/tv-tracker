@@ -27,6 +27,7 @@ function canonicalizeLinkUrl(input: URL): URL {
     if (collection && sid && /^\d+$/.test(sid)) {
       url.hostname = 'space.bilibili.com';
       url.pathname = `/${collection[1]}/lists/${sid}`;
+      url.searchParams.delete('sid');
     }
     url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
     // Share tracking parameters may contain identifiers; retain only content selectors.
