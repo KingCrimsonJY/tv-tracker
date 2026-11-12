@@ -59,6 +59,20 @@ try {
     toggle: report.togglePosts === 1 && report.toggleStateGets === 0 && report.toggleLongTaskMs <= 50,
     longTitle: report.longTitleLongTaskMs <= 100,
     libraryScroll: report.libraryScrollLongTaskMs <= 100,
+    // Everything here runs with the CPU slowed 4x: 200 ms is the 50 ms long-task limit of an ordinary
+    // device, and the limits leave room for a busy machine. A batch of a few dozen titles is one request and
+    // one event; selecting a card never blocks.
+    batch:
+      report.batchPosts === 1 &&
+      report.batchStateGets === 0 &&
+      report.batchPickLongTaskMs <= 100 &&
+      report.batchApplyLongTaskMs <= 300,
+    // Whole-library operations on 300 titles: switching modes, selecting everything, opening the menu.
+    batchLibrary:
+      report.batchEnterLongTaskMs <= 300 &&
+      report.batchSelectAllLongTaskMs <= 300 &&
+      report.batchMenuLongTaskMs <= 300 &&
+      report.batchApplyAllLongTaskMs <= 400,
   };
   Object.assign(report, { budgets });
   if (process.env.PERF_ENFORCE_BUDGETS === '1' && Object.values(budgets).some((pass) => !pass)) process.exitCode = 1;

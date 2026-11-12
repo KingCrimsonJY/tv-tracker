@@ -48,6 +48,10 @@
   </head>
   <body class="bg-background text-foreground antialiased selection:bg-accent/30">
     <div id="root"></div>
+    <!-- Keeps #root from being the last <div> in <body>. Overlays (menus, dialogs, toasts) are appended to
+         <body>; when that changes whether #root is :last-of-type, the browser recalculates the style of the
+         whole app, which is a long task on a large library. With this sibling the state never changes. -->
+    <div hidden></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

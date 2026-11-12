@@ -214,6 +214,9 @@ async function verifyBatchManagement(viewport: Viewport, locale: Locale) {
   await cards.nth(1).focus();
   await page.keyboard.press('Space');
   assert.equal(await count.innerText(), text.selectedCount(2));
+  // The grid follows the selection in a deferred render; wait for it rather than for a fixed time.
+  const checked = page.getByRole('group', { name: text.gridAria }).getByRole('checkbox', { checked: true });
+  await checked.nth(1).waitFor({ state: 'attached' });
   assert.deepEqual(
     [await cards.nth(0).isChecked(), await cards.nth(1).isChecked(), await cards.nth(2).isChecked()],
     [true, true, false],

@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { Button, Skeleton } from '@heroui/react';
 import { CheckCheck, Film, ListChecks, Plus } from 'lucide-react';
 import { ButtonLink } from '../components/ButtonLink';
-import { PosterCard } from '../components/PosterCard';
 import { useTracker } from '../context/TrackerContext';
 import { selectProgressByTitle, selectSeasonsByTitle, selectSettings, selectTitles } from '../data/selectors';
 import { useTrackerState } from '../data/useTrackerState';
@@ -11,7 +10,7 @@ import { NO_SEASONS } from '../domain/stableRefs';
 import type { TitleStatusCode } from '../domain/types';
 import { BatchActionBar } from '../features/library/BatchActionBar';
 import { LibraryFilters, type SortMode, type StatusFilter, type TypeFilter } from '../features/library/LibraryFilters';
-import { SelectablePosterCard } from '../features/library/SelectablePosterCard';
+import { LibraryCard } from '../features/library/LibraryCard';
 import { useLibrarySelection } from '../features/library/useLibrarySelection';
 import { useI18n } from '../i18n';
 
@@ -24,9 +23,11 @@ const STATUS_GROUPS: Record<Exclude<StatusFilter, 'all'>, readonly TitleStatusCo
 
 export const LibraryPage: React.FC = () => {
   const { loadingData } = useTracker();
-  const titles = useTrackerState(selectTitles);
-  const seasonsByTitle = useTrackerState(selectSeasonsByTitle);
-  const progressByTitle = useTrackerState(selectProgressByTitle);
+  // The grid renders from deferred copies of the data, so a change that touches many titles at once (a
+  // batch, a backup import, another device) re-renders in interruptible slices instead of one long task.
+  const titles = useDeferredValue(useTrackerState(selectTitles));
+  const seasonsByTitle = useDeferredValue(useTrackerState(selectSeasonsByTitle));
+  const progressByTitle = useDeferredValue(useTrackerState(selectProgressByTitle));
   const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
 
@@ -69,8 +70,12 @@ export const LibraryPage: React.FC = () => {
 
   const visibleIds = useMemo(() => items.map((item) => item.title.id), [items]);
   const selection = useLibrarySelection(visibleIds);
-  const selected = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds]);
   const { isSelecting } = selection;
+  // The header and the action bar react at once; the grid follows in an interruptible render, so switching
+  // modes or selecting everything in a large library never blocks input.
+  const gridSelecting = useDeferredValue(isSelecting);
+  const gridSelectedIds = useDeferredValue(selection.selectedIds);
+  const gridSelected = useMemo(() => new Set(gridSelectedIds), [gridSelectedIds]);
   const isFiltered = statusFilter !== 'all' || typeFilter !== 'all';
 
   return (
@@ -149,31 +154,22 @@ export const LibraryPage: React.FC = () => {
             </Button>
           )}
         </div>
-      ) : isSelecting ? (
-        <div role="group" aria-label={t.library.batch.gridAria} className="poster-grid">
-          {items.map(({ title, seasons, progress }) => (
-            <SelectablePosterCard
-              key={title.id}
-              title={title}
-              seasons={seasons}
-              progress={progress}
-              defaultLang={settings.defaultTitleLang}
-              includeSpecials={settings.includeSpecials}
-              isSelected={selected.has(title.id)}
-              onToggle={selection.toggle}
-            />
-          ))}
-        </div>
       ) : (
-        <div className="poster-grid">
+        <div
+          className="poster-grid"
+          {...(gridSelecting ? { role: 'group', 'aria-label': t.library.batch.gridAria } : {})}
+        >
           {items.map(({ title, seasons, progress }) => (
-            <PosterCard
+            <LibraryCard
               key={title.id}
               title={title}
               seasons={seasons}
               progress={progress}
               defaultLang={settings.defaultTitleLang}
               includeSpecials={settings.includeSpecials}
+              isSelecting={gridSelecting}
+              isSelected={gridSelecting && gridSelected.has(title.id)}
+              onToggle={selection.toggle}
             />
           ))}
         </div>

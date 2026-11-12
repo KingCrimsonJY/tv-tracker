@@ -9,8 +9,13 @@ const isTextEntry = (target: EventTarget | null) =>
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button'].includes(target.type)));
 
-/** A menu or dialog owns Escape while it is open. */
-const overlayIsOpen = () => document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]') !== null;
+/**
+ * Keys pressed inside a dialog or menu belong to it. (An open overlay also consumes its own Escape, which
+ * shows as `defaultPrevented`.) Toasts are `alertdialog`s too, but focus is not inside them, so a shortcut
+ * keeps working while a toast is on screen.
+ */
+const isInsideOverlay = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"], [role="menu"]') !== null;
 
 /**
  * Multi-select state for the library grid. Only titles that are currently shown count as selected, so a
@@ -42,7 +47,7 @@ export function useLibrarySelection(visibleIds: readonly string[]) {
   useEffect(() => {
     if (!isSelecting) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || overlayIsOpen()) return;
+      if (event.defaultPrevented || isInsideOverlay(event.target)) return;
       if (event.key === 'Escape') {
         stop();
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !isTextEntry(event.target)) {

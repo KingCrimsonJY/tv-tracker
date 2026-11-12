@@ -88,12 +88,18 @@ export const PosterCardBody: React.FC<PosterCardProps & { isSelected?: boolean }
   );
 };
 
-/** A card that opens the title. */
-export const PosterCard: React.FC<PosterCardProps> = React.memo((props) => (
-  <Link
-    to={`/title/${props.title.id}`}
-    className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-xl"
-  >
-    <PosterCardBody {...props} />
-  </Link>
-));
+/**
+ * A card that opens the title. `inert` takes the link out of the tab order and the accessibility tree while
+ * something else (the library's selection checkbox) acts for the card.
+ */
+export const PosterCard: React.FC<PosterCardProps & { isSelected?: boolean; inert?: boolean }> = React.memo(
+  ({ inert, ...card }) => (
+    <Link
+      to={`/title/${card.title.id}`}
+      inert={inert}
+      className="group flex flex-col text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-xl"
+    >
+      <PosterCardBody {...card} />
+    </Link>
+  ),
+);
