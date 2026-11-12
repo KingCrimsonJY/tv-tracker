@@ -8,7 +8,8 @@ import { todayDateStr } from './server/db/backup.ts';
 import { assertDataDirWritable, DataDirPermissionError, TrackerRepository } from './server/db/repository.ts';
 import { getYtdlpBinaryPath, getYtdlpVersion, updateYtdlpBinary } from './server/providers/ytdlp.ts';
 
-dotenv.config();
+// `quiet` keeps dotenv's promotional tip out of the server log.
+dotenv.config({ quiet: true });
 
 async function startServer(): Promise<void> {
   const resolvedDataDir = path.resolve(process.env.DATA_DIR || './data');

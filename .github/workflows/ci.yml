@@ -46,3 +46,20 @@ jobs:
           exit 1
       - if: always()
         run: docker rm -f zhenji-ci || true
+      - name: Check the image under rootless Podman with a bind-mounted data directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/zhenji-data"
+          podman build -t zhenji:ci .
+          podman run -d --name zhenji-podman --userns=keep-id:uid=1000,gid=1000 \
+            -p 127.0.0.1:3001:3000 -v "$RUNNER_TEMP/zhenji-data:/data:Z" zhenji:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/healthz; then
+              test -f "$RUNNER_TEMP/zhenji-data/tracker.db"
+              exit 0
+            fi
+            sleep 2
+          done
+          podman logs zhenji-podman
+          exit 1
+      - if: always()
+        run: podman rm -f zhenji-podman || true
