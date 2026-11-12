@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SearchField, Button, Skeleton, toast } from '@heroui/react';
 import { Link2, PlusCircle } from 'lucide-react';
@@ -81,10 +81,14 @@ export const SearchPage: React.FC = () => {
     };
   }, [query, searchLang, translateError]);
 
-  const existingTmdbKeys = new Set(
-    Object.values(titles)
-      .filter((item) => item.source === 'tmdb' && item.sourceId !== null)
-      .map((item) => `${item.mediaType}:${item.sourceId}`),
+  const libraryIds = useMemo(
+    () =>
+      new Map(
+        Object.values(titles)
+          .filter((item) => item.source === 'tmdb' && item.sourceId !== null)
+          .map((item) => [`${item.mediaType}:${item.sourceId}`, item.id]),
+      ),
+    [titles],
   );
 
   const handleAddTmdb = useCallback(
@@ -161,12 +165,10 @@ export const SearchPage: React.FC = () => {
       ) : (
         <SearchResults
           results={results}
-          existingTmdbKeys={existingTmdbKeys}
-          titles={titles}
+          libraryIds={libraryIds}
           lists={listArray}
           addingKey={addingKey}
           onAdd={handleAddTmdb}
-          onOpenExisting={(id) => navigate(`/title/${id}`)}
         />
       )}
 
