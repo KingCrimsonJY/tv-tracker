@@ -11,6 +11,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 import { createApp } from '../app.ts';
 import { generateSessionToken, hashPassword, SESSION_TTL_MS } from '../auth.ts';
 import { TrackerRepository } from '../db/repository.ts';
+import { zhCN } from '../../src/i18n/messages/zh-CN.ts';
 
 const source = path.resolve(process.env.SCREENSHOT_DEMO_DIR || 'data-demo');
 const output = path.resolve(process.env.SCREENSHOT_OUTPUT_DIR || 'docs/screenshots');
@@ -51,10 +52,15 @@ assert(address && typeof address !== 'string');
 const baseUrl = `http://127.0.0.1:${address.port}`;
 
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
+const tablet = { viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 const desktop = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 };
 const errors: string[] = [];
 
-async function openPage(browser: Browser, device: typeof phone | typeof desktop, scheme: 'dark' | 'light') {
+async function openPage(
+  browser: Browser,
+  device: typeof phone | typeof tablet | typeof desktop,
+  scheme: 'dark' | 'light',
+) {
   const context = await browser.newContext({
     ...device,
     colorScheme: scheme,
@@ -138,6 +144,22 @@ try {
     await page.getByRole('heading', { level: 1 }).waitFor();
     await capture(browser, page, name);
   }
+
+  // Library multi-select: a few titles picked, with the action bar above the tab bar.
+  await page.goto(`${baseUrl}/library`);
+  await page.getByRole('button', { name: zhCN.library.batch.select, exact: true }).click();
+  const cards = page.locator('.poster-grid label');
+  for (const index of [0, 2, 3]) await cards.nth(index).tap();
+  await page.getByRole('toolbar').waitFor();
+  await capture(browser, page, 'phone-library-select');
+  await page.getByRole('button', { name: zhCN.library.batch.done, exact: true }).click();
+
+  // The tablet layout: navigation rail with the same library.
+  const railPage = await openPage(browser, tablet, 'dark');
+  await railPage.goto(`${baseUrl}/library`);
+  await railPage.getByRole('heading', { level: 1 }).waitFor();
+  await capture(browser, railPage, 'tablet-library');
+  await railPage.context().close();
 
   // Import preview of a playlist that is not in the library yet.
   repo.deleteTitle('url_yt_3b1b_linear_algebra');
