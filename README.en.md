@@ -56,6 +56,21 @@
   </tr>
 </table>
 
+### Batch Management & Tablet Layout
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/phone-library-select.webp" alt="Mobile Library in selection mode: three titles selected and a floating action bar to set status, add to a list or delete" width="250" /><br />
+      <sub>Library multi-select</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/tablet-library.webp" alt="Tablet Library with the navigation rail and the poster grid" width="420" /><br />
+      <sub>Tablet layout (navigation rail)</sub>
+    </td>
+  </tr>
+</table>
+
 ### Link Import
 
 <table>
@@ -108,6 +123,7 @@
 
 - **Ordered Watch Lists**: Build numbered watch orders (such as the _Marvel Infinity Saga_ order) that automatically highlight the first unwatched entry (`下一部待看`) and display your next movie and overall progress right on the Home screen when pinned.
 - **Poster Collections**: Group titles into collections (such as _Weekend Watchlist_) with sorting by date added, title, release year, rating, or manual drag-and-drop order.
+- **Library Batch Management**: Enter **Select** mode in the Library, pick titles (or select everything the current filters show), then set a status (watched, unwatched, paused, dropped, resume tracking), add them to a list, or delete them after a confirmation. Dozens of titles are submitted as one operation and synced to every device. Fully keyboard accessible: Space toggles, `Ctrl/⌘+A` selects all, `Esc` leaves.
 
 ### Flexible Ways to Add Titles
 
@@ -117,7 +133,7 @@
 
 ### Multi-Device Experience & Portable Data
 
-- **Designed for Phone, Tablet & Desktop**: Bottom navigation bar and action drawers on phones, navigation rail on tablets, and a full sidebar with pinned lists on desktop. Installable to your phone's home screen as a standalone PWA.
+- **Designed for Phone, Tablet & Desktop**: Phones (below 640 px) get a bottom tab bar and action drawers; tablets (640–1023 px) get a navigation rail that also reaches pinned lists, settings and install; desktops (1024 px and up) get a full sidebar with pinned-list shortcuts. Install it as a PWA for a full-screen experience.
 - **Real-Time Sync Across Devices**: Check an episode on your phone and see your tablet or desktop update immediately.
 - **Customizable Interface**: Switch between Dark, Light, and System themes, choose your preferred title language globally or per title, toggle whether Season 0 specials count toward progress, and reorder or toggle Home screen sections.
 - **Single-Folder Portability**: Everything lives inside `./data`—including the SQLite database, automatic daily backups, and daily JSON exports—so moving to another machine is as simple as copying one folder.
@@ -126,7 +142,7 @@
 
 - **Frontend**: React 19 + TypeScript 6 (`strict` mode) + HeroUI v3 (`@heroui/react` + `@heroui/styles`) + Tailwind CSS v4.
 - **Pure Derived Status**: Watch status is never stored as mutable state in the database; pure functions in `src/domain/` derive title and season state on the fly from episode air dates, the active playthrough's watched map, and manual state.
-- **Atomic Transactions & Optimistic UI**: The backend runs Express with Node's built-in `node:sqlite` (WAL mode + `ON DELETE CASCADE`). Multi-step mutations run inside a single SQLite transaction via the atomic action endpoint (`POST /api/titles/:id/actions`) and increment a monotonic `version`. The client updates optimistically and rolls back with a toast on failure.
+- **Atomic Transactions & Optimistic UI**: The backend runs Express with Node's built-in `node:sqlite` (WAL mode, cascading foreign keys). Every write is one SQLite transaction that advances a global `version`: multi-step changes to a title go through `POST /api/titles/:id/actions`, library batches through `POST /api/titles/batch`. The client shows the state confirmed by the server plus this device's pending edits, so an edit is visible at once, is dropped with a notice if the request fails, and is never interrupted by events from other devices.
 - **SSE Sync & Fractional Indexing**: Server-Sent Events (`/api/events`) broadcast `{ version, epoch, upserts, deletes }` to connected clients and trigger automatic state reconciliation on reconnect or tab focus. Drag-and-drop list ordering uses `fractional-indexing` with `@dnd-kit` so reordering writes a single row.
 - **Security**: Password authentication uses `node:crypto` `scrypt` with random salt and `timingSafeEqual`, paired with a one-time first-run setup code (`SETUP_CODE`), `HttpOnly; SameSite=Lax` 365-day sliding sessions, CSRF `Origin` verification, per-IP and global login rate limiting, and SSRF private-network blocking on link imports.
 
@@ -197,26 +213,48 @@ All environment variables are read exclusively on the server from `.env` (see [`
 | `APP_PASSWORD_HASH` |     Optional      | Empty         | `scrypt` password hash override (takes priority over the database password hash)                                                                                    | Generate interactively via `npm run set-password`                                                                                 |
 | `TRUST_PROXY`       |     Optional      | `0`           | Set to `1` to trust proxy headers: `CF-Connecting-IP` or the last `X-Forwarded-For` entry for login rate limiting, and `X-Forwarded-Host` for the CSRF origin check | Enable only behind Cloudflare Tunnel or a reverse proxy that overwrites these headers; keep `0` when the port is exposed directly |
 | `PORT`              |     Optional      | `3000`        | HTTP server port                                                                                                                                                    | Defaults to `3000`                                                                                                                |
+| `HOST`              |     Optional      | `0.0.0.0`     | Network interface the server listens on                                                                                                                             | Set `127.0.0.1` behind a reverse proxy on the same machine                                                                        |
 
 ## Deployment
 
-Deploy with Docker Compose in minutes:
+The same code runs three ways, and the data directory moves freely between them:
 
 ```bash
 git clone https://github.com/KingCrimsonJY/tv-tracker.git
 cd tv-tracker
-cp .env.example .env
-# Edit .env to set TMDB_READ_TOKEN
-mkdir -p data && sudo chown 1000:1000 data
-docker compose up -d --build
-
-# Read the one-time setup code on first start
-docker compose logs zhenji | grep "First-run setup code"
+cp .env.example .env          # set TMDB_READ_TOKEN and the other options
 ```
 
-> **Serve Zhenji over HTTPS.** In production the session cookie is `Secure`, so browsers only keep it over HTTPS (or on `localhost`). Opening `http://<LAN IP>:<port>` cannot sign in even with the right password; the sign-in screen explains why.
+**Docker Compose**
 
-By default, the container binds to `127.0.0.1:8080:3000` on the host and includes optional `cloudflare` (`cloudflared` with `TUNNEL_TOKEN`) and `tailscale` (Tailscale Funnel with `TS_AUTHKEY`) Compose profiles. See **[`docs/deployment.md`](./docs/deployment.md)** for full instructions on installing Docker on Linux, tunnel setup, updating, backups, migrating machines, resetting passwords, and preventing host sleep.
+```bash
+mkdir -p data && sudo chown 1000:1000 data
+docker compose up -d --build
+docker compose logs zhenji | grep "First-run setup code"    # one-time setup code on first start
+```
+
+**Podman (rootless)**
+
+```bash
+podman build -t zhenji .
+mkdir -p data
+podman run -d --name zhenji --userns=keep-id:uid=1000,gid=1000 --env-file .env \
+  -p 127.0.0.1:8080:3000 -v ./data:/data:Z localhost/zhenji
+```
+
+**Plain Node.js 24**
+
+```bash
+npm ci && npm run build
+npm run setup:ytdlp           # optional: yt-dlp for link import
+npm start                     # http://localhost:3000, data in ./data
+```
+
+The container runs as an unprivileged user (uid 1000); the `chown` and `--userns=keep-id` above are what let it write to `./data`. Image names are fully qualified, so Podman needs no default registry. The container setups publish the service on `127.0.0.1:8080` of the host.
+
+> **Serve Zhenji over HTTPS for anything but the local machine.** In production the session cookie is `Secure`, so browsers only keep it over HTTPS or on `localhost` / `127.0.0.1`. Opening `http://<LAN-IP>:<port>` accepts the right password and still cannot sign in; the login screen explains why.
+
+The compose file includes optional `cloudflare` (Cloudflare Tunnel) and `tailscale` (Tailscale Serve / Funnel) profiles. For Quadlet autostart, `podman compose`, a systemd service, reverse-proxy requirements, upgrades, password reset and troubleshooting, see the **[deployment guide (docs/deployment.md, in Chinese)](./docs/deployment.md)**.
 
 ## Data & Backups
 
@@ -230,8 +268,8 @@ data/
   exports/zhenji-YYYY-MM-DD.json                # Atomic daily JSON export (newest 14 kept)
 ```
 
-- **Moving to another machine**: Stop the container, copy `./data` and `.env` to the new host, and start the same Docker image.
-- **Restoring a backup**: Stop the container and copy a `backups/tracker-*.db` file over `tracker.db` (removing `tracker.db-wal` and `tracker.db-shm`), or upload any `exports/zhenji-*.json` file directly in **Settings → Import Data (JSON)**.
+- **Moving to another machine**: Stop the service, copy `./data` and `.env` to the new host, and start it there. The same steps switch between Docker, Podman and plain Node.js.
+- **Restoring a backup**: Stop the service and copy a `backups/tracker-*.db` file over `tracker.db` (removing `tracker.db-wal` and `tracker.db-shm`), or upload an `exports/*.json` file under **Settings → Backup & Metadata → Import JSON** (importing replaces all data).
 - **Export format specification**: See **[`docs/data-format.md`](./docs/data-format.md)** for the full schema and backward-compatibility details.
 
 ## Development
@@ -286,7 +324,9 @@ Bilingual text comes from a fixed seed and images from local fixtures; no API ke
 
 The library index omits episode names, overviews and stills; the detail page loads and caches them on demand. Exports always read the full server data and keep the v2 backup format.
 
-The UI script captures English and Chinese movie pages, upstream-change pages, preview dialogs and episode-range selectors at 320, 390 and 1280 px, and checks two-device sync, the detail cache and backup replacement. `QA_OUTPUT_DIR` sets the screenshot and report directory; without it a temporary directory is created. Screenshots and run data are not committed.
+Batch management is measured on the same 300-title library: the longest task while entering selection mode, picking a card, selecting everything, and applying a batch to 48 titles and to the whole library, and that one batch is exactly one request with no state refetch.
+
+The UI script runs at six viewports, phone (320, 390 px), tablet (768, 820 px) and desktop (1280, 1440 px), in both languages and both themes. It checks that each layout shows the right navigation and that the tablet rail reaches pinned lists; captures movie pages, upstream-change pages, preview dialogs and episode-range selectors; and verifies library multi-select between two devices (one request, one sync event) along with episode sync, the detail cache and backup replacement. Any browser console error fails the run. `QA_OUTPUT_DIR` selects the in-container directory for screenshots and the report; without it a private temporary directory is created. Screenshots and run data are not committed.
 
 ## Credits & Data Attribution
 

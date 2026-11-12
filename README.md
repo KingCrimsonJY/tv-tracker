@@ -56,6 +56,21 @@
   </tr>
 </table>
 
+### 批量管理与平板布局
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/phone-library-select.webp" alt="手机端片库多选：已选三部作品，浮动操作条提供修改状态、加入列表与删除" width="250" /><br />
+      <sub>片库多选批量管理</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/tablet-library.webp" alt="平板端片库：左侧导航导轨与海报墙" width="420" /><br />
+      <sub>平板布局（导航导轨）</sub>
+    </td>
+  </tr>
+</table>
+
 ### 链接导入
 
 <table>
@@ -108,6 +123,7 @@
 
 - **顺序片单**：适合「漫威无限传奇观影顺序」等系列作品，按编号排列并自动高亮第一部还没看完的作品（`下一部待看`），置顶后直接在首页展示下一部与整体进度。
 - **收藏合集**：适合「周末想看的电影」等主题片单，以海报墙展示，支持按添加时间、名称、年份、评分排序或手动拖拽调整顺序。
+- **片库批量管理**：在片库进入「选择」模式后点选作品（或全选当前筛选结果），即可一次性修改状态（已看 / 未看 / 暂停 / 弃剧 / 恢复追剧）、加入列表或删除（删除前二次确认）。几十部作品作为一次操作提交并同步到所有设备；支持键盘操作（空格勾选、`Ctrl/⌘+A` 全选、`Esc` 退出）。
 
 ### 丰富的添加方式
 
@@ -117,7 +133,7 @@
 
 ### 多端体验与数据便携
 
-- **手机、平板、电脑自适应**：手机端采用底部导航栏与抽屉菜单，平板采用侧边导轨，电脑端提供完整侧边栏与置顶片单快捷入口；支持作为 PWA 添加到手机主屏幕全屏使用。
+- **手机、平板、电脑自适应**：手机端（< 640px）采用底部导航栏与抽屉菜单；平板端（640–1023px）采用左侧导航导轨，置顶列表、设置与安装入口都在导轨上；电脑端（≥ 1024px）提供完整侧边栏与置顶列表快捷入口。支持作为 PWA 添加到主屏幕全屏使用。
 - **多设备实时同步**：在手机上勾选一集，平板和电脑页面会立即同步更新。
 - **高度可定制**：支持深色、浅色与跟随系统主题，支持全局或单部作品独立切换标题语言（中文 / 原名 / 英文），可自由开关是否将特别篇 (Season 0) 计入进度，以及自定义首页显示的模块与顺序。
 - **单文件夹便携备份**：所有数据库、每日自动备份与 JSON 导出文件均存放在同一个 `./data` 文件夹内，复制文件夹即可迁移到新机器，也支持在设置页随时导出或恢复 JSON 备份。
@@ -126,7 +142,7 @@
 
 - **前端**：React 19 + TypeScript 6（严格模式）+ HeroUI v3（`@heroui/react` + `@heroui/styles`）+ Tailwind CSS v4。
 - **纯函数实时状态推导**：数据库不存储易过期的派生状态，所有作品与分季状态均由 `src/domain/` 中的纯函数根据分集开播日期、当前轮次勾选记录与手动状态实时计算。
-- **单事务原子操作与乐观更新**：服务端采用 Express + Node.js 内置 `node:sqlite`（WAL 模式 + 外键级联删除）。多步状态修改通过原子动作接口（`POST /api/titles/:id/actions`）在单个 SQLite 事务内完成并递增全局 `version`；前端采用乐观更新，失败时自动回滚并提示。
+- **单事务原子操作与乐观更新**：服务端采用 Express + Node.js 内置 `node:sqlite`（WAL 模式 + 外键级联删除）。每次写入都在单个 SQLite 事务内完成并递增全局 `version`：单部作品的多步修改走原子动作接口（`POST /api/titles/:id/actions`），片库批量操作走 `POST /api/titles/batch`。前端的界面状态是「服务端已确认的状态 + 本机尚未确认的修改」：修改立即可见，请求失败时撤销该修改并提示，其他设备的事件不会打断正在提交的修改。
 - **实时同步与分数索引排序**：服务端通过 Server-Sent Events (`/api/events`) 推送增量变更与进程 `epoch`，断线重连或切回前台时自动校验快照；列表拖拽基于 `fractional-indexing` 与 `@dnd-kit`，每次调整仅写入单行排序键。
 - **安全防护**：基于 `node:crypto` `scrypt` 随机盐哈希与 `timingSafeEqual` 校验单用户密码，配合首次启动一次性设置码 (`SETUP_CODE`)、`HttpOnly; SameSite=Lax` 365 天滑动会话、CSRF `Origin` 校验、按 IP 与全局双重登录限流、以及外链抓取 SSRF 内网地址拦截。
 
@@ -187,36 +203,58 @@ npm run dev
 
 所有配置项均位于服务端 `.env` 文件中（参考 [`.env.example`](./.env.example)）：
 
-| 变量名              |   必填   | 默认值   | 用途说明                                                                                                                     | 获取方式 / 备注                                                                              |
-| :------------------ | :------: | :------- | :--------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
-| `TMDB_READ_TOKEN`   | **必填** | 空       | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据                                              | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
-| `OMDB_API_KEY`      |   可选   | 空       | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天）                                                   | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天）    |
-| `DATA_DIR`          |   可选   | `./data` | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录                                                                        | Docker 容器内固定为 `/data`                                                                  |
-| `YTDLP_PATH`        | 可选覆盖 | 自动探测 | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置）                                       | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp`   |
-| `SETUP_CODE`        |   可选   | 随机生成 | 首次启动设置密码时要求输入的一次性验证设置码                                                                                 | 留空时会在服务端启动日志中自动生成并打印                                                     |
-| `APP_PASSWORD_HASH` |   可选   | 空       | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码）                                                                       | 通过 `npm run set-password` 交互式生成                                                       |
-| `TRUST_PROXY`       |   可选   | `0`      | 设为 `1` 时信任反代头：`CF-Connecting-IP` 或 `X-Forwarded-For` 最后一段用于按 IP 限流，`X-Forwarded-Host` 用于 CSRF 来源校验 | 仅在 Cloudflare Tunnel 或会覆盖这些请求头的反向代理之后设为 `1`；直接暴露端口时保持 `0`      |
-| `PORT`              |   可选   | `3000`   | Node.js 服务端监听端口                                                                                                       | 本地或容器内默认 `3000`                                                                      |
+| 变量名              |   必填   | 默认值    | 用途说明                                                                                                                     | 获取方式 / 备注                                                                              |
+| :------------------ | :------: | :-------- | :--------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| `TMDB_READ_TOKEN`   | **必填** | 空        | TMDB Read Access Token（Bearer）或 v3 API Key（自动识别），用于影视搜索与元数据                                              | 在 [TMDB 开发者设置](https://www.themoviedb.org/settings/api) 免费申请 API Read Access Token |
+| `OMDB_API_KEY`      |   可选   | 空        | 按 IMDb ID 查询 IMDb、烂番茄、Metacritic 评分（详情页按需请求并缓存 7 天）                                                   | 在 [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) 免费申请（1,000 次/天）    |
+| `DATA_DIR`          |   可选   | `./data`  | SQLite 数据库、自动备份与每日 JSON 导出的统一存储目录                                                                        | Docker 容器内固定为 `/data`                                                                  |
+| `YTDLP_PATH`        | 可选覆盖 | 自动探测  | 自定义 `yt-dlp` 可执行文件路径（不在 `.env.example` 中列出，仅在需覆盖默认路径时设置）                                       | 未设置或为空时按顺序探测 `/opt/yt-dlp/yt-dlp`、`./.bin/yt-dlp` 与系统 `PATH` 中的 `yt-dlp`   |
+| `SETUP_CODE`        |   可选   | 随机生成  | 首次启动设置密码时要求输入的一次性验证设置码                                                                                 | 留空时会在服务端启动日志中自动生成并打印                                                     |
+| `APP_PASSWORD_HASH` |   可选   | 空        | 覆盖数据库密码的 `scrypt` 哈希值（用于重置忘记的密码）                                                                       | 通过 `npm run set-password` 交互式生成                                                       |
+| `TRUST_PROXY`       |   可选   | `0`       | 设为 `1` 时信任反代头：`CF-Connecting-IP` 或 `X-Forwarded-For` 最后一段用于按 IP 限流，`X-Forwarded-Host` 用于 CSRF 来源校验 | 仅在 Cloudflare Tunnel 或会覆盖这些请求头的反向代理之后设为 `1`；直接暴露端口时保持 `0`      |
+| `PORT`              |   可选   | `3000`    | Node.js 服务端监听端口                                                                                                       | 本地或容器内默认 `3000`                                                                      |
+| `HOST`              |   可选   | `0.0.0.0` | Node.js 服务端监听的网络接口                                                                                                 | 同机反向代理部署时可设为 `127.0.0.1`                                                         |
 
 ## 部署
 
-使用 Docker Compose 即可在两分钟内完成自托管部署：
+同一份代码支持三种部署方式，数据目录可以在它们之间直接搬迁：
 
 ```bash
 git clone https://github.com/KingCrimsonJY/tv-tracker.git
 cd tv-tracker
-cp .env.example .env
-# 编辑 .env 填入 TMDB_READ_TOKEN 等配置
-mkdir -p data && sudo chown 1000:1000 data
-docker compose up -d --build
-
-# 查看首次启动的一次性设置码
-docker compose logs zhenji | grep "First-run setup code"
+cp .env.example .env          # 填入 TMDB_READ_TOKEN 等配置
 ```
 
-> **必须通过 HTTPS 访问。** 生产模式的会话 Cookie 带 `Secure` 属性，浏览器只在 HTTPS（或 `localhost`）下保存它。用 `http://局域网IP:端口` 打开时，密码虽然正确也无法登录，登录页会给出相应提示。
+**Docker Compose**
 
-默认配置将服务绑定在宿主机 `127.0.0.1:8080:3000`，并内置 `cloudflare`（Cloudflare Tunnel）与 `tailscale`（Tailscale Funnel）两个可选 Compose Profile。完整的 Linux 环境配置、隧道接入、版本升级、密码重置与防休眠设置请参阅 **[《部署指南》(docs/deployment.md)](./docs/deployment.md)**。
+```bash
+mkdir -p data && sudo chown 1000:1000 data
+docker compose up -d --build
+docker compose logs zhenji | grep "First-run setup code"    # 首次启动的一次性设置码
+```
+
+**Podman（Rootless）**
+
+```bash
+podman build -t zhenji .
+mkdir -p data
+podman run -d --name zhenji --userns=keep-id:uid=1000,gid=1000 --env-file .env \
+  -p 127.0.0.1:8080:3000 -v ./data:/data:Z localhost/zhenji
+```
+
+**直接运行（Node.js 24）**
+
+```bash
+npm ci && npm run build
+npm run setup:ytdlp           # 可选：链接导入所需的 yt-dlp
+npm start                     # http://localhost:3000，数据写入 ./data
+```
+
+容器内以非 root 用户（uid 1000）运行，上面的 `chown` 与 `--userns=keep-id` 就是为了让它能写入 `./data`；镜像名均为完整名称，Podman 无需配置默认仓库。容器方式默认把服务绑定在宿主机的 `127.0.0.1:8080`。
+
+> **对外访问请使用 HTTPS。** 生产模式的会话 Cookie 带 `Secure` 属性，浏览器只在 HTTPS 或本机（`localhost` / `127.0.0.1`）下保存它。用 `http://局域网IP:端口` 打开时，密码正确也无法登录，登录页会给出相应提示。
+
+compose 文件内置 `cloudflare`（Cloudflare Tunnel）与 `tailscale`（Tailscale Serve / Funnel）两个可选 Profile。Quadlet 开机自启、`podman compose`、systemd 服务、反向代理要求、升级、密码重置与排错，请参阅 **[《部署指南》(docs/deployment.md)](./docs/deployment.md)**。
 
 ## 数据与备份
 
@@ -230,8 +268,8 @@ data/
   exports/zhenji-YYYY-MM-DD.json                # 每日原子写入的 JSON 全量导出（保留最新 14 份）
 ```
 
-- **迁移到新机器**：只需停止容器，将 `./data` 文件夹与 `.env` 复制到新机器，启动同一个 Docker 镜像即可无缝衔接。
-- **恢复备份**：既可以在停止容器后用 `backups/*.db` 替换 `tracker.db`，也可以在应用「设置 → 导入数据 (JSON)」中直接上传 `exports/*.json` 恢复。
+- **迁移到新机器**：停止服务，将 `./data` 文件夹与 `.env` 复制到新机器后启动即可；也可以借此在 Docker、Podman 与直接运行之间切换。
+- **恢复备份**：既可以在停止服务后用 `backups/*.db` 替换 `tracker.db`，也可以在应用「设置 → 数据备份与迁移 → 导入数据 (JSON)」中直接上传 `exports/*.json` 恢复（导入会替换全部数据）。
 - **导出文件格式**：完整的 JSON 导出结构与跨版本兼容规范请参阅 **[《数据导出格式说明》(docs/data-format.md)](./docs/data-format.md)**。
 
 ## 开发与测试
@@ -286,7 +324,9 @@ npm run qa
 
 片库索引不传输单集名称、简介和剧照；进入详情页后按需加载并缓存。导出始终读取服务端完整资料，保持 v2 备份格式。
 
-界面验收脚本生成 320、390、1280px 下的中英文电影页、上游变更页、预览弹窗和集数范围选择截图，同时检查双设备同步、详情缓存和备份替换。`QA_OUTPUT_DIR` 指定容器内的截图与报告目录；未指定时创建独立临时目录。截图和运行数据不提交到仓库。
+批量管理也在同一份 300 部作品的片库上计量：进入选择模式、点选、全选、对 48 部和对全部作品提交批量操作的最长任务，以及一次批量操作恰好产生一个请求且不重新拉取状态。
+
+界面验收脚本在手机（320、390px）、平板（768、820px）与电脑（1280、1440px）六种视口下，以中英文和深浅色主题运行：检查每种布局显示的导航是否正确、平板导轨能否到达置顶列表、电影页、上游变更页、预览弹窗和集数范围选择，并在两台设备间验证片库多选批量管理（一次请求、一次同步事件）、勾选同步、详情缓存和备份替换；浏览器控制台出现任何错误都会失败。`QA_OUTPUT_DIR` 指定容器内的截图与报告目录；未指定时创建独立临时目录。截图和运行数据不提交到仓库。
 
 ## 致谢与数据来源
 
