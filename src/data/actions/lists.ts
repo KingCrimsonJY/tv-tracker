@@ -1,5 +1,5 @@
 import { createRandomId } from '../../domain/id.ts';
-import { computeMovedRank, getNextRank, sortListEntries } from '../../domain/ordering.ts';
+import { compareRank, computeMovedRank, getNextRank, sortListEntries } from '../../domain/ordering.ts';
 import type { CollectionSort, ListEntryDoc, ListKind, TitleDoc, WatchListDoc } from '../../domain/types.ts';
 import { resolveActiveLocale } from '../../i18n/index.ts';
 import {
@@ -10,7 +10,7 @@ import {
   putListApi,
   putListEntryApi,
 } from '../api.ts';
-import { compareEntryRank, patchList, updateEntries } from '../overlays.ts';
+import { patchList, updateEntries } from '../overlays.ts';
 import type { Commit } from './commit.ts';
 import type { TrackerActionDeps } from './types.ts';
 
@@ -118,7 +118,7 @@ export function createListActions({ getState }: TrackerActionDeps, { commit, com
     if (!rank) return;
     await commit(
       updateEntries(listId, (entries) =>
-        entries.map((entry) => (entry.id === activeEntryId ? { ...entry, rank } : entry)).sort(compareEntryRank),
+        entries.map((entry) => (entry.id === activeEntryId ? { ...entry, rank } : entry)).sort(compareRank),
       ),
       () => patchListEntryApi(listId, activeEntryId, { rank }),
     );

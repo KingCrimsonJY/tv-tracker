@@ -1,3 +1,4 @@
+import { createBatchActions } from './actions/batch.ts';
 import { createCommit } from './actions/commit.ts';
 import { createImportExportActions } from './actions/importExport.ts';
 import { createListActions } from './actions/lists.ts';
@@ -28,6 +29,7 @@ export function createTrackerActions(deps: TrackerActionDeps) {
     ...createTitleActions(deps, commit, listActions.addTitleToList),
     ...createTitleSyncActions(deps, commit),
     ...createProgressActions(deps, commit),
+    ...createBatchActions(deps, commit),
     ...listActions,
     ...createSettingsActions(commit),
     ...createImportExportActions(deps),

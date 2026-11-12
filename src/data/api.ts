@@ -1,3 +1,4 @@
+import type { BatchAction } from '../domain/batch.ts';
 import type {
   AppSettingsDoc,
   AppStateSnapshot,
@@ -225,6 +226,14 @@ export async function postTitleActionApi(id: string, payload: TitleAtomicActionI
 export async function deleteTitleApi(id: string): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+  });
+}
+
+/** One atomic write for many titles; see `applyTitleBatch` on the server. */
+export async function batchTitlesApi(titleIds: readonly string[], action: BatchAction): Promise<StateMutationResult> {
+  return apiJson<StateMutationResult>('/api/titles/batch', {
+    method: 'POST',
+    body: JSON.stringify({ titleIds, action }),
   });
 }
 

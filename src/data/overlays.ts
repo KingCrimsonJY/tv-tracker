@@ -3,9 +3,6 @@ import type { Overlay } from './syncEngine.ts';
 
 /** Building blocks for optimistic edits. Each returns the same state object when there is nothing to change. */
 
-export const compareEntryRank = (a: { rank: string }, b: { rank: string }) =>
-  a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0;
-
 export function patchTitles(patches: Record<string, Partial<Omit<TitleDoc, 'id'>>>): Overlay {
   return (state) => {
     let titles: Record<string, TitleDoc> | undefined;
