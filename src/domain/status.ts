@@ -133,6 +133,15 @@ export function countCompletedPlaythroughs(playthroughs: TitleDoc['playthroughs'
   return playthroughs.filter((p) => p.completedAt != null).length;
 }
 
+/** A film with a release date in the future. There is nothing to watch yet, whatever its manual state. */
+export function isUnreleasedMovie(
+  title: Pick<TitleDoc, 'mediaType'> & { releaseDate?: string | null },
+  todayStr: string,
+): boolean {
+  const releaseDate = title.releaseDate?.trim() ?? '';
+  return title.mediaType === 'movie' && releaseDate !== '' && releaseDate > todayStr;
+}
+
 function computeTitleStateUncached(
   title: Pick<
     TitleDoc,
@@ -161,9 +170,7 @@ function computeTitleStateUncached(
       progress?.movieWatchedAt || (progress?.watched && Object.keys(progress.watched).length > 0),
     );
     const hasResume = Boolean(title.resume && title.resume.seconds > 0);
-    const isUnreleasedMovie =
-      title.mediaType === 'movie' &&
-      Boolean(title.releaseDate && title.releaseDate.trim() !== '' && title.releaseDate.trim() > todayStr);
+    const unreleased = isUnreleasedMovie(title, todayStr);
 
     let status: TitleStatusCode;
     if (title.manualState === 'dropped') {
@@ -174,7 +181,7 @@ function computeTitleStateUncached(
       status = 'completed';
     } else if (hasResume) {
       status = 'watching';
-    } else if (isUnreleasedMovie) {
+    } else if (unreleased) {
       status = 'unreleased';
     } else {
       status = 'unwatched';
