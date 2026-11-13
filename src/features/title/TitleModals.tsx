@@ -166,7 +166,11 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         onSave={onUpdateTitle}
       />
 
-      <AlertDialog.Backdrop isOpen={deleteConfirmOpen} onOpenChange={onDeleteConfirmOpenChange}>
+      <AlertDialog.Backdrop
+        isKeyboardDismissDisabled={false}
+        isOpen={deleteConfirmOpen}
+        onOpenChange={onDeleteConfirmOpenChange}
+      >
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -187,7 +191,11 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
 
-      <AlertDialog.Backdrop isOpen={undoPlaythroughOpen} onOpenChange={onUndoPlaythroughOpenChange}>
+      <AlertDialog.Backdrop
+        isKeyboardDismissDisabled={false}
+        isOpen={undoPlaythroughOpen}
+        onOpenChange={onUndoPlaythroughOpenChange}
+      >
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -221,6 +229,7 @@ export const TitleModals: React.FC<TitleModalsProps> = ({
       </AlertDialog.Backdrop>
 
       <AlertDialog.Backdrop
+        isKeyboardDismissDisabled={false}
         isOpen={Boolean(deletePlaythroughId)}
         onOpenChange={(open) => !open && onDeletePlaythroughIdChange(null)}
       >

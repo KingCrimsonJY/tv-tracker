@@ -108,15 +108,16 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
                 onSelectionChange={(k) => k && setSelectedEpKey(String(k))}
               >
                 <Label>{t.detail.resumeModal.episodeLabel}</Label>
-                <Select.Trigger>
-                  <Select.Value className="whitespace-nowrap" />
+                <Select.Trigger className="min-w-0">
+                  <Select.Value className="min-w-0 truncate" />
                   <Select.Indicator />
                 </Select.Trigger>
-                <Select.Popover>
+                {/* The list is as wide as the field and long names wrap, so nothing can widen the page. */}
+                <Select.Popover className="w-(--trigger-width) max-w-[calc(100vw-2rem)]">
                   <ListBox className="max-h-60 overflow-y-auto">
                     {allEpisodes.map((ep) => (
                       <ListBox.Item key={ep.key} id={ep.key} textValue={ep.label}>
-                        {ep.label}
+                        <Label className="min-w-0 whitespace-normal wrap-anywhere">{ep.label}</Label>
                       </ListBox.Item>
                     ))}
                   </ListBox>

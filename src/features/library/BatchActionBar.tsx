@@ -125,7 +125,7 @@ export const BatchActionBar: React.FC<BatchActionBarProps> = ({ selectedIds, onF
         </Modal.Container>
       </Modal.Backdrop>
 
-      <AlertDialog.Backdrop isOpen={deleteOpen} onOpenChange={setDeleteOpen}>
+      <AlertDialog.Backdrop isKeyboardDismissDisabled={false} isOpen={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>

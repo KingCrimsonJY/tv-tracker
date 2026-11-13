@@ -13,6 +13,7 @@ import { LibraryFilters, type SortMode, type StatusFilter, type TypeFilter } fro
 import { LibraryCard } from '../features/library/LibraryCard';
 import { useLibrarySelection } from '../features/library/useLibrarySelection';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const STATUS_GROUPS: Record<Exclude<StatusFilter, 'all'>, readonly TitleStatusCode[]> = {
   watching: ['watching', 'caught_up'],
@@ -30,6 +31,7 @@ export const LibraryPage: React.FC = () => {
   const progressByTitle = useDeferredValue(useTrackerState(selectProgressByTitle));
   const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
+  usePageTitle(t.library.title);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');

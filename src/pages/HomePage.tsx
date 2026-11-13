@@ -29,6 +29,7 @@ import {
 } from '../domain/progress';
 import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export const HomePage: React.FC = () => {
   const { loadingData, markEpisodeWatched, markWholeTitle } = useTracker();
@@ -39,6 +40,7 @@ export const HomePage: React.FC = () => {
   const entriesByList = useTrackerState(selectEntriesByList);
   const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
+  usePageTitle();
 
   const allTitles = Object.values(titles);
   const defaultLang = settings.defaultTitleLang;

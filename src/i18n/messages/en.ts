@@ -1,5 +1,7 @@
 import type { MessageCatalog } from './zh-CN.ts';
 
+const plural = (count: number | string, one: string, many: string) => `${count} ${Number(count) === 1 ? one : many}`;
+
 function ordinal(n: number): string {
   const mod100 = n % 100;
   if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
@@ -20,7 +22,8 @@ export const en: MessageCatalog = {
     unlock: 'Unlock season structure',
     search: 'Search TMDB',
     noResults: 'No matching titles',
-    skippedEntries: (count: number) => 'Skipped ' + count + ' live or upcoming entries.',
+    skippedEntries: (count: number) =>
+      `Skipped ${plural(count, 'live or upcoming entry', 'live or upcoming entries')}.`,
     seasonSummary: (before: number, after: number) =>
       before === 1 && after > 1
         ? '1 season split into ' + after
@@ -44,14 +47,15 @@ export const en: MessageCatalog = {
     previewTitle: 'Review season changes',
     archived: 'Retained in history',
     added: 'New episode',
-    counts: (kept: number, archived: number) => `${kept} watched marks mapped · ${archived} retained in the archive`,
+    counts: (kept: number, archived: number) =>
+      `${plural(kept, 'watched mark', 'watched marks')} mapped · ${archived} retained in the archive`,
     previewHint:
       'Matching uses episode IDs first, then air date and episode order. Unmatched marks are retained and restored when the episode returns.',
     lockedHint: 'Unlock the season structure before adopting changes.',
     manual: 'Maintain manually',
     relink: 'Re-link to TMDB',
     sourceHint: 'Re-linking updates metadata; structural changes still require your review.',
-    archivedCount: (count: number) => `${count} watched marks retained for missing episodes`,
+    archivedCount: (count: number) => `${plural(count, 'watched mark', 'watched marks')} retained for missing episodes`,
   },
   app: {
     name: 'Zhenji',
@@ -95,6 +99,7 @@ export const en: MessageCatalog = {
     installIosGuideBody:
       'Tap the Share button in your browser toolbar, then choose "Add to Home Screen" for a full-screen app experience.',
     writeRollbackToast: 'Save failed. Changes have been reverted.',
+    invalidImageUrl: 'Enter an image address that starts with http:// or https://',
     syncConnected: 'Live sync connected',
     desktopNavAria: 'Desktop primary navigation',
     tabletNavAria: 'Tablet navigation rail',
@@ -267,7 +272,7 @@ export const en: MessageCatalog = {
   },
   library: {
     title: 'Library',
-    countLabel: (count: number | string) => `${count} titles`,
+    countLabel: (count: number | string) => plural(count, 'title', 'titles'),
     addMediaButton: 'Add Title',
     statusFilterAria: 'Filter by watch status',
     typeFilterAria: 'Filter by media type',
@@ -316,7 +321,7 @@ export const en: MessageCatalog = {
   },
   lists: {
     title: 'Lists',
-    countLabel: (count: number | string) => `${count} lists`,
+    countLabel: (count: number | string) => plural(count, 'list', 'lists'),
     loadingAria: 'Loading lists',
     createList: 'New List',
     orderedType: 'Ordered Watchlist',
@@ -328,7 +333,7 @@ export const en: MessageCatalog = {
     pinAction: 'Pin to Home and sidebar',
     unpinAction: 'Unpin list',
     progressLabel: (done: number | string, total: number | string) => `${done}/${total} watched`,
-    totalTitlesLabel: (total: number | string) => `${total} titles`,
+    totalTitlesLabel: (total: number | string) => plural(total, 'title', 'titles'),
     progressAria: (name: string) => `${name} progress`,
     nextToWatchBadge: 'Up Next',
     reorderToggle: 'Reorder',
@@ -343,7 +348,8 @@ export const en: MessageCatalog = {
     addTitlesToList: 'Add Titles to List',
     addTitlesButtonShort: 'Add Titles',
     searchLibraryPlaceholder: 'Filter titles in your library…',
-    allTitlesAdded: 'All matching library titles are already in this list',
+    noLibraryMatches: 'No titles in your library match this search',
+    libraryEmpty: 'Your library is empty. Add titles from Search first.',
     addActionShort: 'Add',
     notFound: 'List not found',
     backToLists: 'Back to Lists',
@@ -404,14 +410,10 @@ export const en: MessageCatalog = {
       tmdbSuggestionDescription: 'Match this work on TMDB to get complete metadata, seasons, episodes, and ratings.',
       searchTmdbButton: (title: string) => `Search "${title}" on TMDB`,
       addAsLinkAnywayButton: 'Import as Link Anyway',
-      playlistPreviewLabel: (count: number | string) => `${count} episodes`,
+      playlistPreviewLabel: (count: number | string) => plural(count, 'episode', 'episodes'),
       playlistMoreEpisodes: (remaining: number | string) => `…and ${remaining} more`,
     },
     manual: {
-      invalidYear: 'Enter a year from 1800 to 2200',
-      invalidRuntime: 'Enter a duration from 0 to 100000 minutes',
-      invalidCount: 'Enter a whole number from 0 to 2000',
-
       title: 'Add Custom Title',
       parsedPreviewTitle: 'Review & Save Imported Item',
       nameLabel: 'Title',
@@ -459,7 +461,8 @@ export const en: MessageCatalog = {
       editMetadata: 'Edit Title Info',
       refreshMetadata: 'Refresh Metadata from TMDB',
       refreshPlaylist: 'Refresh Playlist',
-      refreshPlaylistAddedToast: (count: number | string) => `Playlist refreshed (${count} new episodes)`,
+      refreshPlaylistAddedToast: (count: number | string) =>
+        `Playlist refreshed (${plural(count, 'new episode', 'new episodes')})`,
       refreshPlaylistNoNewToast: 'Playlist is already up to date',
       refreshPlaylistFailedToast: 'Failed to refresh playlist',
       deleteTitle: 'Delete from Library',
@@ -517,6 +520,7 @@ export const en: MessageCatalog = {
       title: 'Edit Title Info',
       zhNameLabel: 'Localized Title',
       originalNameLabel: 'Original Title',
+      originalNameRequired: 'A title needs an original name',
       posterPathLabel: 'Poster URL',
       overviewLabelZh: 'Overview (Chinese)',
       overviewLabelEn: 'Overview (English)',
@@ -527,6 +531,7 @@ export const en: MessageCatalog = {
       nthWatch: (n: number) => `${ordinal(n)} watch`,
       startedOn: (date: string) => `Started ${date}`,
       finishedOn: (date: string) => `Finished ${date}`,
+      watchedFromTo: (start: string, end: string) => `${start} – ${end}`,
       inProgress: 'In progress',
       moreAria: (n: number) => `More actions for ${ordinal(n)} watch`,
       cancelThisRewatch: 'Cancel this rewatch',

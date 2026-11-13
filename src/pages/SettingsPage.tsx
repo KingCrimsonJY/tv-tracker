@@ -37,6 +37,7 @@ import { sortableAccessibility } from '../components/sortableAccessibility';
 import { SortableSectionRow } from '../features/settings/SortableSectionRow';
 import { AboutSection } from '../features/settings/AboutSection';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { withPendingSpinner } from '../components/pendingContent';
 import { usePendingAction } from '../hooks/usePendingAction';
 
@@ -46,6 +47,7 @@ export const SettingsPage: React.FC = () => {
   const settings = useTrackerState(selectSettings);
   const titles = useTrackerState(selectTitles);
   const { t, translateError } = useI18n();
+  usePageTitle(t.settings.title);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImportJson, setPendingImportJson] = useState<unknown | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -345,7 +347,7 @@ export const SettingsPage: React.FC = () => {
 
       <AboutSection />
 
-      <AlertDialog.Backdrop isOpen={signOutAllOpen} onOpenChange={setSignOutAllOpen}>
+      <AlertDialog.Backdrop isKeyboardDismissDisabled={false} isOpen={signOutAllOpen} onOpenChange={setSignOutAllOpen}>
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -366,7 +368,11 @@ export const SettingsPage: React.FC = () => {
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
 
-      <AlertDialog.Backdrop isOpen={importDialogOpen} onOpenChange={setImportDialogOpen}>
+      <AlertDialog.Backdrop
+        isKeyboardDismissDisabled={false}
+        isOpen={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+      >
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>

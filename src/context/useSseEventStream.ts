@@ -83,7 +83,9 @@ export function useSseEventStream(params: {
         }
         if (!res.ok || !res.body) throw new Error(`SSE HTTP ${res.status}`);
 
-        clearOfflineCountdown();
+        // Response headers alone do not prove the stream works: a proxy can answer 200 and then deliver
+        // nothing. The server sends a checkpoint event immediately, so only received bytes (below) cancel
+        // the offline countdown; a silent stream runs into the watchdog and is reported as unreachable.
         resetWatchdog();
         if (connected || reconnectTrigger > 0) await refreshStateFromServer();
         connected = true;

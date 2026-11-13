@@ -12,6 +12,7 @@ import { resolveDisplayTitle, resolveOverviewText } from '../../domain/ordering'
 import { resolveTitleGenres } from '../../domain/genres';
 import { TitleMenu } from './TitleMenu';
 import { useI18n } from '../../i18n';
+import { usePageTitle } from '../../hooks/usePageTitle';
 
 export function useTitleDetail() {
   const params = useParams<{ id?: string; titleId?: string }>();
@@ -32,6 +33,9 @@ export function useTitleDetail() {
   const lists = useTrackerState(selectLists);
   const entriesByList = useTrackerState(selectEntriesByList);
   const { t, locale, translateError } = useI18n();
+  usePageTitle(
+    title ? resolveDisplayTitle(title.names, title.displayLang, settings.defaultTitleLang, locale).primary : null,
+  );
   const { refreshTitleMetadata, refreshLinkTitlePlaylist, fetchAndCacheTitleRatings } = tracker;
 
   const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -184,17 +188,9 @@ export function useTitleDetail() {
     },
     onRefreshPlaylist:
       title.source === 'url' && title.sourceId
-        ? async () => {
-            try {
-              const count = await refreshLinkTitlePlaylist(title.id);
-              if (count > 0) {
-                toast.success(t.detail.menu.refreshPlaylistAddedToast(count));
-              } else {
-                toast.success(t.detail.menu.refreshPlaylistNoNewToast);
-              }
-            } catch (err) {
-              toast.danger(translateError(err));
-            }
+        ? () => {
+            // The action reports the outcome itself, success or failure.
+            void refreshLinkTitlePlaylist(title.id).catch(() => {});
           }
         : undefined,
     onDelete: () => setDeleteConfirmOpen(true),

@@ -526,4 +526,17 @@ describe('B10 i18n, bilingual metadata, server error codes & migration tests', (
       }
     }
   });
+
+  it('English counts use the singular for one', () => {
+    expect(en.library.countLabel(1)).toBe('1 title');
+    expect(en.library.countLabel(21)).toBe('21 titles');
+    expect(en.lists.countLabel(1)).toBe('1 list');
+    expect(en.lists.countLabel(0)).toBe('0 lists');
+    expect(en.lists.totalTitlesLabel('1')).toBe('1 title');
+    expect(en.upstream.counts(1, 0)).toBe('1 watched mark mapped · 0 retained in the archive');
+    expect(en.upstream.archivedCount(2)).toBe('2 watched marks retained for missing episodes');
+    expect(en.upstream.skippedEntries(1)).toBe('Skipped 1 live or upcoming entry.');
+    expect(en.detail.menu.refreshPlaylistAddedToast(1)).toBe('Playlist refreshed (1 new episode)');
+    expect(en.search.linkImport.playlistPreviewLabel(1)).toBe('1 episode');
+  });
 });

@@ -142,17 +142,26 @@ export function createTitleActions(
     if (!prevTitle) return;
     const now = Date.now();
 
-    const nextZh = input.name !== undefined ? input.name.trim() || prevTitle.names.zh : prevTitle.names.zh;
-    const nextOrig =
-      input.originalName !== undefined
-        ? input.originalName.trim() || nextZh || prevTitle.names.original
-        : prevTitle.names.original;
+    // The localized name is optional and can be cleared; the original name is required, so an empty one is
+    // ignored (the dialog does not let it through). A title created by hand starts with its English name
+    // mirroring the original; keep that mirror, or the edit would be invisible in the English interface.
+    const names = { ...prevTitle.names };
+    if (input.name !== undefined) {
+      const localized = input.name.trim();
+      if (localized) names.zh = localized;
+      else delete names.zh;
+    }
+    const original = input.originalName?.trim();
+    if (original) {
+      if (names.en === names.original) names.en = original;
+      names.original = original;
+    }
     const poster =
       input.posterPath !== undefined ? input.posterPath?.trim().slice(0, 500) || null : prevTitle.posterPath;
     const next: TitleDoc = {
       ...prevTitle,
       mediaType: input.mediaType ?? prevTitle.mediaType,
-      names: { ...prevTitle.names, original: nextOrig, zh: nextZh },
+      names,
       year: input.year !== undefined ? input.year : prevTitle.year,
       runtimeMin: input.runtimeMin !== undefined ? input.runtimeMin : prevTitle.runtimeMin,
       posterPath: poster,

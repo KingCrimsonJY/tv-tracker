@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Button, Input, Label, Modal, TextArea, TextField } from '@heroui/react';
+import { Button, FieldError, Input, Label, Modal, TextArea, TextField } from '@heroui/react';
+import { isImageReference } from '../../domain/images';
 import type { UpdateTitleDetailsInput } from '../../data/actions/types';
 import type { TitleDoc, UiLocale } from '../../domain/types';
 import { useI18n } from '../../i18n';
@@ -64,7 +65,13 @@ export const EditTitleDialog: React.FC<EditTitleDialogProps> = ({ title, isOpen,
   const update = (field: keyof Omit<TitleEditDraft, 'overviewLang'>) => (value: string) =>
     setDraft((current) => (current ? { ...current, [field]: value } : current));
 
+  // A title always has an original name; the localized one is optional and may be cleared.
+  const missingOriginal = draft !== null && draft.originalName.trim() === '';
+  const invalidPoster = draft !== null && !isImageReference(draft.posterPath);
+  const invalid = missingOriginal || invalidPoster;
+
   const save = () => {
+    if (invalid) return;
     if (openedWith && draft) {
       const patch = buildTitleEditPatch(openedWith, draft);
       if (Object.keys(patch).length > 0) onSave(patch);
@@ -86,13 +93,20 @@ export const EditTitleDialog: React.FC<EditTitleDialogProps> = ({ title, isOpen,
                 <Label>{t.detail.editModal.zhNameLabel}</Label>
                 <Input />
               </TextField>
-              <TextField value={draft.originalName} onChange={update('originalName')}>
+              <TextField
+                value={draft.originalName}
+                onChange={update('originalName')}
+                isRequired
+                isInvalid={missingOriginal}
+              >
                 <Label>{t.detail.editModal.originalNameLabel}</Label>
                 <Input />
+                <FieldError>{t.detail.editModal.originalNameRequired}</FieldError>
               </TextField>
-              <TextField value={draft.posterPath} onChange={update('posterPath')}>
+              <TextField value={draft.posterPath} onChange={update('posterPath')} isInvalid={invalidPoster}>
                 <Label>{t.detail.editModal.posterPathLabel}</Label>
                 <Input type="url" />
+                <FieldError>{t.app.invalidImageUrl}</FieldError>
               </TextField>
               <TextField value={draft.overview} onChange={update('overview')}>
                 <Label>
@@ -108,7 +122,7 @@ export const EditTitleDialog: React.FC<EditTitleDialogProps> = ({ title, isOpen,
             <Button variant="tertiary" onPress={() => onOpenChange(false)}>
               {t.app.cancel}
             </Button>
-            <Button variant="primary" onPress={save}>
+            <Button variant="primary" onPress={save} isDisabled={invalid}>
               {t.app.save}
             </Button>
           </Modal.Footer>

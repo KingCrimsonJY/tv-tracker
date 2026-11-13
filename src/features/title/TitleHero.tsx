@@ -1,5 +1,5 @@
 import { responsiveImage } from '../../domain/images';
-import React from 'react';
+import React, { useState } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { ArrowLeft } from 'lucide-react';
 import { MediaImage } from '../../components/MediaImage';
@@ -30,18 +30,21 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
   const { t, locale } = useI18n();
   const posterUrl = pickPoster(title, locale);
   const backdropUrl = pickBackdrop(title, locale);
+  // An address that cannot be loaded falls back to the gradient instead of a broken-image icon.
+  const [failedBackdrop, setFailedBackdrop] = useState<string | null>(null);
 
   return (
     <div className="relative w-full overflow-hidden">
       {/* Backdrop Image Layer with pixel-clamped height */}
       <div className="relative w-full h-[clamp(240px,42vh,440px)] bg-surface-secondary overflow-hidden">
-        {backdropUrl ? (
+        {backdropUrl && failedBackdrop !== backdropUrl ? (
           <img
             referrerPolicy="no-referrer"
             {...responsiveImage(backdropUrl, 'backdrop')}
             alt=""
             className="w-full h-full object-cover object-top"
             loading="eager"
+            onError={() => setFailedBackdrop(backdropUrl)}
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-surface-tertiary via-surface-secondary to-surface" />
@@ -114,11 +117,11 @@ export const TitleHero: React.FC<TitleHeroProps> = ({
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground leading-tight break-words">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground leading-tight wrap-anywhere">
               {displayTitle}
             </h1>
 
-            {showOriginalSub && <p className="text-xs sm:text-sm text-muted truncate">{title.names.original}</p>}
+            {showOriginalSub && <p className="text-xs sm:text-sm text-muted wrap-anywhere">{title.names.original}</p>}
 
             <p className="text-xs sm:text-sm text-muted">{metaParts.join(' · ')}</p>
           </div>

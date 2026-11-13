@@ -11,6 +11,7 @@ import { LinkImportDialog } from '../features/search/LinkImportDialog';
 import type { ManualSeed } from '../features/search/linkImportModel';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
 
 // Recent results survive opening a title and coming back, so Back shows the list without a refetch.
@@ -27,6 +28,7 @@ export const SearchPage: React.FC = () => {
   const titles = useTrackerState(selectTitles);
   const lists = useTrackerState(selectLists);
   const { t, locale, translateError } = useI18n();
+  usePageTitle(t.search.title);
 
   // Mirrored into ?q= so browser Back from a result returns to the same search.
   const [query, setQuery] = useSearchQueryParam('q');

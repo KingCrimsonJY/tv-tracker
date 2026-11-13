@@ -31,6 +31,7 @@ import { compareRank, computeListProgress, sortListEntries } from '../domain/ord
 import { pickPoster, resolveDisplayTitle } from '../domain/progress';
 import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { withPendingSpinner } from '../components/pendingContent';
 
 export const ListsPage: React.FC = () => {
@@ -42,6 +43,7 @@ export const ListsPage: React.FC = () => {
   const entriesByList = useTrackerState(selectEntriesByList);
   const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
+  usePageTitle(t.lists.title);
   const navigate = useNavigate();
 
   const [createOpen, setCreateOpen] = useState(false);
