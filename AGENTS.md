@@ -78,10 +78,19 @@ date. Never persist a derived status, never write a placeholder date, and never 
   playthrough it was computed from (`expectedActivePlaythroughId`). The server rejects a stale one, any
   structural change without it, a removal that does not delete the matching progress, and progress written
   to anything but the resulting active playthrough.
+- `PATCH /api/titles/:id` cannot change the playthroughs, the active playthrough or the source, and
+  `PUT /api/titles/:id` only creates: neither may become a way around the check above or replace a title that
+  already has progress.
+- A watched mark is written only for an episode the title has. A client working from an outdated structure
+  gets `STRUCTURE_CONFLICT` and reloads. Marks without an episode exist only in older data and backups, where
+  they are kept.
 - Starting a viewing completes the one it replaces. Playthroughs are never overwritten and progress is never
   orphaned. Unaired episodes cannot be marked; watched ones can always be unmarked.
 - Library batches go through `POST /api/titles/batch`: at most 1000 titles, all or nothing, titles deleted
-  elsewhere skipped. The client sends its local date so "aired" means the same on the server.
+  elsewhere skipped. The client sends its local date, which must be a real calendar day, so "aired" means
+  the same on the server.
+- Only TMDB titles have a release schedule. Episodes of link imports and hand-made titles are always
+  available: their dates say when something was published, not when it may be watched.
 
 ### Local data is the source of truth
 
@@ -134,6 +143,8 @@ Zhenji tracks works that can be finished, not feeds.
 - `server/db/migrations.ts` is the ordered list of schema and data changes. A shipped step is immutable and
   versions are contiguous; fix a mistake with a new step, and make data steps safe to repeat. A database
   newer than the code is refused, not modified. A safety backup is taken before migrating or importing.
+- Importing replaces the library, so the payload must be a backup: a v2 envelope, or a v1 object with
+  `titles`. Anything else, such as `{}`, is rejected.
 - The v2 export envelope is stable, and v1 and early v2 backups must keep importing
   (`docs/data-format.md`). Keep that document true when a stored field changes.
 
@@ -156,6 +167,8 @@ Zhenji tracks works that can be finished, not feeds.
   a HeroUI item (routed through `RouterProvider`). Not a button or a `div` that calls `navigate()`.
 - Every `Dropdown.Item` and `ListBox.Item` has a `textValue`. Async confirm buttons use `isPending` with
   `withPendingSpinner` and `usePendingAction`, which also ignores a second press. Numbers use `NumberField`.
+- HeroUI's `NumberField` clamps to its `minValue`/`maxValue`; do not add range checks it makes unreachable.
+  Confirmation dialogs (`AlertDialog`) allow Escape, which cancels.
 - A dialog captures its form state when it opens: a synced update must not reset what the user is typing,
   and saving an untouched form writes nothing.
 - Keep accessible names, keyboard operation and a visible focus indicator on everything interactive.
@@ -178,6 +191,9 @@ Zhenji tracks works that can be finished, not feeds.
   bars must clear the phone tab bar and the safe-area insets; nothing may overflow horizontally at 320 px.
 - Calm, Infuse-like: uncluttered, one accent color reserved for the primary action, posters first. A card
   shows a poster, a title and one line of status. Rare or advanced controls go into menus.
+- User text can be long and unbroken: headings and list items wrap anywhere, single-line fields truncate, and
+  an image that fails to load falls back to a placeholder, never a broken-image icon.
+- Each screen names the browser tab (`usePageTitle`).
 - New navigation starts at the top; Back restores the previous scroll position. A deep link selects its
   season once and does not override a later choice.
 

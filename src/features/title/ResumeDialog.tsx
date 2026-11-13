@@ -109,7 +109,12 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({
               >
                 <Label>{t.detail.resumeModal.episodeLabel}</Label>
                 <Select.Trigger className="min-w-0">
-                  <Select.Value className="min-w-0 truncate" />
+                  {/* Plain text in the field, so a long episode name is cut with an ellipsis instead of wrapping. */}
+                  <Select.Value className="min-w-0 truncate">
+                    {({ selectedText, isPlaceholder, defaultChildren }) =>
+                      isPlaceholder ? defaultChildren : selectedText
+                    }
+                  </Select.Value>
                   <Select.Indicator />
                 </Select.Trigger>
                 {/* The list is as wide as the field and long names wrap, so nothing can widen the page. */}

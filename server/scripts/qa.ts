@@ -1,5 +1,5 @@
 import express from 'express';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -52,7 +52,18 @@ for (const [id, pinned] of [
 repo.setStoredPasswordHash(hashPassword('qa-only-not-a-user-password'));
 const { token, tokenHash } = generateSessionToken();
 repo.createSession(tokenHash, Date.now(), Date.now() + SESSION_TTL_MS);
-const app = createApp({ repo, isProduction: true });
+// Link import is answered from the bundled yt-dlp fixture, so the run needs no network.
+const ytdlpFixture = JSON.stringify(
+  JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'fixtures/ytdlp-3b1b-youtube.json'), 'utf8')),
+);
+const app = createApp({
+  repo,
+  isProduction: true,
+  linkDeps: {
+    lookupFn: async () => [{ address: '93.184.216.34' }],
+    execFn: async (_file, args) => ({ stdout: args.includes('--version') ? '2026.01.01' : ytdlpFixture, stderr: '' }),
+  },
+});
 app.use('/perf-assets', express.static(path.resolve('public')));
 app.use(express.static(path.resolve('dist')));
 app.get('*', (_req, res) => res.sendFile(path.resolve('dist/index.html')));
@@ -268,9 +279,16 @@ async function verifyBatchManagement(viewport: Viewport, locale: Locale) {
   // Delete needs a confirmation and removes the titles everywhere.
   await select([3]);
   await action(text.delete).click();
-  const confirm = page.getByRole('alertdialog');
+  // Toasts are alertdialogs as well; pick the confirmation by its heading.
+  const confirm = page.getByRole('alertdialog').filter({ hasText: text.deleteTitle(1) });
   await confirm.getByText(text.deleteTitle(1), { exact: true }).waitFor();
   assert.notEqual(repo.getTitle(ids[3]), null, 'Nothing may be deleted before confirming');
+  // Escape cancels the confirmation and deletes nothing.
+  await page.keyboard.press('Escape');
+  await confirm.waitFor({ state: 'hidden' });
+  assert.notEqual(repo.getTitle(ids[3]), null, 'Escape must cancel the deletion');
+  await action(text.delete).click();
+  await confirm.waitFor();
   await confirm.getByRole('button', { name: text.delete, exact: true }).click();
   await toolbar.waitFor({ state: 'hidden' });
   assert.equal(repo.getTitle(ids[3]), null);
@@ -283,6 +301,186 @@ async function verifyBatchManagement(viewport: Viewport, locale: Locale) {
   for (const entry of repo.getState().entriesByList.qa_target ?? []) repo.deleteListEntry('qa_target', entry.id);
   repo.applyTitleBatch(ids.slice(0, 3), { type: 'status', status: 'active', todayStr: '2000-01-01', now: Date.now() });
   await Promise.all([page, other].map((p) => p.context().close()));
+}
+
+const LONG = 'W'.repeat(150);
+const BROKEN_IMAGE = '/qa-broken-image.jpg';
+
+/** A hand-made title built to stress layout: unbroken 150-character names and an image that cannot load. */
+function seedLongTitle() {
+  assert(title);
+  const day = (iso: string) => new Date(iso + 'T12:00:00').getTime();
+  repo.putTitle('qa_long', {
+    title: {
+      ...title,
+      id: 'qa_long',
+      source: 'custom',
+      sourceId: null,
+      names: { original: LONG, zh: LONG, en: LONG },
+      posterPath: baseUrl + BROKEN_IMAGE,
+      backdropPath: baseUrl + BROKEN_IMAGE,
+      upstreamChange: null,
+      playthroughs: [
+        { id: 'p1', number: 1, startedAt: day('2024-01-05'), completedAt: day('2024-02-10') },
+        { id: 'p2', number: 2, startedAt: day('2024-03-01') },
+      ],
+      activePlaythroughId: 'p2',
+    },
+    seasons: [
+      {
+        seasonNumber: 1,
+        name: null,
+        episodes: local[0].episodes.slice(0, 3).map((episode) => ({ ...episode, name: { zh: LONG, en: LONG } })),
+      },
+    ],
+    progress: { p2: { playthroughId: 'p2', watched: {} } },
+  });
+}
+
+/**
+ * Activate an entry of the open title menu. On phones it is a button in a drawer. Elsewhere it is a menu item
+ * in a popover over a scroll-locked page, where a pointer click makes Playwright scroll the page to "reach"
+ * it and the popover never settles, so the item is activated from the keyboard as a keyboard user would.
+ */
+async function chooseMenuEntry(page: Page, label: string) {
+  const item = page.getByRole('menuitem', { name: label, exact: true });
+  const button = page.getByRole('dialog').getByRole('button', { name: label, exact: true });
+  await item.or(button).first().waitFor();
+  if (await item.count()) await item.press('Enter');
+  else await button.click();
+}
+
+/** Open an entry of the title menu (a drawer on phones, a dropdown elsewhere) and return the dialog it opens. */
+async function openTitleMenuEntry(page: Page, locale: Locale, label: string, heading: string) {
+  await page
+    .getByRole('button', { name: messages(locale).detail.moreActionsAria, exact: true })
+    .filter({ visible: true })
+    .click();
+  await chooseMenuEntry(page, label);
+  // The phone drawer is a dialog too and is still closing; pick the one with the expected heading.
+  const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: heading, exact: true }) });
+  await dialog.waitFor();
+  return dialog;
+}
+
+/**
+ * Long unbroken text and a failing image must not break the title page or its dialogs, the tab is named
+ * after the screen, a finished viewing shows its date range, and the edit dialog refuses values it would
+ * otherwise have rewritten silently.
+ */
+async function verifyTitleRobustness(viewport: Viewport, locale: Locale) {
+  const t = messages(locale);
+  const page = await openPage(viewport);
+  // Answer the image with something that is not an image: the load fails without a network error.
+  await page.route('**' + BROKEN_IMAGE, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/jpeg', body: 'x' }),
+  );
+  await page.goto(baseUrl + '/title/qa_long');
+  await page.getByRole('heading', { level: 1, name: LONG }).waitFor();
+  await page.waitForTimeout(300);
+  assert.equal(await page.title(), LONG + ' · ' + t.app.name);
+  const broken = await page.evaluate(
+    () => [...document.images].filter((image) => image.complete && image.naturalWidth === 0).length,
+  );
+  assert.equal(broken, 0, 'A failed image is shown as a broken-image icon');
+  assert(
+    await page
+      .getByText(/\d.{0,2}\s–\s.*\d/)
+      .first()
+      .isVisible(),
+    'A finished viewing must show when it started and ended',
+  );
+  await capture(page, ['long-title', locale, viewport.width].join('-'));
+
+  const resume = await openTitleMenuEntry(page, locale, t.detail.menu.recordResumeTime, t.detail.resumeModal.title);
+  await resume.locator('button[aria-haspopup="listbox"]').click();
+  await page.getByRole('listbox').waitFor();
+  await capture(page, ['long-resume', locale, viewport.width].join('-'));
+  await page.keyboard.press('Escape');
+  await page.getByRole('listbox').waitFor({ state: 'hidden' });
+  await resume.getByRole('button', { name: t.app.close, exact: true }).click();
+  await resume.waitFor({ state: 'hidden' });
+
+  const edit = await openTitleMenuEntry(page, locale, t.detail.menu.editMetadata, t.detail.editModal.title);
+  const save = edit.getByRole('button', { name: t.app.save, exact: true });
+  const original = edit.getByRole('textbox', { name: t.detail.editModal.originalNameLabel });
+  await original.fill('');
+  await edit.getByText(t.detail.editModal.originalNameRequired, { exact: true }).waitFor();
+  assert(await save.isDisabled(), 'An empty original name must not be saved');
+  await original.fill(LONG);
+  const poster = edit.getByRole('textbox', { name: t.detail.editModal.posterPathLabel });
+  await poster.fill('not-a-valid-url');
+  await edit.getByText(t.app.invalidImageUrl, { exact: true }).waitFor();
+  assert(await save.isDisabled(), 'An invalid poster address must not be saved');
+  await capture(page, ['long-edit', locale, viewport.width].join('-'));
+  await page.keyboard.press('Escape');
+  assert.equal(repo.getTitle('qa_long')?.names.original, LONG);
+  await page.context().close();
+}
+
+/** Flows that need the server: a silent event stream, an honest empty state, and link import with refresh. */
+async function verifyRecoveryAndImport() {
+  const viewport = VIEWPORTS[1];
+  const page = await openPage(viewport);
+
+  // The event stream answers 200 and delivers nothing: the app must notice and say so, then recover.
+  await page.route('**/api/events', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }),
+  );
+  await page.goto(baseUrl + '/library');
+  await page.getByText(en.app.offlineTitle, { exact: true }).waitFor({ timeout: 20000 });
+  await page.unroute('**/api/events');
+  await page.getByRole('button', { name: en.app.offlineRetry, exact: true }).click();
+  await page.getByRole('heading', { level: 1, name: en.library.title }).waitFor();
+  assert.equal(await page.title(), en.library.title + ' · ' + en.app.name);
+
+  // Searching the library for something it does not contain is "no match", not "already in this list".
+  await page.goto(baseUrl + '/lists/qa_target');
+  await page.getByRole('button', { name: en.lists.addTitlesButtonShort, exact: true }).first().click();
+  await page.getByRole('dialog').getByRole('searchbox').fill('zzz-no-such-title');
+  await page.getByRole('dialog').getByText(en.lists.noLibraryMatches, { exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+
+  // Import a parsed playlist with fewer episodes than were parsed: the kept ones stay named and linked.
+  await page.goto(baseUrl + '/search');
+  await page.getByRole('button', { name: en.search.tabLinkImport, exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('textbox')
+    .fill('https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab');
+  await page.getByRole('button', { name: en.search.linkImport.parseButton, exact: true }).click();
+  const submit = page.getByRole('button', { name: en.search.manual.submitButton, exact: true });
+  await submit.waitFor();
+  const count = page.getByRole('dialog').getByRole('textbox', { name: en.search.manual.episodeCountLabel });
+  const parsed = Number(await count.inputValue());
+  assert(parsed > 5, 'The fixture playlist should have more than five entries');
+  await count.fill('5');
+  await count.blur();
+  await submit.click();
+  await page.waitForURL(/\/title\/url_/);
+  const id = new URL(page.url()).pathname.split('/').pop() ?? '';
+  const episodes = repo.getSeasons(id).flatMap((season) => season.episodes);
+  assert.equal(episodes.length, 5);
+  assert(
+    episodes.every((episode) => episode.name && episode.sourceVideoId),
+    'Parsed episode metadata was lost',
+  );
+
+  // Refreshing brings back the rest and reports it exactly once.
+  await page.locator('h1').filter({ hasNotText: en.search.title }).waitFor();
+  await openRefresh(page);
+  const added = en.detail.menu.refreshPlaylistAddedToast(String(parsed - 5));
+  await page.getByText(added, { exact: true }).first().waitFor();
+  await page.waitForTimeout(600);
+  assert.equal(await page.getByText(added, { exact: true }).count(), 1, 'The refresh result was announced twice');
+  assert.equal(repo.getSeasons(id).flatMap((season) => season.episodes).length, parsed);
+  repo.deleteTitle(id);
+  await page.context().close();
+}
+
+async function openRefresh(page: Page) {
+  await page.getByRole('button', { name: en.detail.moreActionsAria, exact: true }).filter({ visible: true }).click();
+  await chooseMenuEntry(page, en.detail.menu.refreshPlaylist);
 }
 
 try {
@@ -380,7 +578,21 @@ try {
     console.log('Verified batch management at ' + viewport.width + ' (' + locale + ')');
   }
 
+  seedLongTitle();
+  for (const [viewport, locale] of [
+    [VIEWPORTS[0], 'en'],
+    [VIEWPORTS[3], 'zh-CN'],
+    [VIEWPORTS[5], 'en'],
+  ] as const) {
+    repo.patchSettings({ uiLang: locale, theme: locale === 'en' ? 'dark' : 'light' });
+    await verifyTitleRobustness(viewport, locale);
+    console.log('Verified long names and failing images at ' + viewport.width + ' (' + locale + ')');
+  }
+  repo.deleteTitle('qa_long');
+
   repo.patchSettings({ uiLang: 'en', theme: 'dark' });
+  await verifyRecoveryAndImport();
+  console.log('Verified offline detection, empty states and link import');
   await verifyShortLandscapeRail();
   const contexts = await Promise.all(
     [0, 1].map(async () => {
@@ -458,6 +670,9 @@ try {
     longListName: 'passed',
     navigationShell: 'passed',
     batchManagement: 'passed',
+    titleRobustness: 'passed',
+    offlineDetection: 'passed',
+    linkImportPreview: 'passed',
     viewports: VIEWPORTS.map((viewport) => viewport.width),
   };
   writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
