@@ -2,7 +2,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { buildYtdlpArgs, resolveWithYtdlp, type YtdlpExecFn } from '../providers/ytdlp.ts';
-import { type EgressProxy, hasOperatorProxy, startEgressProxy } from './egressProxy.ts';
+import { type EgressProxy, egressProxyEnv, hasOperatorProxy, startEgressProxy } from './egressProxy.ts';
 import type { DnsLookupFn } from './ssrf.ts';
 
 const publicDns: DnsLookupFn = async (hostname) =>
@@ -135,10 +135,12 @@ describe('egress proxy for yt-dlp', () => {
 });
 
 describe('yt-dlp is always sent through the proxy', () => {
+  let env: NodeJS.ProcessEnv | undefined;
   const run = async (options: { egressProxyUrl?: string | null } = {}) => {
     let args: readonly string[] = [];
-    const execFn: YtdlpExecFn = async (_file, given) => {
+    const execFn: YtdlpExecFn = async (_file, given, execOptions) => {
       args = given;
+      env = execOptions.env;
       return { stdout: '', stderr: '' };
     };
     await resolveWithYtdlp('https://video.example/watch?v=1', { execFn, lookupFn: publicDns, ...options }).catch(
@@ -166,5 +168,27 @@ describe('yt-dlp is always sent through the proxy', () => {
 
     vi.stubEnv('HTTPS_PROXY', 'http://10.0.0.1:7890');
     expect(await run()).not.toContain('--proxy');
+    expect(env).toBeUndefined();
+  });
+
+  test('its environment cannot name hosts to reach without the proxy', async () => {
+    // Python's urllib, which yt-dlp uses without the `requests` package, connects directly to NO_PROXY hosts.
+    const cleaned = egressProxyEnv('http://127.0.0.1:4000', {
+      PATH: '/usr/bin',
+      NO_PROXY: '127.0.0.1,192.168.0.0/16',
+      no_proxy: '*',
+      All_Proxy: '',
+    });
+    expect(cleaned).toEqual({
+      PATH: '/usr/bin',
+      http_proxy: 'http://127.0.0.1:4000',
+      https_proxy: 'http://127.0.0.1:4000',
+    });
+
+    vi.stubEnv('NO_PROXY', '127.0.0.1');
+    vi.stubEnv('no_proxy', 'localhost');
+    await run({ egressProxyUrl: 'http://127.0.0.1:4000' });
+    expect(env).toMatchObject({ http_proxy: 'http://127.0.0.1:4000', https_proxy: 'http://127.0.0.1:4000' });
+    expect(Object.keys(env ?? {}).filter((name) => /^no_proxy$/i.test(name))).toEqual([]);
   });
 });

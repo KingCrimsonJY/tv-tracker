@@ -132,3 +132,33 @@ describe('a list owned by another uploader is never handed to yt-dlp', () => {
     expect(execFn).not.toHaveBeenCalled();
   });
 });
+
+describe('yt-dlp standing in for a rate-limited Bilibili API', () => {
+  // The API refuses every call (risk control), so the link goes to yt-dlp, which names the real owner.
+  const rateLimited: FetchFn = async () => Response.json({ code: -412, message: 'request was banned' });
+  const collection = (uploaderId: string | undefined) => ({
+    _type: 'playlist',
+    title: 'Q&A',
+    extractor_key: 'BilibiliCollectionList',
+    webpage_url: 'https://space.bilibili.com/946974/lists/2443008?type=season',
+    ...(uploaderId ? { uploader_id: uploaderId } : {}),
+    entries: [
+      { id: 'BV1xx411c7mD', title: 'One', url: 'https://www.bilibili.com/video/BV1xx411c7mD', ie_key: 'BiliBili' },
+    ],
+  });
+  const resolve = (mid: string, uploaderId: string | undefined) =>
+    resolveLinkMetadata(`https://space.bilibili.com/${mid}/lists/2443008?type=season`, {
+      lookupFn,
+      fetchFn: rateLimited,
+      execFn: async () => ({ stdout: JSON.stringify(collection(uploaderId)), stderr: '' }),
+    });
+
+  test('its list is imported when the owner it reports is the uploader in the link', async () => {
+    await expect(resolve('946974', '946974')).resolves.toMatchObject({ kind: 'playlist', title: 'Q&A' });
+  });
+
+  test('its list is refused when it belongs to someone else, or when it does not say whose it is', async () => {
+    await expect(resolve('88461692', '946974')).rejects.toMatchObject({ code: 'LINK_UNAVAILABLE' });
+    await expect(resolve('946974', undefined)).rejects.toMatchObject({ code: 'LINK_UNAVAILABLE' });
+  });
+});

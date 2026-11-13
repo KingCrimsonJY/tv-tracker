@@ -7,7 +7,7 @@ import { isGenericEpisodeLabel } from '../../src/domain/airing.ts';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
 import { LinkImportError } from './linkErrors.ts';
 import { isBangumiUrl } from './linkUrls.ts';
-import { sharedEgressProxyUrl } from '../security/egressProxy.ts';
+import { egressProxyEnv, sharedEgressProxyUrl } from '../security/egressProxy.ts';
 import { assertSafePublicUrl, type DnsLookupFn } from '../security/ssrf.ts';
 
 export const YTDLP_TIMEOUT_MS = 30_000;
@@ -38,7 +38,7 @@ export interface YtdlpExecResult {
 export type YtdlpExecFn = (
   file: string,
   args: readonly string[],
-  options: { timeout: number; maxBuffer: number },
+  options: { timeout: number; maxBuffer: number; env?: NodeJS.ProcessEnv },
 ) => Promise<YtdlpExecResult>;
 
 export const defaultYtdlpExec: YtdlpExecFn = (file, args, options) =>
@@ -49,6 +49,7 @@ export const defaultYtdlpExec: YtdlpExecFn = (file, args, options) =>
       {
         timeout: options.timeout,
         maxBuffer: options.maxBuffer,
+        ...(options.env ? { env: options.env } : {}),
         windowsHide: true,
         shell: false,
       },
@@ -99,6 +100,11 @@ export const ytdlpOutputSchema = z.object({
   thumbnail: z.string().nullable().optional(),
   thumbnails: z.array(ytdlpThumbnailSchema).nullable().optional(),
   uploader: z.string().nullable().optional(),
+  uploader_id: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v))
+    .nullable()
+    .optional(),
   webpage_url: z.string().nullable().optional(),
   duration: z.number().nullable().optional(),
   upload_date: z.string().nullable().optional(),
@@ -389,6 +395,7 @@ export async function resolveWithYtdlp(rawUrl: string, options: RunYtdlpOptions 
   const { stdout } = await execFn(binaryPath, buildYtdlpArgs(safeUrl.toString(), proxyUrl), {
     timeout,
     maxBuffer: YTDLP_MAX_BUFFER_BYTES,
+    ...(proxyUrl ? { env: egressProxyEnv(proxyUrl) } : {}),
   });
 
   const trimmed = stdout.trim();
@@ -405,6 +412,14 @@ export async function resolveWithYtdlp(rawUrl: string, options: RunYtdlpOptions 
   }
 
   const parsed = ytdlpOutputSchema.parse(parsedJson);
+  // Bilibili's list endpoints answer for whatever uploader the link names, and yt-dlp reads the same ones.
+  // Its list is accepted on the condition the native reader applies: the owner reported is the one in the link.
+  const listOwner = /^\/(\d+)\/(?:lists\/\d+|channel\/(?:collectiondetail|seriesdetail))\/?$/.exec(
+    safeUrl.pathname,
+  )?.[1];
+  if (safeUrl.hostname === 'space.bilibili.com' && listOwner && parsed.uploader_id !== listOwner) {
+    throw new LinkImportError('LINK_UNAVAILABLE', 'The playlist does not belong to this uploader.', { final: true });
+  }
   // Reject empty/oversized playlists before spending requests on optional enrichment.
   getPlaylistEntries(parsed);
   const result = mapParsedYtdlpResult(parsed, safeUrl.toString(), { forceImport: options.forceImport });

@@ -55,3 +55,20 @@ test.each([
 ])('keeps supported content URL %s', (url) => {
   expect(() => assertSupportedLinkType(url)).not.toThrow();
 });
+
+test('a short link that lands on a channel page is refused, not imported as a video', async () => {
+  const channel = 'https://www.youtube.com/@creator/videos';
+  const fetchFn = vi.fn(async (input: string) =>
+    input === channel
+      ? new Response('<html><head><meta property="og:title" content="Creator"></head></html>', {
+          headers: { 'content-type': 'text/html' },
+        })
+      : new Response(null, { status: 302, headers: { location: channel } }),
+  );
+  const execFn = vi.fn(async () => {
+    throw new Error('ERROR: Unsupported URL: https://short.example/abc');
+  });
+  await expect(resolveLinkMetadata('https://short.example/abc', { lookupFn, fetchFn, execFn })).rejects.toMatchObject({
+    code: 'LINK_FEED_UNSUPPORTED',
+  });
+});

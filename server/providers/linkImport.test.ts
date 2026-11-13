@@ -124,6 +124,7 @@ const FIXTURE_BILI_COLLECTION = {
   title: '合集·独立游戏深度评测',
   description: '历年最值得玩的独立游戏盘点',
   uploader: '游戏研究员',
+  uploader_id: '37754047',
   thumbnail: 'http://archive.biliimg.com/bfs/archive/719f0dbcf4c307c85a95b84a6b2aeebec9341081.jpg',
   webpage_url: 'https://space.bilibili.com/37754047/lists/1853488?type=season',
   _type: 'playlist',

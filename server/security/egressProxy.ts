@@ -129,6 +129,16 @@ export function hasOperatorProxy(env: NodeJS.ProcessEnv = process.env): boolean 
   );
 }
 
+/**
+ * The environment for a program sent through the proxy. Telling it the proxy is not enough: Python's urllib,
+ * which yt-dlp uses when the `requests` package is missing, connects directly to hosts named in `NO_PROXY`,
+ * and on macOS and Windows to the system's proxy exceptions unless a proxy is set in the environment.
+ */
+export function egressProxyEnv(proxyUrl: string, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const inherited = Object.entries(env).filter(([name]) => !/^(?:no|all|https?)_proxy$/i.test(name));
+  return { ...Object.fromEntries(inherited), http_proxy: proxyUrl, https_proxy: proxyUrl };
+}
+
 let shared: Promise<EgressProxy> | undefined;
 
 /** The address of the process-wide proxy, started on first use; null when the operator's own proxy is in force. */
