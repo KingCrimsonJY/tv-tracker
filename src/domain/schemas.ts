@@ -142,35 +142,46 @@ export const titleDocSchema: z.ZodType<TitleDoc> = z
     path: ['activePlaythroughId'],
   });
 
-export const patchTitleRequestSchema = z
+/** Title fields a client may change directly. */
+const titlePatchFields = {
+  structureLocked: z.boolean().optional(),
+  mediaType: mediaTypeSchema.optional(),
+  names: titleNamesSchema.optional(),
+  displayLang: displayLangSchema.optional(),
+  year: z.number().int().min(1800).max(2200).nullable().optional(),
+  releaseDate: z.string().nullable().optional(),
+  runtimeMin: z.number().min(0).max(100000).nullable().optional(),
+  genres: z.array(z.string()).optional(),
+  genreIds: z.array(z.number().int()).optional(),
+  uploader: z.string().nullable().optional(),
+  posterPath: z.string().nullable().optional(),
+  posters: localizedPostersSchema.optional(),
+  backdropPath: z.string().nullable().optional(),
+  overview: overviewSchema.optional(),
+  showStatus: showStatusSchema.optional(),
+  externalIds: externalIdsSchema.optional(),
+  ratings: ratingsBlockSchema.optional(),
+  manualState: manualStateSchema.optional(),
+  resume: resumePointSchema.nullable().optional(),
+  metaFetchedAt: z.number().nonnegative().optional(),
+  addedAt: z.number().nonnegative().optional(),
+  updatedAt: z.number().nonnegative().optional(),
+  lastActivityAt: z.number().nonnegative().optional(),
+};
+
+/**
+ * PATCH /api/titles/:id. It cannot change the playthroughs or the active one: that is only possible through
+ * POST /api/titles/:id/actions, which checks the write against the current active playthrough and keeps
+ * progress in step. The source changes only through POST /api/titles/:id/source.
+ */
+export const patchTitleRequestSchema = z.object(titlePatchFields).strict();
+
+/** The title part of POST /api/titles/:id/actions: everything PATCH allows, plus the playthrough structure. */
+const titleActionPatchSchema = z
   .object({
-    structureLocked: z.boolean().optional(),
-    source: titleSourceSchema.optional(),
-    sourceId: z.string().nullable().optional(),
-    mediaType: mediaTypeSchema.optional(),
-    names: titleNamesSchema.optional(),
-    displayLang: displayLangSchema.optional(),
-    year: z.number().int().min(1800).max(2200).nullable().optional(),
-    releaseDate: z.string().nullable().optional(),
-    runtimeMin: z.number().min(0).max(100000).nullable().optional(),
-    genres: z.array(z.string()).optional(),
-    genreIds: z.array(z.number().int()).optional(),
-    uploader: z.string().nullable().optional(),
-    posterPath: z.string().nullable().optional(),
-    posters: localizedPostersSchema.optional(),
-    backdropPath: z.string().nullable().optional(),
-    overview: overviewSchema.optional(),
-    showStatus: showStatusSchema.optional(),
-    externalIds: externalIdsSchema.optional(),
-    ratings: ratingsBlockSchema.optional(),
-    manualState: manualStateSchema.optional(),
+    ...titlePatchFields,
     playthroughs: z.array(playthroughSchema).min(1).optional(),
     activePlaythroughId: z.string().min(1).optional(),
-    resume: resumePointSchema.nullable().optional(),
-    metaFetchedAt: z.number().nonnegative().optional(),
-    addedAt: z.number().nonnegative().optional(),
-    updatedAt: z.number().nonnegative().optional(),
-    lastActivityAt: z.number().nonnegative().optional(),
   })
   .strict();
 
@@ -205,13 +216,17 @@ export const progressDocSchema: z.ZodType<ProgressDoc> = z.object({
   movieWatchedAt: z.number().nonnegative().optional(),
 });
 
+/** Episode keys are always `s<season>e<episode>`; anything else cannot name an episode. */
+const episodeKeySchema = z.string().regex(/^s\d+e\d+$/);
+const watchedWriteSchema = z.record(episodeKeySchema, z.number().nonnegative());
+
 export const titleAtomicProgressMutationSchema = z
   .object({
     playthroughId: z.string().min(1).optional(),
-    set: z.record(z.string(), z.number().nonnegative()).optional(),
-    unset: z.array(z.string()).optional(),
+    set: watchedWriteSchema.optional(),
+    unset: z.array(episodeKeySchema).optional(),
     movieWatchedAt: z.number().nonnegative().nullable().optional(),
-    replaceWatched: z.record(z.string(), z.number().nonnegative()).optional(),
+    replaceWatched: watchedWriteSchema.optional(),
     deletePlaythroughId: z.string().min(1).optional(),
   })
   .strict();
@@ -220,12 +235,21 @@ export const titleAtomicActionRequestSchema: z.ZodType<TitleAtomicActionInput> =
   .object({
     expectedActivePlaythroughId: z.string().min(1).optional(),
     progress: titleAtomicProgressMutationSchema.optional(),
-    title: patchTitleRequestSchema.optional(),
+    title: titleActionPatchSchema.optional(),
   })
   .strict()
   .refine((val) => val.progress !== undefined || val.title !== undefined, {
     message: 'At least one of progress or title must be provided',
   });
+
+/** A real calendar day, not just the right shape: `2026-99-99` would sort after every release date. */
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const parsed = new Date(value + 'T00:00:00Z');
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Not a calendar date');
 
 export const batchTitlesRequestSchema = z
   .object({
@@ -236,7 +260,7 @@ export const batchTitlesRequestSchema = z
           type: z.literal('status'),
           status: z.enum(BATCH_STATUSES),
           /** The sender's local calendar date: "aired" means the same on the server as on the device. */
-          todayStr: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          todayStr: calendarDateSchema,
           now: z.number().int().positive(),
         })
         .strict(),
@@ -394,7 +418,9 @@ export const exportV1Schema = z.object({
   version: z.literal(1).optional(),
   exportedAt: z.string().optional(),
   settings: appSettingsDocSchema.optional().default(DEFAULT_APP_SETTINGS),
-  titles: z.record(z.string(), titleDocSchema).default({}),
+  // Required: importing replaces the whole library, so a payload that is not a backup (for example `{}`)
+  // must be rejected rather than read as an empty one.
+  titles: z.record(z.string(), titleDocSchema),
   seasonsByTitle: z.record(z.string(), z.array(seasonDocSchema)).default({}),
   progressByTitle: z.record(z.string(), z.record(z.string(), progressDocSchema)).default({}),
   lists: z.record(z.string(), watchListDocSchema).default({}),

@@ -14,7 +14,7 @@ import {
   titleAtomicActionRequestSchema,
 } from '../src/domain/schemas.ts';
 import type { ProgressDoc, StateMutationResult } from '../src/domain/types.ts';
-import type { TrackerRepository } from './db/repository.ts';
+import { ConflictError, type TrackerRepository } from './db/repository.ts';
 import { route, sendApiError } from './http.ts';
 import { assertSupportedLinkType } from './providers/linkScope.ts';
 
@@ -57,6 +57,9 @@ export function registerEntityRoutes(
       const id = param(req, 'id');
       const parsed = putTitleRequestSchema.parse(req.body);
       const title = 'title' in parsed ? { ...parsed.title, id } : { ...parsed, id };
+      // PUT creates. Replacing an existing title would discard its progress and playthroughs, which a
+      // device that has not yet heard of the title could otherwise do by adding it again.
+      if (repo.getTitle(id)) throw new ConflictError(`Title already exists: ${id}`, 'CONFLICT_ERROR');
       if (title.source === 'url' && title.sourceId) assertSupportedLinkType(title.sourceId);
       // v1 clients sent one progress document; current clients send a map keyed by playthrough.
       const progress =

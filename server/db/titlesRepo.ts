@@ -99,11 +99,9 @@ export function patchTitle(ctx: DbContext, id: string, patch: Partial<Omit<Title
     }
 
     const existing = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
-    const merged: TitleDoc = {
-      ...existing,
-      ...patch,
-      id,
-    };
+    // The merged document must still be a valid title: a patch can never leave the active playthrough
+    // pointing at one that does not exist.
+    const merged: TitleDoc = titleDocSchema.parse({ ...existing, ...patch, id });
     const dataJson = serializeTitleData(merged);
 
     ctx.db
@@ -256,6 +254,15 @@ export function applyTitleAtomicAction(
 
       if (progInput.playthroughId) {
         const ptId = progInput.playthroughId;
+        // A mark can only be written for an episode this title has. A client working from an outdated
+        // structure gets a conflict and reloads, instead of leaving a mark that belongs to nothing.
+        const written = [...Object.keys(progInput.set ?? {}), ...Object.keys(progInput.replaceWatched ?? {})];
+        if (written.length > 0) {
+          const known = episodeKeys(ctx, titleId);
+          if (written.some((key) => !known.has(key))) {
+            throw new ConflictError('STRUCTURE_CONFLICT', 'STRUCTURE_CONFLICT');
+          }
+        }
         const row = ctx.db
           .prepare('SELECT data FROM progress WHERE title_id = ? AND playthrough_id = ?')
           .get(titleId, ptId) as { data: string } | undefined;
@@ -310,4 +317,9 @@ export function applyTitleAtomicAction(
       deletes,
     };
   });
+}
+
+function episodeKeys(ctx: DbContext, titleId: string): Set<string> {
+  const rows = ctx.db.prepare('SELECT data FROM seasons WHERE title_id = ?').all(titleId) as Array<{ data: string }>;
+  return new Set(rows.flatMap((row) => (JSON.parse(row.data) as SeasonDoc).episodes.map((episode) => episode.key)));
 }
