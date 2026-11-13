@@ -161,6 +161,7 @@ export const zhCN = {
     SOURCE_UNAVAILABLE: '来源已不可用，本地数据已保留。',
     REWATCH_CONFLICT: '另一台设备已更改当前观看轮次，已重新同步片库，请重试。',
     CONFLICT_ERROR: '数据冲突，请刷新后重试',
+    BACKUP_FAILED: '无法写入安全备份，本次操作未执行。请检查数据目录的剩余空间与权限。',
     VALIDATION_ERROR: '请求数据格式不正确',
     VALIDATION_FIELD: (field: string) => `字段格式不正确：${field}`,
     PAYLOAD_TOO_LARGE: '请求数据体积过大',

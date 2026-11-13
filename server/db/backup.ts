@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ZhenjiExportV2 } from '../../src/domain/types.ts';
-import type { DbContext } from './types.ts';
+import { SafetyBackupError, type DbContext } from './types.ts';
 
 export function todayDateStr(now = new Date()): string {
   return now.toISOString().slice(0, 10);
@@ -32,6 +32,10 @@ export function pruneMatchingFilesKeepingNewest(dirPath: string, pattern: RegExp
   }
 }
 
+/**
+ * Copy the database aside before an import or a migration replaces what is in it. Returns null only for an
+ * in-memory database; a copy that cannot be written throws, so the caller never goes on without one.
+ */
 export function createSafetyBackup(
   ctx: DbContext,
   kind: 'pre-migration' | 'pre-import',
@@ -39,7 +43,6 @@ export function createSafetyBackup(
 ): string | null {
   if (ctx.isMemory || !ctx.dataDir) return null;
   const backupsDir = path.join(ctx.dataDir, 'backups');
-  fs.mkdirSync(backupsDir, { recursive: true });
 
   const dateStr = todayDateStr(now);
   const timeStr = formatTimeHHmmss(now);
@@ -54,6 +57,7 @@ export function createSafetyBackup(
 
   const tempPath = path.join(backupsDir, `.${baseName}.tmp-${process.pid}-${Date.now()}`);
   try {
+    fs.mkdirSync(backupsDir, { recursive: true });
     if (fs.existsSync(tempPath)) {
       fs.unlinkSync(tempPath);
     }
@@ -71,7 +75,7 @@ export function createSafetyBackup(
         // ignore
       }
     }
-    return null;
+    throw new SafetyBackupError(kind, err);
   }
 }
 

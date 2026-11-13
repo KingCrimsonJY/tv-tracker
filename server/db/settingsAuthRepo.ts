@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { DEFAULT_APP_SETTINGS } from '../../src/domain/schemas.ts';
 import type { AppSettingsDoc, StateMutationResult } from '../../src/domain/types.ts';
 import { ConflictError, type DbContext, type StoredAuthData } from './types.ts';
@@ -63,6 +64,36 @@ export function setStoredPasswordHash(ctx: DbContext, passwordHash: string, now 
     }
     const data: StoredAuthData = { passwordHash, updatedAt: now };
     ctx.db.prepare("INSERT INTO settings (key, data) VALUES ('auth', ?)").run(JSON.stringify(data));
+  });
+}
+
+/**
+ * Sessions belong to the password they were opened under. Told which password hash is in force, this ends
+ * every session when it is not the one recorded last time, which is what a reset through
+ * `APP_PASSWORD_HASH` must do: whoever knew the old password, or holds a device signed in with it, is out.
+ * The first call on a database only records the password. Returns whether sessions were ended.
+ */
+export function endSessionsOfReplacedPassword(ctx: DbContext, passwordHash: string | null): boolean {
+  const fingerprint = passwordHash ? crypto.createHash('sha256').update(passwordHash).digest('hex') : null;
+  return ctx.runInTransaction(() => {
+    const row = ctx.db.prepare("SELECT data FROM settings WHERE key = 'sessionPassword'").get() as
+      { data: string } | undefined;
+    let recorded: string | null | undefined;
+    try {
+      recorded = row ? (JSON.parse(row.data) as { fingerprint: string | null }).fingerprint : undefined;
+    } catch {
+      recorded = undefined;
+    }
+    if (recorded === fingerprint) return false;
+    ctx.db
+      .prepare(
+        `INSERT INTO settings (key, data) VALUES ('sessionPassword', ?)
+         ON CONFLICT(key) DO UPDATE SET data = excluded.data`,
+      )
+      .run(JSON.stringify({ fingerprint }));
+    if (recorded === undefined) return false;
+    ctx.db.prepare('DELETE FROM sessions').run();
+    return true;
   });
 }
 

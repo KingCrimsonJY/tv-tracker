@@ -24,6 +24,7 @@ import {
   verifySetupCode,
 } from './auth.ts';
 import { ConflictError, NotFoundError, type TrackerRepository } from './db/repository.ts';
+import { SafetyBackupError } from './db/types.ts';
 import { registerEntityRoutes } from './entityRoutes.ts';
 import { sendApiError } from './http.ts';
 import { registerProviderRoutes } from './providerRoutes.ts';
@@ -144,6 +145,10 @@ export function createApp(options: CreateAppOptions): Express {
     return repo.getStoredPasswordHash();
   }
 
+  if (repo.endSessionsOfReplacedPassword(getActivePasswordHash())) {
+    console.log('[Auth] The password changed since the last start; every device has been signed out.');
+  }
+
   const configuredSetupCode = (setupCode !== undefined ? setupCode : process.env.SETUP_CODE || '')
     .trim()
     .replace(/^['"]|['"]$/g, '')
@@ -203,6 +208,7 @@ export function createApp(options: CreateAppOptions): Express {
       }
       rateLimiter.clear(clientIp);
       repo.setStoredPasswordHash(hashPassword(password), now);
+      repo.endSessionsOfReplacedPassword(getActivePasswordHash());
       const { token, tokenHash } = generateSessionToken();
       repo.createSession(tokenHash, now, now + SESSION_TTL_MS);
       setSessionCookie(res, token, isProduction);
@@ -370,6 +376,10 @@ export function createApp(options: CreateAppOptions): Express {
     }
     if (err instanceof ConflictError) {
       sendApiError(res, 409, err.code);
+      return;
+    }
+    if (err instanceof SafetyBackupError) {
+      sendApiError(res, 500, err.code);
       return;
     }
     // Request-body failures (malformed JSON, bad or truncated gzip, unsupported charset) are client errors.

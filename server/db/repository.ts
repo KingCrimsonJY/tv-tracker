@@ -34,6 +34,7 @@ import {
   deleteSession,
   getSettings,
   getStoredPasswordHash,
+  endSessionsOfReplacedPassword,
   patchSettings,
   setStoredPasswordHash,
   verifyAndTouchSession,
@@ -138,7 +139,15 @@ export class TrackerRepository {
     const pending = MIGRATIONS.filter((m) => m.version > currentVersion && m.version <= target);
     if (pending.length === 0) return;
 
-    if (currentVersion > 0) this.createSafetyBackup('pre-migration');
+    if (currentVersion > 0) {
+      try {
+        this.createSafetyBackup('pre-migration');
+      } catch (err) {
+        // Without the copy there is no way back from a migration, so the database is left as it is.
+        this.db.close();
+        throw err;
+      }
+    }
 
     for (const migration of pending) {
       this.runInTransaction(() => {
@@ -350,5 +359,9 @@ export class TrackerRepository {
 
   public deleteAllSessions(): void {
     deleteAllSessions(this.ctx);
+  }
+
+  public endSessionsOfReplacedPassword(passwordHash: string | null): boolean {
+    return endSessionsOfReplacedPassword(this.ctx, passwordHash);
   }
 }
