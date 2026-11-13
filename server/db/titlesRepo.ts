@@ -207,6 +207,9 @@ function assertPlaythroughWriteIsCurrent(current: Omit<TitleDoc, 'id'>, input: T
   // The only playthrough a request may add is the one it starts. Any other is one this client still lists
   // after another device deleted it; accepting the list would bring it back without its progress.
   if (addedIds.some((id) => id !== nextActiveId)) throw conflict();
+  // Starting a viewing removes none. A request that adds one while removing another was built from a list
+  // that is no longer current: undoing a rewatch back to a viewing another device has deleted.
+  if (addedIds.length > 0 && (removedIds.length > 0 || deletedId !== undefined)) throw conflict();
   if (deletedId !== undefined && (nextIds.has(deletedId) || deletedId === nextActiveId)) throw conflict();
   const writtenId = input.progress?.playthroughId;
   if (writtenId !== undefined && writtenId !== nextActiveId) throw conflict();

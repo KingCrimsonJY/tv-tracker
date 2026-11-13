@@ -59,3 +59,41 @@ test('clearing the only viewing also forgets the marks kept for episodes the sou
     repo.close();
   }
 });
+
+test('undoing a rewatch cannot fall back to a viewing another device has deleted', () => {
+  const repo = new TrackerRepository({ dbPath: ':memory:' });
+  try {
+    const title = { ...makeBaseTvTitle(), playthroughs, activePlaythroughId: 'p3' };
+    repo.putTitle(title.id, {
+      title,
+      seasons: makeSampleSeasons(),
+      progress: Object.fromEntries(playthroughs.map((p) => [p.id, { playthroughId: p.id, watched: { s1e1: 1 } }])),
+    });
+    // Device A deletes p2.
+    repo.applyTitleAtomicAction(title.id, {
+      expectedActivePlaythroughId: 'p3',
+      title: { playthroughs: playthroughs.filter((p) => p.id !== 'p2') },
+      progress: { deletePlaythroughId: 'p2' },
+    });
+    const before = repo.getState();
+    // Device B, still seeing [p1, p2, p3], undoes the rewatch p3: p2 would become active again, empty.
+    expect(() =>
+      repo.applyTitleAtomicAction(title.id, {
+        expectedActivePlaythroughId: 'p3',
+        title: { playthroughs: playthroughs.filter((p) => p.id !== 'p3'), activePlaythroughId: 'p2' },
+        progress: { deletePlaythroughId: 'p3' },
+      }),
+    ).toThrow('REWATCH_CONFLICT');
+    expect(repo.getState()).toEqual(before);
+
+    // The same undo from the current list still works.
+    repo.applyTitleAtomicAction(title.id, {
+      expectedActivePlaythroughId: 'p3',
+      title: { playthroughs: [playthroughs[0]], activePlaythroughId: 'p1' },
+      progress: { deletePlaythroughId: 'p3' },
+    });
+    expect(repo.getTitle(title.id)).toMatchObject({ activePlaythroughId: 'p1', playthroughs: [{ id: 'p1' }] });
+  } finally {
+    repo.close();
+  }
+});

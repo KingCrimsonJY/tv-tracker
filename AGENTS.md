@@ -83,8 +83,8 @@ computes again. Do not call `toLocalDateString()` in render or leave the day out
 - Every progress or playthrough write goes through `POST /api/titles/:id/actions` and names the active
   playthrough it was computed from (`expectedActivePlaythroughId`). The server rejects a stale one, any
   structural change without it, a removal that does not delete the matching progress, an added playthrough
-  other than the one made active (a list that still names a viewing deleted elsewhere), and progress written
-  to anything but the resulting active playthrough.
+  other than the one made active or added together with a removal (either way a list that still names a
+  viewing deleted elsewhere), and progress written to anything but the resulting active playthrough.
 - `PATCH /api/titles/:id` cannot change the playthroughs, the active playthrough or the source, and
   `PUT /api/titles/:id` only creates: neither may become a way around the check above or replace a title that
   already has progress.
@@ -136,7 +136,10 @@ Zhenji tracks works that can be finished, not feeds.
   uploader. A list is accepted only when the owner the API reports is the uploader in the link; otherwise the
   other kind is tried. The stored source is the canonical `…/lists/<id>?type=season|series`. A list that
   belongs to someone else is a final answer (`LinkImportError.final`) and is never handed to yt-dlp, which
-  reads the same endpoints.
+  reads the same endpoints. When the API itself fails and yt-dlp stands in, its list is held to the same
+  condition: the `uploader_id` it reports must be the uploader in the link.
+- The Open Graph fallback follows redirects, so the page it lands on is checked against the unsupported
+  kinds again before anything is read from it.
 - Bangumi links search TMDB and offer the matches; without a match, or when the user insists, the link itself
   is imported. Bilibili-only works stay importable.
 - YouTube playlists import at once; missing titles and durations are filled in the background with backoff
@@ -147,8 +150,9 @@ Zhenji tracks works that can be finished, not feeds.
 - Outbound requests for user-supplied links go through `server/security/ssrf.ts`: http(s) only, no
   credentials, every redirect hop re-validated, and the address checked again at connection time.
 - yt-dlp follows redirects and fetches further pages on its own, so it always runs behind the loopback proxy
-  in `server/security/egressProxy.ts`, which holds every connection it opens to the same rule. Only when the
-  operator sets `HTTP_PROXY`, `HTTPS_PROXY` or `ALL_PROXY` does yt-dlp use that proxy instead.
+  in `server/security/egressProxy.ts`, which holds every connection it opens to the same rule, and with an
+  environment that names no proxy exceptions (`egressProxyEnv`). Only when the operator sets `HTTP_PROXY`,
+  `HTTPS_PROXY` or `ALL_PROXY` does yt-dlp use that proxy instead.
 - Sessions belong to the password they were opened under: a start with a different password hash (a reset
   through `APP_PASSWORD_HASH`) ends all of them.
 - One password (scrypt, constant-time compare), a one-time setup code, hashed session tokens, `HttpOnly`

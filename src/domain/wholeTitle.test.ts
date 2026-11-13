@@ -68,6 +68,13 @@ describe('clearing a viewing', () => {
     expect(computeProgressDiff(before, after)).toEqual({ replaceWatched: {}, hasChanges: true });
   });
 
+  test('a batch clears a title whose only marks are archived ones', () => {
+    const onlyArchived: ProgressDoc = { ...before, watched: {} };
+    const change = planBatchStatus(makeBaseTvTitle(), makeSampleSeasons(), onlyArchived, 'unwatched', options);
+    expect(change?.progress).toEqual({ playthroughId: 'p1', watched: {} });
+    expect(planBatchStatus(makeBaseTvTitle(), makeSampleSeasons(), change?.progress, 'unwatched', options)).toBeNull();
+  });
+
   test('replacing the marks forgets archived ones; an ordinary tick keeps them', () => {
     expect(applyProgressMutation(before, 'p1', { replaceWatched: {} })).toEqual({ playthroughId: 'p1', watched: {} });
     expect(applyProgressMutation(before, 'p1', { set: { s1e2: 2 } }).archivedWatched).toEqual(before.archivedWatched);

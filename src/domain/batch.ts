@@ -47,6 +47,7 @@ export function planBatchStatus(
   const next = markWholeTitleWatched(title, seasons, current, status === 'watched', options);
   const progressChanged =
     next.progress.movieWatchedAt !== current.movieWatchedAt ||
+    (next.progress.archivedWatched?.length ?? 0) !== (current.archivedWatched?.length ?? 0) ||
     Object.keys(next.progress.watched).length !== Object.keys(current.watched).length ||
     Object.keys(next.progress.watched).some((key) => current.watched[key] === undefined);
   const titleChanged =
