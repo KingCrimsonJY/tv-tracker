@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readdirSync, copyFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, test } from 'vitest';
@@ -8,13 +8,8 @@ import { makeBaseTvTitle, makeSampleSeasons } from '../../src/domain/testFixture
 
 test('migration separates old proposals, normalizes artwork and preserves history and full backups', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'performance-migration-'));
-  const migrations = path.join(root, 'old');
-  mkdirSync(migrations);
-  const current = path.resolve(import.meta.dirname, 'migrations');
-  for (const name of readdirSync(current).filter((name) => Number(name.slice(0, 3)) <= 6))
-    copyFileSync(path.join(current, name), path.join(migrations, name));
   const dataDir = path.join(root, 'data');
-  const old = new TrackerRepository({ dataDir, migrationsDir: migrations });
+  const old = new TrackerRepository({ dataDir, migrateTo: 6 });
   old.close();
   const seasons = makeSampleSeasons();
   seasons[0].episodes[0].stillPath = 'https://image.tmdb.org/t/p/w300/still.jpg';

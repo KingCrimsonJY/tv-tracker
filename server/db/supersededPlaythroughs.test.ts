@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, test } from 'vitest';
@@ -9,13 +9,8 @@ import { TrackerRepository } from './repository';
 test('migration 010 finishes viewings that a later rewatch superseded', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'superseded-playthroughs-'));
   try {
-    const migrations = path.join(root, 'old');
-    mkdirSync(migrations);
-    const current = path.resolve(import.meta.dirname, 'migrations');
-    for (const name of readdirSync(current).filter((file) => Number(file.slice(0, 3)) <= 9))
-      copyFileSync(path.join(current, name), path.join(migrations, name));
     const dataDir = path.join(root, 'data');
-    new TrackerRepository({ dataDir, migrationsDir: migrations }).close();
+    new TrackerRepository({ dataDir, migrateTo: 9 }).close();
 
     // A caught-up returning series rewatched twice: the first viewing never got a completion time.
     const title = makeBaseTvTitle({

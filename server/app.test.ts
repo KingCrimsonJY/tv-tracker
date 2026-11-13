@@ -122,6 +122,57 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     expect(expiredRes.status).toBe(401);
   });
 
+  it('limits wrong setup codes like wrong passwords, so a short SETUP_CODE cannot be guessed', async () => {
+    const attempt = (setupCode: string) =>
+      fetch(`${baseUrl}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.9' },
+        body: JSON.stringify({ password: VALID_PASSWORD, setupCode }),
+      });
+    for (let i = 0; i < 5; i++) expect((await attempt('guess-' + i)).status).toBe(403);
+    const blocked = await attempt(TEST_SETUP_CODE);
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json()).toEqual({ code: 'TOO_MANY_ATTEMPTS' });
+    currentNow += 15 * 60 * 1000 + 1;
+    expect((await attempt(TEST_SETUP_CODE)).status).toBe(200);
+  });
+
+  it('refreshes the sliding session expiry at most once an hour and purges expired sessions daily', async () => {
+    const setup = await fetch(`${baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
+    });
+    const { token } = (await setup.json()) as { token: string };
+    const auth = { Authorization: `Bearer ${token}` };
+    const tokenHash = (await import('./auth.ts')).hashSessionToken(token);
+    const db = (repo as unknown as { db: import('node:sqlite').DatabaseSync }).db;
+    const session = () =>
+      db.prepare('SELECT last_seen_at, expires_at FROM sessions WHERE token_hash = ?').get(tokenHash) as
+        { last_seen_at: number; expires_at: number } | undefined;
+    const created = currentNow;
+
+    currentNow += 59 * 60 * 1000;
+    expect((await fetch(`${baseUrl}/api/state`, { headers: auth })).status).toBe(200);
+    expect(session()).toEqual({ last_seen_at: created, expires_at: created + SESSION_TTL_MS });
+
+    currentNow += 2 * 60 * 1000;
+    expect((await fetch(`${baseUrl}/api/state`, { headers: auth })).status).toBe(200);
+    expect(session()).toEqual({ last_seen_at: currentNow, expires_at: currentNow + SESSION_TTL_MS });
+
+    repo.runDailyMaintenance('2024-03-10', currentNow + SESSION_TTL_MS - 1);
+    expect(session()).toBeDefined();
+    repo.runDailyMaintenance('2024-03-10', currentNow + SESSION_TTL_MS);
+    expect(session()).toBeUndefined();
+  });
+
+  it('sends no referrer to poster hosts, forbids MIME sniffing and hides the framework', async () => {
+    const res = await fetch(`${baseUrl}/healthz`);
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-powered-by')).toBeNull();
+  });
+
   it('rate-limits failed logins after 5 attempts within 15 minutes per client IP', async () => {
     await fetch(`${baseUrl}/api/auth/setup`, {
       method: 'POST',
@@ -294,7 +345,16 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
           updatedAt: 1000,
           lastActivityAt: 1000,
         },
-        seasons: [],
+        seasons: [
+          {
+            seasonNumber: 1,
+            name: null,
+            episodes: [
+              { number: 1, key: 's1e1', name: null, airDate: '2022-02-18', runtime: 50, stillPath: null, overview: {} },
+              { number: 2, key: 's1e2', name: null, airDate: '2022-02-18', runtime: 50, stillPath: null, overview: {} },
+            ],
+          },
+        ],
         progress: { p1: { playthroughId: 'p1', watched: {} } },
       }),
     });
@@ -328,6 +388,121 @@ describe('Express API & Auth Routes (in-memory SQLite)', () => {
     expect(stateAfterFailed.version).toBe(2);
     expect(stateAfterFailed.progressByTitle['tmdb_tv_100'].p1.watched).toEqual({ s1e1: 5000 });
     expect(stateAfterFailed.titles['tmdb_tv_100'].activePlaythroughId).toBe('p1');
+  });
+
+  it('keeps every write path from breaking a title: playthroughs, unknown episodes, re-creation and non-backups', async () => {
+    const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: VALID_PASSWORD, setupCode: TEST_SETUP_CODE }),
+    });
+    const { token } = (await setupRes.json()) as { token: string };
+    const send = (method: string, path: string, body: unknown) =>
+      fetch(baseUrl + path, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const title = {
+      id: 'tmdb_tv_7',
+      source: 'tmdb',
+      sourceId: '7',
+      mediaType: 'tv',
+      names: { original: 'Show' },
+      displayLang: null,
+      year: 2022,
+      runtimeMin: 50,
+      genres: [],
+      posterPath: null,
+      backdropPath: null,
+      overview: {},
+      showStatus: 'Ended',
+      externalIds: {},
+      ratings: {},
+      manualState: null,
+      playthroughs: [{ id: 'p1', number: 1, startedAt: 1000 }],
+      activePlaythroughId: 'p1',
+      resume: null,
+      metaFetchedAt: 1000,
+      addedAt: 1000,
+      updatedAt: 1000,
+      lastActivityAt: 1000,
+    };
+    const seasons = [
+      {
+        seasonNumber: 1,
+        name: null,
+        episodes: [
+          { number: 1, key: 's1e1', name: null, airDate: '2022-01-01', runtime: 50, stillPath: null, overview: {} },
+        ],
+      },
+    ];
+    expect((await send('PUT', '/api/titles/tmdb_tv_7', { title, seasons })).status).toBe(200);
+    expect(
+      (await send('POST', '/api/titles/tmdb_tv_7/actions', { progress: { playthroughId: 'p1', set: { s1e1: 5 } } }))
+        .status,
+    ).toBe(200);
+    const before = JSON.stringify(repo.exportData('fixed'));
+
+    // Plain PATCH cannot touch the playthrough structure, with or without a matching playthrough list.
+    for (const patch of [
+      { activePlaythroughId: 'ghost' },
+      { activePlaythroughId: 'p2', playthroughs: [{ id: 'p2', number: 2, startedAt: 2000 }] },
+      { source: 'url', sourceId: 'https://live.bilibili.com/1' },
+    ]) {
+      const res = await send('PATCH', '/api/titles/tmdb_tv_7', patch);
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { code: string }).code).toBe('VALIDATION_ERROR');
+    }
+
+    // A mark needs an episode: malformed keys are invalid, well-formed keys this title lacks are a conflict.
+    const progress = (set: Record<string, number>) =>
+      send('POST', '/api/titles/tmdb_tv_7/actions', { progress: { playthroughId: 'p1', set } });
+    expect((await progress({ 'not-an-episode': 1 })).status).toBe(400);
+    const stale = await progress({ s1e1: 9, s999e999: 9 });
+    expect(stale.status).toBe(409);
+    expect(((await stale.json()) as { code: string }).code).toBe('STRUCTURE_CONFLICT');
+    expect(
+      (
+        await send('POST', '/api/titles/tmdb_tv_7/actions', {
+          progress: { playthroughId: 'p1', replaceWatched: { s2e1: 1 } },
+        })
+      ).status,
+    ).toBe(409);
+
+    // Adding a title again must not replace it and its progress.
+    const again = await send('PUT', '/api/titles/tmdb_tv_7', {
+      title,
+      seasons,
+      progress: { p1: { playthroughId: 'p1', watched: {} } },
+    });
+    expect(again.status).toBe(409);
+
+    // Importing replaces the library, so only something that is a backup is accepted.
+    for (const notABackup of [{}, [], { version: 1 }, { settings: {} }, { format: 'zhenji-export', version: 2 }]) {
+      expect((await send('POST', '/api/import', notABackup)).status).toBe(400);
+    }
+
+    // "Today" must be a real day: an impossible date would sort after every release date.
+    const future = { ...title, id: 'tmdb_movie_8', sourceId: '8', mediaType: 'movie', releaseDate: '2999-12-01' };
+    expect((await send('PUT', '/api/titles/tmdb_movie_8', { title: future })).status).toBe(200);
+    const snapshot = JSON.stringify(repo.exportData('fixed'));
+    for (const todayStr of ['2026-99-99', '2026-02-30', '2026-1-1']) {
+      const res = await send('POST', '/api/titles/batch', {
+        titleIds: ['tmdb_movie_8'],
+        action: { type: 'status', status: 'watched', todayStr, now: 5000 },
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(JSON.stringify(repo.exportData('fixed'))).toBe(snapshot);
+    repo.deleteTitle('tmdb_movie_8');
+
+    // None of the rejected requests changed anything, and the library still round-trips through a backup.
+    expect(JSON.stringify(repo.exportData('fixed'))).toBe(before);
+    expect((await send('POST', '/api/import', JSON.parse(before))).status).toBe(200);
+    // An explicitly empty v1 backup is still a backup.
+    expect((await send('POST', '/api/import', { version: 1, titles: {} })).status).toBe(200);
+    expect(Object.keys(repo.getState().titles)).toEqual([]);
   });
 
   it('returns 404 JSON for unknown /api routes and validates /api/tmdb/:mediaType/:id', async () => {

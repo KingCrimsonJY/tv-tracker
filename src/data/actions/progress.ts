@@ -3,98 +3,110 @@ import {
   deletePlaythrough,
   markUpToEpisode,
   markWholeTitleWatched,
+  type MutationResult,
   setResumePoint,
   setSeasonWatched,
   startRewatch,
   toggleEpisodeWatched,
   undoLatestPlaythrough,
 } from '../../domain/progress.ts';
-import type { ProgressDoc, TitleDoc } from '../../domain/types.ts';
-import { createAtomicProgressOp } from './atomicProgressOp.ts';
-import {
-  computeProgressDiff,
-  getActiveProgressFromState,
-  type InFlightProgressOp,
-  type TrackerActionDeps,
-} from './types.ts';
+import { applyProgressMutation } from '../../domain/progressMutation.ts';
+import type { ProgressDoc, TitleAtomicProgressMutation, TitleDoc } from '../../domain/types.ts';
+import { postTitleActionApi } from '../api.ts';
+import type { Overlay } from '../syncEngine.ts';
+import type { Commit } from './commit.ts';
+import { computeProgressDiff, getActiveProgressFromState, type TrackerActionDeps } from './types.ts';
 
-export function createProgressActions(
-  deps: TrackerActionDeps & {
-    inFlightOps: Map<string, InFlightProgressOp>;
-    triggerRefetch: () => Promise<void>;
-  },
-) {
-  const { getState } = deps;
+type TitlePatch = Partial<Omit<TitleDoc, 'id'>>;
 
-  const executeAtomicProgressAndTitleOp = createAtomicProgressOp(deps);
-
-  async function commitComputedMutation(
-    prevTitle: TitleDoc,
-    prevProgress: ProgressDoc,
-    res: {
-      manualState: TitleDoc['manualState'];
-      resume: TitleDoc['resume'];
-      playthroughs: TitleDoc['playthroughs'];
-      activePlaythroughId: string;
-      progress: ProgressDoc;
-    },
-    now: number,
-  ): Promise<void> {
-    const diff = computeProgressDiff(prevProgress, res.progress);
-    const prevWatchedValues: Record<string, number | undefined> = {};
-    for (const key of Object.keys(diff.set || {})) prevWatchedValues[key] = prevProgress.watched[key];
-    for (const key of diff.unset || []) prevWatchedValues[key] = prevProgress.watched[key];
-
-    const titlePatch: Partial<Omit<TitleDoc, 'id'>> = { updatedAt: now, lastActivityAt: now };
-    const prevTitleFields: Partial<Omit<TitleDoc, 'id'>> = {
-      updatedAt: prevTitle.updatedAt,
-      lastActivityAt: prevTitle.lastActivityAt,
+/** The optimistic twin of POST /api/titles/:id/actions. */
+function titleActionOverlay(titleId: string, titlePatch: TitlePatch, progress?: TitleAtomicProgressMutation): Overlay {
+  return (state) => {
+    const title = state.titles[titleId];
+    if (!title) return state;
+    const docs = { ...(state.progressByTitle[titleId] ?? {}) };
+    if (progress?.deletePlaythroughId) delete docs[progress.deletePlaythroughId];
+    if (progress?.playthroughId) {
+      docs[progress.playthroughId] = applyProgressMutation(
+        docs[progress.playthroughId],
+        progress.playthroughId,
+        progress,
+      );
+    }
+    return {
+      ...state,
+      titles: { ...state.titles, [titleId]: { ...title, ...titlePatch, id: titleId } },
+      progressByTitle: progress ? { ...state.progressByTitle, [titleId]: docs } : state.progressByTitle,
     };
+  };
+}
 
-    if (prevTitle.manualState !== res.manualState) {
-      titlePatch.manualState = res.manualState;
-      prevTitleFields.manualState = prevTitle.manualState;
-    }
-    if (JSON.stringify(prevTitle.resume) !== JSON.stringify(res.resume)) {
-      titlePatch.resume = res.resume;
-      prevTitleFields.resume = prevTitle.resume;
-    }
-    if (JSON.stringify(prevTitle.playthroughs) !== JSON.stringify(res.playthroughs)) {
-      titlePatch.playthroughs = res.playthroughs;
-    }
-    if (prevTitle.activePlaythroughId !== res.activePlaythroughId) {
-      titlePatch.activePlaythroughId = res.activePlaythroughId;
-      prevTitleFields.activePlaythroughId = prevTitle.activePlaythroughId;
-    }
-
-    await executeAtomicProgressAndTitleOp({
-      titleId: prevTitle.id,
-      playthroughId: diff.hasChanges ? res.progress.playthroughId : undefined,
-      set: diff.set,
-      unset: diff.unset,
-      movieWatchedAt: diff.movieWatchedAt,
-      titlePatch,
-      prevWatchedValues,
-      prevMovieWatchedAt: prevProgress.movieWatchedAt,
-      hadMovieWatchedAtChange: diff.movieWatchedAt !== undefined,
-      prevTitleFields,
-      expectedActivePlaythroughId: prevTitle.activePlaythroughId,
-      now,
-    });
+export function createProgressActions({ getState }: TrackerActionDeps, { commit }: Commit) {
+  /**
+   * Every progress or playthrough write names the active playthrough it was computed from; the server
+   * rejects it if another device has started or removed a viewing in the meantime.
+   */
+  async function write(title: TitleDoc, titlePatch: TitlePatch, progress?: TitleAtomicProgressMutation): Promise<void> {
+    await commit(titleActionOverlay(title.id, titlePatch, progress), () =>
+      postTitleActionApi(title.id, {
+        expectedActivePlaythroughId: title.activePlaythroughId,
+        ...(progress ? { progress } : {}),
+        title: titlePatch,
+      }),
+    );
   }
 
-  async function toggleEpisode(titleId: string, episodeKey: string): Promise<void> {
+  /** The title fields a domain action may change, limited to those that actually changed. */
+  function titlePatchFor(prev: TitleDoc, next: MutationResult, now: number): TitlePatch {
+    return {
+      updatedAt: now,
+      lastActivityAt: now,
+      ...(prev.manualState !== next.manualState ? { manualState: next.manualState } : {}),
+      ...(JSON.stringify(prev.resume) !== JSON.stringify(next.resume) ? { resume: next.resume } : {}),
+      ...(JSON.stringify(prev.playthroughs) !== JSON.stringify(next.playthroughs)
+        ? { playthroughs: next.playthroughs }
+        : {}),
+      ...(prev.activePlaythroughId !== next.activePlaythroughId
+        ? { activePlaythroughId: next.activePlaythroughId }
+        : {}),
+    };
+  }
+
+  /** Run a domain action against the active playthrough and send only what it changed. */
+  async function applyToActiveProgress(
+    titleId: string,
+    action: (
+      title: TitleDoc,
+      progress: ProgressDoc,
+      context: {
+        seasons: ReturnType<typeof getState>['seasonsByTitle'][string];
+        includeSpecials: boolean;
+        now: number;
+      },
+    ) => MutationResult,
+  ): Promise<void> {
     const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
-    const prevProgress = getActiveProgressFromState(state, prevTitle);
+    const title = state.titles[titleId];
+    if (!title) return;
+    const before = getActiveProgressFromState(state, title);
     const now = Date.now();
-    const res = toggleEpisodeWatched(prevTitle, state.seasonsByTitle[titleId] || [], prevProgress, episodeKey, {
+    const result = action(title, before, {
+      seasons: state.seasonsByTitle[titleId] ?? [],
       includeSpecials: state.settings.includeSpecials,
       now,
     });
-    await commitComputedMutation(prevTitle, prevProgress, res, now);
+    const { hasChanges, ...diff } = computeProgressDiff(before, result.progress);
+    await write(
+      title,
+      titlePatchFor(title, result, now),
+      hasChanges ? { playthroughId: result.progress.playthroughId, ...diff } : undefined,
+    );
   }
+
+  const toggleEpisode = (titleId: string, episodeKey: string) =>
+    applyToActiveProgress(titleId, (title, progress, { seasons, includeSpecials, now }) =>
+      toggleEpisodeWatched(title, seasons, progress, episodeKey, { includeSpecials, now }),
+    );
 
   /** Idempotent quick action: a repeated tap or a stale shortcut never unmarks a watched episode. */
   async function markEpisodeWatched(titleId: string, episodeKey: string): Promise<void> {
@@ -104,219 +116,79 @@ export function createProgressActions(
     await toggleEpisode(titleId, episodeKey);
   }
 
-  async function toggleSeason(titleId: string, seasonNumber: number, markWatched: boolean): Promise<void> {
-    const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
-    const prevProgress = getActiveProgressFromState(state, prevTitle);
-    const now = Date.now();
-    const res = setSeasonWatched(
-      prevTitle,
-      state.seasonsByTitle[titleId] || [],
-      prevProgress,
-      seasonNumber,
-      markWatched,
-      { includeSpecials: state.settings.includeSpecials, now },
+  const toggleSeason = (titleId: string, seasonNumber: number, markWatched: boolean) =>
+    applyToActiveProgress(titleId, (title, progress, { seasons, includeSpecials, now }) =>
+      setSeasonWatched(title, seasons, progress, seasonNumber, markWatched, { includeSpecials, now }),
     );
-    await commitComputedMutation(prevTitle, prevProgress, res, now);
-  }
 
-  async function markUpTo(titleId: string, episodeKey: string): Promise<void> {
-    const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
-    const prevProgress = getActiveProgressFromState(state, prevTitle);
-    const now = Date.now();
-    const res = markUpToEpisode(prevTitle, state.seasonsByTitle[titleId] || [], prevProgress, episodeKey, {
-      includeSpecials: state.settings.includeSpecials,
-      now,
-    });
-    await commitComputedMutation(prevTitle, prevProgress, res, now);
-  }
+  const markUpTo = (titleId: string, episodeKey: string) =>
+    applyToActiveProgress(titleId, (title, progress, { seasons, includeSpecials, now }) =>
+      markUpToEpisode(title, seasons, progress, episodeKey, { includeSpecials, now }),
+    );
 
-  async function markWholeTitle(titleId: string, markWatched: boolean): Promise<void> {
-    const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
-    const prevProgress = getActiveProgressFromState(state, prevTitle);
-    const now = Date.now();
-    const res = markWholeTitleWatched(prevTitle, state.seasonsByTitle[titleId] || [], prevProgress, markWatched, {
-      includeSpecials: state.settings.includeSpecials,
-      now,
-    });
-    await commitComputedMutation(prevTitle, prevProgress, res, now);
-  }
+  const markWholeTitle = (titleId: string, markWatched: boolean) =>
+    applyToActiveProgress(titleId, (title, progress, { seasons, includeSpecials, now }) =>
+      markWholeTitleWatched(title, seasons, progress, markWatched, { includeSpecials, now }),
+    );
 
   async function saveResume(
     titleId: string,
     resume: { episodeKey: string | null; seconds: number } | null,
   ): Promise<void> {
-    const prevTitle = getState().titles[titleId];
-    if (!prevTitle) return;
+    const title = getState().titles[titleId];
+    if (!title) return;
     const now = Date.now();
-    const res = setResumePoint(prevTitle, resume, now);
-    await executeAtomicProgressAndTitleOp({
-      titleId,
-      titlePatch: {
-        manualState: res.manualState,
-        resume: res.resume,
-        updatedAt: now,
-        lastActivityAt: now,
-      },
-      prevWatchedValues: {},
-      prevMovieWatchedAt: undefined,
-      hadMovieWatchedAtChange: false,
-      prevTitleFields: {
-        manualState: prevTitle.manualState,
-        resume: prevTitle.resume,
-        updatedAt: prevTitle.updatedAt,
-        lastActivityAt: prevTitle.lastActivityAt,
-      },
-      expectedActivePlaythroughId: prevTitle.activePlaythroughId,
-      now,
-    });
+    const next = setResumePoint(title, resume, now);
+    await write(title, { manualState: next.manualState, resume: next.resume, updatedAt: now, lastActivityAt: now });
   }
+
+  /** Starting, undoing or deleting a viewing replaces the whole playthrough list. */
+  const playthroughPatch = (next: MutationResult, now: number): TitlePatch => ({
+    manualState: next.manualState,
+    resume: next.resume,
+    playthroughs: next.playthroughs,
+    activePlaythroughId: next.activePlaythroughId,
+    updatedAt: now,
+    lastActivityAt: now,
+  });
 
   async function startTitleRewatch(titleId: string): Promise<void> {
     const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
+    const title = state.titles[titleId];
+    if (!title) return;
     const now = Date.now();
-    const res = startRewatch(
-      prevTitle,
-      state.seasonsByTitle[titleId] || [],
-      getActiveProgressFromState(state, prevTitle),
-      {
-        includeSpecials: state.settings.includeSpecials,
-        now,
-        newPlaythroughId: createRandomId('p'),
-      },
-    );
-
-    await executeAtomicProgressAndTitleOp({
-      titleId,
-      playthroughId: res.progress.playthroughId,
-      replaceWatched: {},
-      titlePatch: {
-        manualState: res.manualState,
-        resume: res.resume,
-        playthroughs: res.playthroughs,
-        activePlaythroughId: res.activePlaythroughId,
-        updatedAt: now,
-        lastActivityAt: now,
-      },
-      prevWatchedValues: {},
-      prevMovieWatchedAt: undefined,
-      hadMovieWatchedAtChange: false,
-      prevTitleFields: {
-        manualState: prevTitle.manualState,
-        resume: prevTitle.resume,
-        playthroughs: prevTitle.playthroughs,
-        activePlaythroughId: prevTitle.activePlaythroughId,
-        updatedAt: prevTitle.updatedAt,
-        lastActivityAt: prevTitle.lastActivityAt,
-      },
-      createdPlaythroughId: res.progress.playthroughId,
-      expectedActivePlaythroughId: prevTitle.activePlaythroughId,
+    const next = startRewatch(title, state.seasonsByTitle[titleId] ?? [], getActiveProgressFromState(state, title), {
+      includeSpecials: state.settings.includeSpecials,
       now,
+      newPlaythroughId: createRandomId('p'),
     });
+    await write(title, playthroughPatch(next, now), { playthroughId: next.progress.playthroughId, replaceWatched: {} });
   }
 
-  async function applyUndoOrDeleteResult(
+  async function removeViewing(
     titleId: string,
-    prevTitle: TitleDoc,
-    prevProgressMap: Record<string, ProgressDoc>,
-    res: ReturnType<typeof undoLatestPlaythrough>,
-    now: number,
+    plan: (title: TitleDoc, progress: Record<string, ProgressDoc>) => ReturnType<typeof undoLatestPlaythrough>,
   ): Promise<void> {
-    if (res.removedPlaythroughId) {
-      await executeAtomicProgressAndTitleOp({
-        titleId,
-        deletePlaythroughId: res.removedPlaythroughId,
-        titlePatch: {
-          manualState: res.manualState,
-          resume: res.resume,
-          playthroughs: res.playthroughs,
-          activePlaythroughId: res.activePlaythroughId,
-          updatedAt: now,
-          lastActivityAt: now,
-        },
-        prevWatchedValues: {},
-        prevMovieWatchedAt: undefined,
-        hadMovieWatchedAtChange: false,
-        prevTitleFields: {
-          manualState: prevTitle.manualState,
-          resume: prevTitle.resume,
-          playthroughs: prevTitle.playthroughs,
-          activePlaythroughId: prevTitle.activePlaythroughId,
-          updatedAt: prevTitle.updatedAt,
-          lastActivityAt: prevTitle.lastActivityAt,
-        },
-        deletedPlaythroughDoc: prevProgressMap[res.removedPlaythroughId],
-        expectedActivePlaythroughId: prevTitle.activePlaythroughId,
-        now,
-      });
-      return;
-    }
-
-    if (res.clearedPlaythroughId) {
-      const prevProg = prevProgressMap[res.clearedPlaythroughId] || {
-        playthroughId: res.clearedPlaythroughId,
-        watched: {},
-      };
-      const prevWatchedValues: Record<string, number | undefined> = {};
-      for (const [k, v] of Object.entries(prevProg.watched)) {
-        prevWatchedValues[k] = v;
-      }
-      await executeAtomicProgressAndTitleOp({
-        titleId,
-        playthroughId: res.clearedPlaythroughId,
+    const state = getState();
+    const title = state.titles[titleId];
+    if (!title) return;
+    const now = Date.now();
+    const next = plan(title, state.progressByTitle[titleId] ?? {});
+    if (next.removedPlaythroughId) {
+      await write(title, playthroughPatch(next, now), { deletePlaythroughId: next.removedPlaythroughId });
+    } else if (next.clearedPlaythroughId) {
+      // The only viewing cannot be removed; it is emptied instead.
+      await write(title, playthroughPatch(next, now), {
+        playthroughId: next.clearedPlaythroughId,
         replaceWatched: {},
         movieWatchedAt: null,
-        titlePatch: {
-          manualState: res.manualState,
-          resume: res.resume,
-          playthroughs: res.playthroughs,
-          activePlaythroughId: res.activePlaythroughId,
-          updatedAt: now,
-          lastActivityAt: now,
-        },
-        prevWatchedValues,
-        prevMovieWatchedAt: prevProg.movieWatchedAt,
-        hadMovieWatchedAtChange: prevProg.movieWatchedAt !== undefined,
-        prevTitleFields: {
-          manualState: prevTitle.manualState,
-          resume: prevTitle.resume,
-          playthroughs: prevTitle.playthroughs,
-          activePlaythroughId: prevTitle.activePlaythroughId,
-          updatedAt: prevTitle.updatedAt,
-          lastActivityAt: prevTitle.lastActivityAt,
-        },
-        expectedActivePlaythroughId: prevTitle.activePlaythroughId,
-        now,
       });
     }
   }
 
-  async function cancelTitleRewatch(titleId: string): Promise<void> {
-    const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
-    const prevProgressMap = state.progressByTitle[titleId] || {};
-    const now = Date.now();
-    const res = undoLatestPlaythrough(prevTitle, prevProgressMap);
-    await applyUndoOrDeleteResult(titleId, prevTitle, prevProgressMap, res, now);
-  }
-
-  async function deleteTitlePlaythrough(titleId: string, playthroughId: string): Promise<void> {
-    const state = getState();
-    const prevTitle = state.titles[titleId];
-    if (!prevTitle) return;
-    const prevProgressMap = state.progressByTitle[titleId] || {};
-    const now = Date.now();
-    const res = deletePlaythrough(prevTitle, playthroughId, prevProgressMap);
-    await applyUndoOrDeleteResult(titleId, prevTitle, prevProgressMap, res, now);
-  }
+  const cancelTitleRewatch = (titleId: string) => removeViewing(titleId, undoLatestPlaythrough);
+  const deleteTitlePlaythrough = (titleId: string, playthroughId: string) =>
+    removeViewing(titleId, (title, progress) => deletePlaythrough(title, playthroughId, progress));
 
   return {
     toggleEpisode,

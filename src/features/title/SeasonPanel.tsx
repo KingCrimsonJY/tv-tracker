@@ -188,7 +188,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
           >
             <Label>{t.detail.seasons.episodeRange}</Label>
             <Select.Trigger>
-              <Select.Value />
+              <Select.Value className="whitespace-nowrap" />
               <Select.Indicator />
             </Select.Trigger>
             <Select.Popover>
@@ -248,10 +248,14 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             selectedKey={String(currentSeason.seasonNumber)}
             onSelectionChange={(k) => setSelectedSeasonNum(Number(k))}
           >
-            <Tabs.ListContainer className="mb-4">
-              <Tabs.List aria-label={t.detail.seasons.selectAria}>
+            <Tabs.ListContainer className="mb-4 w-fit max-w-full">
+              <Tabs.List aria-label={t.detail.seasons.selectAria} className="min-w-0">
                 {seasons.map((s) => (
-                  <Tabs.Tab key={s.seasonNumber} id={String(s.seasonNumber)}>
+                  <Tabs.Tab
+                    key={s.seasonNumber}
+                    id={String(s.seasonNumber)}
+                    className="w-fit shrink-0 whitespace-nowrap"
+                  >
                     {t.detail.seasons.tabLabel(s.seasonNumber)}
                     <Tabs.Indicator />
                   </Tabs.Tab>
@@ -259,7 +263,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
               </Tabs.List>
             </Tabs.ListContainer>
             {seasons.map((s) => (
-              <Tabs.Panel key={s.seasonNumber} id={String(s.seasonNumber)}>
+              <Tabs.Panel key={s.seasonNumber} id={String(s.seasonNumber)} className="p-0">
                 {renderSeasonBlock(s)}
               </Tabs.Panel>
             ))}
@@ -273,7 +277,7 @@ export const SeasonPanel: React.FC<SeasonPanelProps> = ({
             >
               <Label>{t.detail.seasons.selectAria}</Label>
               <Select.Trigger>
-                <Select.Value />
+                <Select.Value className="whitespace-nowrap" />
                 <Select.Indicator />
               </Select.Trigger>
               <Select.Popover>

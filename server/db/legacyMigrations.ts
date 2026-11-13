@@ -7,7 +7,21 @@ import {
 } from '../../src/domain/progress.ts';
 import type { SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
 
-export function runMigration002InTx(db: DatabaseSync): void {
+/** Idempotent: safe to repeat on rows that are already clean. */
+export function stripDoubanData(db: DatabaseSync): void {
+  db.exec(
+    `UPDATE titles
+     SET data = json_remove(data, '$.ratings.douban', '$.externalIds.douban')
+     WHERE json_type(data, '$.ratings.douban') IS NOT NULL
+        OR json_type(data, '$.externalIds.douban') IS NOT NULL`,
+  );
+}
+
+/**
+ * Turn legacy string season/episode names into localized objects, drop generic labels such as "Season 1",
+ * move the uploader prefix out of link-import overviews and backfill genre ids. Idempotent.
+ */
+export function normalizeLegacyLabels(db: DatabaseSync): void {
   const seasonRows = db.prepare('SELECT title_id, season_number, data FROM seasons').all() as Array<{
     title_id: string;
     season_number: number;
@@ -102,51 +116,25 @@ function getFirstAirDatesByTitle(db: DatabaseSync): Map<string, string> {
   return firstAirByTitle;
 }
 
-export function runMigration003InTx(db: DatabaseSync): void {
+/** Earlier releases guessed `${year}-01-01` and duplicated the poster here; only real air dates are used now. */
+export function backfillReleaseDates(db: DatabaseSync): void {
   const firstAirByTitle = getFirstAirDatesByTitle(db);
-
-  const titleRows = db.prepare('SELECT id, data FROM titles').all() as Array<{
-    id: string;
-    data: string;
-  }>;
+  const titleRows = db.prepare('SELECT id, data FROM titles').all() as Array<{ id: string; data: string }>;
   const updateTitle = db.prepare('UPDATE titles SET data = ? WHERE id = ?');
-
   for (const row of titleRows) {
     try {
       const parsed = JSON.parse(row.data) as Omit<TitleDoc, 'id'>;
-      let changed = false;
-
-      if (parsed.releaseDate === undefined) {
-        const inferredAir = firstAirByTitle.get(row.id);
-        if (inferredAir) {
-          parsed.releaseDate = inferredAir;
-        } else if (typeof parsed.year === 'number' && parsed.year > 1800) {
-          parsed.releaseDate = `${parsed.year}-01-01`;
-        } else {
-          parsed.releaseDate = null;
-        }
-        changed = true;
-      }
-
-      if (!parsed.posters) {
-        parsed.posters = {
-          zh: parsed.posterPath ?? null,
-          en: parsed.posterPath ?? null,
-          textless: null,
-        };
-        changed = true;
-      }
-
-      if (changed) {
-        updateTitle.run(JSON.stringify(parsed), row.id);
-      }
+      if (parsed.releaseDate !== undefined) continue;
+      parsed.releaseDate = firstAirByTitle.get(row.id) ?? null;
+      updateTitle.run(JSON.stringify(parsed), row.id);
     } catch {
       // Ignore malformed legacy row
     }
   }
 }
 
-export function runMigration004InTx(db: DatabaseSync): void {
+/** Undo what the earlier version of the previous step wrote into databases that already ran it. */
+export function removeSyntheticReleaseData(db: DatabaseSync): void {
   const firstAirByTitle = getFirstAirDatesByTitle(db);
   const titleRows = db.prepare('SELECT id, data FROM titles').all() as Array<{
     id: string;

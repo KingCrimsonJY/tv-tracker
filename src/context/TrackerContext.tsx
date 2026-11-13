@@ -1,15 +1,11 @@
-import { useTrackerSelection } from '../data/useTrackerSelection';
-import { createMutationSync } from '../data/mutationSync';
-import { applyInFlightOpsToState, type InFlightProgressOp } from '../data/actions/types';
-import type { AppStateSnapshot } from '../domain/types';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@heroui/react';
 import {
   ApiError,
+  assertSessionEstablished,
   fetchAuthStatus,
   fetchStateSnapshot,
   fetchTmdbGenresApi,
-  assertSessionEstablished,
   loginPasswordApi,
   logoutAllApi,
   logoutApi,
@@ -19,32 +15,25 @@ import {
   createTrackerActions,
   type CustomTitleInput,
   getActiveProgressFromState,
+  type TrackerActions,
   type UpdateTitleDetailsInput,
 } from '../data/actions.ts';
 import type { ToastVariant } from '../data/actions/types.ts';
-import { runOneTimeLegacyStorageCleanup } from '../data/storageCleanup.ts';
-import { trackerStore } from '../data/store.ts';
 import { createReconciler } from '../data/reconcile.ts';
-import type {
-  AppSettingsDoc,
-  CollectionSort,
-  DisplayLang,
-  ListEntryDoc,
-  ListKind,
-  ManualState,
-  MetadataRefreshStatus,
-  MetadataRefreshCounts,
-  ProgressDoc,
-  SeasonDoc,
-  TitleDoc,
-  WatchListDoc,
-} from '../domain/types.ts';
+import { createInitialAppState, trackerStore } from '../data/store.ts';
+import { createSyncEngine, type SyncEngine } from '../data/syncEngine.ts';
+import { useTrackerState } from '../data/useTrackerState.ts';
+import type { AppStateSnapshot, ProgressDoc, TitleDoc } from '../domain/types.ts';
 import { applyResolvedLocaleToDom, resolveActiveLocale } from '../i18n/index.ts';
 import { useSseEventStream } from './useSseEventStream.ts';
 
 export type { CustomTitleInput, ToastVariant, UpdateTitleDetailsInput };
 
-export interface TrackerContextValue {
+/**
+ * Session status and every action. Synchronized data is not here: read it with `useTrackerState(selector)`
+ * so a component re-renders only for the slices it shows.
+ */
+export interface TrackerContextValue extends TrackerActions {
   authReady: boolean;
   needsSetup: boolean;
   authenticated: boolean;
@@ -52,68 +41,18 @@ export interface TrackerContextValue {
   serverUnreachable: boolean;
   retryConnection: () => Promise<void>;
   showToast: (message: string, variant?: ToastVariant) => void;
-  titles: Record<string, TitleDoc>;
-  seasonsByTitle: Record<string, SeasonDoc[]>;
-  progressByTitle: Record<string, Record<string, ProgressDoc>>;
-  lists: Record<string, WatchListDoc>;
-  entriesByList: Record<string, ListEntryDoc[]>;
-  settings: AppSettingsDoc;
   setupPassword: (password: string, setupCode: string) => Promise<void>;
   loginWithPassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
   signOutAll: () => Promise<void>;
   getActiveProgress: (title: TitleDoc) => ProgressDoc;
-  addTitleFromTmdb: (mediaType: 'movie' | 'tv', sourceId: string, targetListId?: string) => Promise<TitleDoc>;
-  createCustomOrLinkTitle: (input: CustomTitleInput) => Promise<TitleDoc>;
-  updateTitleDetails: (titleId: string, input: UpdateTitleDetailsInput) => Promise<void>;
-  updateTitleLanguage: (titleId: string, displayLang: DisplayLang | null, customName?: string) => Promise<void>;
-  setTitleManualState: (titleId: string, manualState: ManualState) => Promise<void>;
-  setStructureLock: (id: string, locked: boolean) => Promise<void>;
-  resolveStructure: (
-    id: string,
-    input: Parameters<typeof import('../data/api.ts').decideStructureApi>[1],
-  ) => Promise<void>;
-  changeTitleSource: (
-    id: string,
-    input: Parameters<typeof import('../data/api.ts').changeTitleSourceApi>[1],
-  ) => Promise<void>;
-  fetchAndCacheTitleRatings: (titleId: string) => Promise<void>;
-  refreshTitleMetadata: (titleId: string) => Promise<MetadataRefreshStatus>;
-  refreshAllTmdbMetadata: (onProgress?: (done: number, total: number) => void) => Promise<MetadataRefreshCounts>;
-  refreshLinkTitlePlaylist: (titleId: string) => Promise<number>;
   tmdbGenres: { zh: Record<number, string>; en: Record<number, string> } | null;
-  removeTitle: (titleId: string) => Promise<void>;
-  toggleEpisode: (titleId: string, episodeKey: string) => Promise<void>;
-  markEpisodeWatched: (titleId: string, episodeKey: string) => Promise<void>;
-  toggleSeason: (titleId: string, seasonNumber: number, markWatched: boolean) => Promise<void>;
-  markUpTo: (titleId: string, episodeKey: string) => Promise<void>;
-  markWholeTitle: (titleId: string, markWatched: boolean) => Promise<void>;
-  saveResume: (titleId: string, resume: { episodeKey: string | null; seconds: number } | null) => Promise<void>;
-  startTitleRewatch: (titleId: string) => Promise<void>;
-  cancelTitleRewatch: (titleId: string) => Promise<void>;
-  deleteTitlePlaythrough: (titleId: string, playthroughId: string) => Promise<void>;
-  createList: (input: {
-    name: string;
-    kind: ListKind;
-    description?: string;
-    pinned?: boolean;
-  }) => Promise<WatchListDoc>;
-  deleteList: (listId: string) => Promise<void>;
-  togglePinList: (listId: string) => Promise<void>;
-  updateCollectionSort: (listId: string, sort: CollectionSort) => Promise<void>;
-  addTitleToList: (listId: string, titleId: string) => Promise<void>;
-  removeEntryFromList: (listId: string, entryId: string) => Promise<void>;
-  reorderListEntry: (listId: string, activeEntryId: string, overEntryId: string) => Promise<void>;
-  updateSettings: (partial: Partial<AppSettingsDoc>) => Promise<void>;
-  exportAllDataJson: () => Promise<string>;
-  importBackupData: (rawPayload: unknown) => Promise<void>;
 }
 
-type ContextValue = Omit<
-  TrackerContextValue,
-  'titles' | 'seasonsByTitle' | 'progressByTitle' | 'lists' | 'entriesByList' | 'settings'
->;
-const TrackerContext = createContext<ContextValue | null>(null);
+const TrackerContext = createContext<TrackerContextValue | null>(null);
+
+const selectTheme = (state: AppStateSnapshot) => state.settings.theme;
+const selectUiLang = (state: AppStateSnapshot) => state.settings.uiLang;
 
 export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authReady, setAuthReady] = useState(false);
@@ -129,8 +68,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     en: Record<number, string>;
   } | null>(null);
 
-  const settings = useTrackerSelection((state) => state.settings);
-  const inFlightOps = useMemo(() => new Map<string, InFlightProgressOp>(), []);
+  const theme = useTrackerState(selectTheme);
+  const uiLang = useTrackerState(selectUiLang);
 
   const showToast = useCallback((message: string, variant: ToastVariant = 'default') => {
     switch (variant) {
@@ -153,10 +92,6 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   useEffect(() => {
-    void runOneTimeLegacyStorageCleanup();
-  }, []);
-
-  useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return;
     const root = document.documentElement;
     const applyResolvedTheme = (mode: 'dark' | 'light') => {
@@ -174,26 +109,26 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
 
-    if (settings.theme === 'system') {
+    if (theme === 'system') {
       const mql = window.matchMedia('(prefers-color-scheme: light)');
       applyResolvedTheme(mql.matches ? 'light' : 'dark');
       const handler = (e: MediaQueryListEvent) => applyResolvedTheme(e.matches ? 'light' : 'dark');
       mql.addEventListener('change', handler);
       return () => mql.removeEventListener('change', handler);
     }
-    applyResolvedTheme(settings.theme);
-  }, [settings.theme]);
+    applyResolvedTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const applyCurrentLocale = () => {
-      applyResolvedLocaleToDom(resolveActiveLocale(settings.uiLang));
+      applyResolvedLocaleToDom(resolveActiveLocale(uiLang));
     };
     applyCurrentLocale();
-    if (settings.uiLang === 'system' && typeof window !== 'undefined') {
+    if (uiLang === 'system' && typeof window !== 'undefined') {
       window.addEventListener('languagechange', applyCurrentLocale);
       return () => window.removeEventListener('languagechange', applyCurrentLocale);
     }
-  }, [settings.uiLang]);
+  }, [uiLang]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -204,38 +139,39 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
   }, [authenticated]);
 
-  const syncRef = useRef<ReturnType<typeof createMutationSync> | null>(null);
+  const engineRef = useRef<SyncEngine | null>(null);
+  const resetState = useCallback(() => engineRef.current?.reset(createInitialAppState()), []);
   const readStateFromServer = useCallback(async () => {
     try {
       const snapshot = await fetchStateSnapshot();
-      syncRef.current?.snapshot(snapshot);
+      engineRef.current?.snapshot(snapshot);
       setServerUnreachable(false);
       setLoadingData(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthenticated(false);
-        trackerStore.reset();
+        resetState();
         setLoadingData(false);
         return;
       }
       setServerUnreachable(true);
       setLoadingData(false);
     }
-  }, []);
+  }, [resetState]);
 
   const refreshStateFromServer = useMemo(() => createReconciler(readStateFromServer), [readStateFromServer]);
 
-  const sync = useMemo(
+  const engine = useMemo(
     () =>
-      createMutationSync({
+      createSyncEngine({
         initial: trackerStore.getState(),
-        publish: (confirmed) => trackerStore.setState(applyInFlightOpsToState(confirmed, inFlightOps)),
+        publish: trackerStore.setState,
         reconcile: refreshStateFromServer,
       }),
-    [inFlightOps, refreshStateFromServer],
+    [refreshStateFromServer],
   );
-  syncRef.current = sync;
-  const applyServerMutation = sync.mutation;
+  engineRef.current = engine;
+  const applyServerMutation = engine.mutation;
 
   const checkAuthAndLoad = useCallback(async () => {
     try {
@@ -247,14 +183,14 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       if (status.authenticated) {
         if (status.state) {
-          sync.snapshot(status.state);
+          engine.snapshot(status.state);
           setLoadingData(false);
         } else {
           setLoadingData(true);
           await refreshStateFromServer();
         }
       } else {
-        trackerStore.reset();
+        resetState();
         setLoadingData(false);
       }
     } catch {
@@ -262,7 +198,7 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setAuthReady(true);
       setLoadingData(false);
     }
-  }, [refreshStateFromServer, sync]);
+  }, [refreshStateFromServer, engine, resetState]);
 
   useEffect(() => {
     void checkAuthAndLoad();
@@ -297,7 +233,10 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useSseEventStream({
     authenticated: authenticated && !loadingData,
     reconnectTrigger,
-    setAuthenticated,
+    onSignedOut: useCallback(() => {
+      setAuthenticated(false);
+      resetState();
+    }, [resetState]),
     setServerUnreachable,
     applyServerMutation,
     refreshStateFromServer,
@@ -330,14 +269,14 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const signOut = useCallback(async () => {
     await logoutApi();
     setAuthenticated(false);
-    trackerStore.reset();
-  }, []);
+    resetState();
+  }, [resetState]);
 
   const signOutAll = useCallback(async () => {
     await logoutAllApi();
     setAuthenticated(false);
-    trackerStore.reset();
-  }, []);
+    resetState();
+  }, [resetState]);
 
   const getActiveProgress = useCallback(
     (title: TitleDoc): ProgressDoc => getActiveProgressFromState(trackerStore.getState(), title),
@@ -347,17 +286,15 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const actions = useMemo(
     () =>
       createTrackerActions({
-        inFlightOps,
         getState: trackerStore.getState,
-        setState: trackerStore.setState,
+        optimistic: engine.optimistic,
         applyServerMutation,
         showToast,
-        refetchState: refreshStateFromServer,
       }),
-    [applyServerMutation, showToast, refreshStateFromServer, inFlightOps],
+    [engine, applyServerMutation, showToast],
   );
 
-  const value = useMemo<ContextValue>(
+  const value = useMemo<TrackerContextValue>(
     () => ({
       authReady,
       needsSetup,
@@ -395,9 +332,8 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   return <TrackerContext.Provider value={value}>{children}</TrackerContext.Provider>;
 };
 
-export function useTracker(selector?: (state: AppStateSnapshot) => unknown): TrackerContextValue {
-  useTrackerSelection(selector);
+export function useTracker(): TrackerContextValue {
   const ctx = useContext(TrackerContext);
   if (!ctx) throw new Error('useTracker must be used within TrackerProvider');
-  return { ...ctx, ...trackerStore.getState() };
+  return ctx;
 }

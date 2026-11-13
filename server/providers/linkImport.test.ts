@@ -5,13 +5,7 @@ import { test } from 'vitest';
 import { createApp } from '../app.ts';
 import { TrackerRepository } from '../db/repository.ts';
 import { type DnsLookupFn, type FetchFn } from '../security/ssrf.ts';
-import {
-  decodeHtmlEntities,
-  extractFirstHttpUrl,
-  extractMetaContent,
-  resolveLinkMetadata,
-  YTDLP_MISSING_WARNING,
-} from './linkImport.ts';
+import { decodeHtmlEntities, extractHttpUrlFromText, extractMetaContent, resolveLinkMetadata } from './linkImport.ts';
 import { type YtdlpExecFn, YtdlpExecutionError, YtdlpNotInstalledError } from './ytdlp.ts';
 
 const mockPublicDns: DnsLookupFn = async (hostname) => {
@@ -503,7 +497,7 @@ test('7. yt-dlp missing (ENOENT) falls back to Open Graph with warning notice an
   });
 
   assert.equal(ogResult.fallbackUsed, 'og');
-  assert.equal(ogResult.warning, YTDLP_MISSING_WARNING);
+  assert.equal(ogResult.warning, 'YTDLP_MISSING');
   assert.equal(ogResult.title, "飞向太空 Solaris's & Co. 🎬");
   assert.equal(ogResult.overview, '塔可夫斯基 "科幻" 经典');
   assert.equal(ogResult.posterUrl, 'https://example.com/assets/posters/solaris.jpg');
@@ -515,7 +509,7 @@ test('7. yt-dlp missing (ENOENT) falls back to Open Graph with warning notice an
   });
   assert.equal(hugeResult.title, 'Huge Page Title');
   assert.equal(hugeResult.posterUrl, 'https://example.com/relative/poster.png');
-  assert.equal(hugeResult.warning, YTDLP_MISSING_WARNING);
+  assert.equal(hugeResult.warning, 'YTDLP_MISSING');
 });
 
 test('8. yt-dlp timeout reports partial Open Graph metadata and throws when no metadata is available', async () => {
@@ -544,7 +538,7 @@ test('8. yt-dlp timeout reports partial Open Graph metadata and throws when no m
 
 test('9. Share-text extraction strips Bilibili tracking parameters without altering the content', async () => {
   const shareText = '【这就是全网吹的1000以内音质吊打的oppo enco x3啊？-哔哩哔哩】 https://b23.tv/AbCdEf 快来看！';
-  assert.equal(extractFirstHttpUrl(shareText), 'https://b23.tv/AbCdEf');
+  assert.equal(extractHttpUrlFromText(shareText), 'https://b23.tv/AbCdEf');
 
   const longQuery = 'a'.repeat(400);
   const longUrl = `https://www.bilibili.com/video/BV1aFXaYmEFt/?share_token=${longQuery}`;

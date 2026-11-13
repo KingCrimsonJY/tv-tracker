@@ -22,7 +22,8 @@ export class ConflictError extends Error {
 export interface RepositoryOptions {
   dbPath?: string;
   dataDir?: string;
-  migrationsDir?: string;
+  /** Stop at an older schema version. Only for tests that seed a legacy database. */
+  migrateTo?: number;
 }
 
 export interface StoredProgressData {
@@ -40,7 +41,6 @@ export interface DbContext {
   db: DatabaseSync;
   isMemory: boolean;
   dataDir: string | null;
-  migrationsDir: string;
   runInTransaction: <T>(fn: () => T) => T;
   bumpVersionInTx: () => number;
   getVersion: () => number;

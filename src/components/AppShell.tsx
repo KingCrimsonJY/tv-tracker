@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { compareRank } from '../domain/ordering';
 import { ButtonLink } from './ButtonLink';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Bookmark, Download, Film, Home, Layers, ListOrdered, LogOut, Search, Settings } from 'lucide-react';
-import { Button, Modal } from '@heroui/react';
+import { Bookmark, Film, Home, Layers, ListOrdered, LogOut, Search, Settings } from 'lucide-react';
+import { Button, Dropdown, Label } from '@heroui/react';
+import { InstallAppButton } from './InstallAppButton';
 import { useTracker } from '../context/TrackerContext.tsx';
-import { usePWAInstall } from '../hooks/usePWAInstall.ts';
+import { selectLists } from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { useI18n } from '../i18n/index.ts';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { lists, signOut } = useTracker((state) => state.lists);
+  const { signOut } = useTracker();
+  const lists = useTrackerState(selectLists);
   const { t } = useI18n();
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const [showIosGuide, setShowIosGuide] = useState(false);
   const location = useLocation();
 
   const navItems = [
@@ -97,18 +98,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         </nav>
 
         <div className="p-4 border-t border-separator space-y-2">
-          {!isInstalled && (isInstallable || isIOS) && (
-            <Button
-              variant="secondary"
-              size="sm"
-              fullWidth
-              onPress={() => (isInstallable ? install() : setShowIosGuide(true))}
-              className="justify-start"
-            >
-              <Download className="w-4 h-4" />
-              <span>{t.app.installApp}</span>
-            </Button>
-          )}
+          <InstallAppButton />
 
           <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-surface-secondary">
             <NavLink
@@ -130,49 +120,74 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         </div>
       </aside>
 
-      {/* Tablet Left Navigation Rail (640px - 1024px) */}
+      {/* Tablet navigation rail (640px - 1023px). It scrolls as a whole, so nothing is cut off on a short
+          landscape screen, and offers everything the desktop sidebar does: pinned lists open from a menu. */}
       <aside
         aria-label={t.app.tabletNavAria}
-        className="hidden sm:flex lg:hidden sm:w-20 sm:flex-col sm:fixed sm:inset-y-0 sm:left-0 bg-surface border-r border-border z-30 items-center py-4 select-none"
+        className="hidden sm:block lg:hidden sm:w-20 sm:fixed sm:inset-y-0 sm:left-0 bg-surface border-r border-border z-30 overflow-y-auto select-none"
       >
-        <NavLink
-          to="/"
-          aria-label={t.app.name}
-          className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-accent-foreground font-bold text-base mb-6"
-        >
-          {t.app.logoChar}
-        </NavLink>
+        <div className="flex min-h-full flex-col items-center gap-6 py-4">
+          <NavLink
+            to="/"
+            aria-label={t.app.name}
+            className="w-10 h-10 shrink-0 rounded-xl bg-accent flex items-center justify-center text-accent-foreground font-bold text-base"
+          >
+            {t.app.logoChar}
+          </NavLink>
 
-        <nav className="flex-1 flex flex-col items-center gap-2 w-full px-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `w-full py-2.5 min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
-                    isActive
-                      ? 'bg-accent-soft text-accent-soft-foreground'
-                      : 'text-muted hover:text-foreground hover:bg-surface-secondary'
-                  }`
-                }
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
+          <nav className="flex flex-col items-center gap-2 w-full px-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `w-full py-2.5 min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
+                      isActive
+                        ? 'bg-accent-soft text-accent-soft-foreground'
+                        : 'text-muted hover:text-foreground hover:bg-surface-secondary'
+                    }`
+                  }
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
 
-        <div className="mt-auto flex flex-col items-center gap-2">
-          <ButtonLink to="/settings" variant="secondary" isIconOnly aria-label={t.settings.title}>
-            <Settings className="w-4 h-4" />
-          </ButtonLink>
-          <Button variant="secondary" isIconOnly onPress={() => void signOut()} aria-label={t.app.signOut}>
-            <LogOut className="w-4 h-4" />
-          </Button>
+          <div className="mt-auto flex flex-col items-center gap-2">
+            {pinnedLists.length > 0 && (
+              <Dropdown>
+                <Button variant="secondary" isIconOnly aria-label={t.nav.pinnedListsHeader}>
+                  <Bookmark className="size-4" />
+                </Button>
+                <Dropdown.Popover placement="right bottom">
+                  <Dropdown.Menu aria-label={t.nav.pinnedListsHeader}>
+                    {pinnedLists.map((list) => (
+                      <Dropdown.Item key={list.id} id={list.id} href={`/lists/${list.id}`} textValue={list.name}>
+                        {list.kind === 'ordered' ? (
+                          <ListOrdered className="size-4 shrink-0 text-muted" />
+                        ) : (
+                          <Bookmark className="size-4 shrink-0 text-muted" />
+                        )}
+                        <Label className="max-w-56 truncate">{list.name}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+            <InstallAppButton compact />
+            <ButtonLink to="/settings" variant="secondary" isIconOnly aria-label={t.settings.title}>
+              <Settings className="w-4 h-4" />
+            </ButtonLink>
+            <Button variant="secondary" isIconOnly onPress={() => void signOut()} aria-label={t.app.signOut}>
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </aside>
 
@@ -210,25 +225,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           })}
         </div>
       </nav>
-
-      {/* iOS PWA Install Guide Modal */}
-      <Modal.Backdrop isOpen={showIosGuide} onOpenChange={setShowIosGuide} isDismissable>
-        <Modal.Container size="sm" placement="center" scroll="inside">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>{t.app.installIosGuideTitle}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>
-              <p>{t.app.installIosGuideBody}</p>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" size="sm" onPress={() => setShowIosGuide(false)}>
-                {t.app.close}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
     </div>
   );
 };

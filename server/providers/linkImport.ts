@@ -16,8 +16,6 @@ import { normalizeLinkUrl, isBangumiUrl } from './linkUrls.ts';
 
 export type { LinkImportResult };
 
-export const YTDLP_MISSING_WARNING = 'YTDLP_MISSING';
-
 export interface LinkImportDependencies {
   lookupFn?: DnsLookupFn;
   fetchFn?: FetchFn;
@@ -36,8 +34,6 @@ export function extractHttpUrlFromText(input: string): string {
   if (!match) return trimmed;
   return match[0].replace(/[)\]\u3011\u300b\uff0c\u3002\uff01\uff1f\uff1b,;!?]+$/u, '');
 }
-
-export const extractFirstHttpUrl = extractHttpUrlFromText;
 
 export function decodeHtmlEntities(str: string): string {
   const codePoint = (value: number, original: string) =>

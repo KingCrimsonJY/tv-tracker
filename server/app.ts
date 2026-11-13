@@ -7,7 +7,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import crypto from 'node:crypto';
 import { ZodError } from 'zod';
 import { authPasswordRequestSchema, authSetupRequestSchema } from '../src/domain/schemas.ts';
-import type { ServerErrorCode, StateMutationResult } from '../src/domain/types.ts';
+import type { StateMutationResult } from '../src/domain/types.ts';
 import {
   clearSessionCookie,
   generateSessionToken,
@@ -25,6 +25,7 @@ import {
 } from './auth.ts';
 import { ConflictError, NotFoundError, type TrackerRepository } from './db/repository.ts';
 import { registerEntityRoutes } from './entityRoutes.ts';
+import { sendApiError } from './http.ts';
 import { registerProviderRoutes } from './providerRoutes.ts';
 import type { LinkImportDependencies } from './providers/linkImport.ts';
 
@@ -44,19 +45,6 @@ interface SseClient {
   res: Response;
   tokenHash: string;
   close: () => void;
-}
-
-export function sendApiError(
-  res: Response,
-  status: number,
-  code: ServerErrorCode,
-  _message: string,
-  extra?: Record<string, unknown>,
-): void {
-  res.status(status).json({
-    code,
-    ...(extra || {}),
-  });
 }
 
 function extractAuthToken(req: Request): { token: string | null; viaCookie: boolean } {
@@ -88,6 +76,13 @@ export function createApp(options: CreateAppOptions): Express {
   } = options;
 
   const app = express();
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    // Posters come from third-party hosts (TMDB, Bilibili, YouTube); never tell them which page asked.
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+  });
 
   app.use(
     compression({
@@ -190,15 +185,23 @@ export function createApp(options: CreateAppOptions): Express {
   app.post('/api/auth/setup', (req, res, next) => {
     try {
       if (getActivePasswordHash()) {
-        sendApiError(res, 403, 'PASSWORD_ALREADY_SET', 'Password has already been configured.');
+        sendApiError(res, 403, 'PASSWORD_ALREADY_SET');
+        return;
+      }
+      // A setup code can be short when it is chosen by hand (SETUP_CODE); guessing is limited like passwords.
+      const now = nowFn();
+      const clientIp = getClientIp(req, trustProxy);
+      if (rateLimiter.isBlocked(clientIp, now)) {
+        sendApiError(res, 429, 'TOO_MANY_ATTEMPTS');
         return;
       }
       const { password, setupCode: providedSetupCode } = authSetupRequestSchema.parse(req.body);
       if (!verifySetupCode(providedSetupCode, activeSetupCode)) {
-        sendApiError(res, 403, 'SETUP_CODE_INVALID', 'Invalid setup code. Check server logs or SETUP_CODE.');
+        rateLimiter.recordFailure(clientIp, now);
+        sendApiError(res, 403, 'SETUP_CODE_INVALID');
         return;
       }
-      const now = nowFn();
+      rateLimiter.clear(clientIp);
       repo.setStoredPasswordHash(hashPassword(password), now);
       const { token, tokenHash } = generateSessionToken();
       repo.createSession(tokenHash, now, now + SESSION_TTL_MS);
@@ -214,18 +217,18 @@ export function createApp(options: CreateAppOptions): Express {
       const now = nowFn();
       const clientIp = getClientIp(req, trustProxy);
       if (rateLimiter.isBlocked(clientIp, now)) {
-        sendApiError(res, 429, 'TOO_MANY_ATTEMPTS', 'Too many failed login attempts. Try again in 15 minutes.');
+        sendApiError(res, 429, 'TOO_MANY_ATTEMPTS');
         return;
       }
       const activeHash = getActivePasswordHash();
       if (!activeHash) {
-        sendApiError(res, 400, 'PASSWORD_NOT_SET', 'Password has not been configured yet.');
+        sendApiError(res, 400, 'PASSWORD_NOT_SET');
         return;
       }
       const { password } = authPasswordRequestSchema.parse(req.body);
       if (!verifyPassword(password, activeHash)) {
         rateLimiter.recordFailure(clientIp, now);
-        sendApiError(res, 401, 'WRONG_PASSWORD', 'Incorrect password.');
+        sendApiError(res, 401, 'WRONG_PASSWORD');
         return;
       }
       rateLimiter.clear(clientIp);
@@ -241,19 +244,19 @@ export function createApp(options: CreateAppOptions): Express {
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     const { token, viaCookie } = extractAuthToken(req);
     if (!token) {
-      sendApiError(res, 401, 'UNAUTHENTICATED', 'Authentication required.');
+      sendApiError(res, 401, 'UNAUTHENTICATED');
       return;
     }
     const isMutating =
       req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE';
     if (viaCookie && isMutating && !isSameOriginRequest(req, trustProxy)) {
-      sendApiError(res, 403, 'CSRF_ORIGIN_MISMATCH', 'Cross-origin request rejected (Origin check failed).');
+      sendApiError(res, 403, 'CSRF_ORIGIN_MISMATCH');
       return;
     }
     const tokenHash = hashSessionToken(token);
     const now = nowFn();
     if (!repo.verifyAndTouchSession(tokenHash, now, now + SESSION_TTL_MS)) {
-      sendApiError(res, 401, 'SESSION_EXPIRED', 'Session has expired. Please sign in again.');
+      sendApiError(res, 401, 'SESSION_EXPIRED');
       return;
     }
     res.locals.tokenHash = tokenHash;
@@ -344,29 +347,29 @@ export function createApp(options: CreateAppOptions): Express {
   });
 
   app.use('/api', (_req: Request, res: Response) => {
-    sendApiError(res, 404, 'ROUTE_NOT_FOUND', 'Requested API endpoint was not found.');
+    sendApiError(res, 404, 'ROUTE_NOT_FOUND');
   });
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
       const firstIssue = err.issues[0];
       const field = firstIssue?.path.length ? firstIssue.path.join('.') : undefined;
-      sendApiError(res, 400, 'VALIDATION_ERROR', firstIssue?.message || 'Invalid request payload', {
+      sendApiError(res, 400, 'VALIDATION_ERROR', {
         ...(field ? { field } : {}),
         issues: err.issues.map((issue) => ({ code: issue.code, path: issue.path })),
       });
       return;
     }
     if (err instanceof LinkImportError) {
-      sendApiError(res, 400, err.code, err.code);
+      sendApiError(res, 400, err.code);
       return;
     }
     if (err instanceof NotFoundError) {
-      sendApiError(res, 404, err.code, err.message);
+      sendApiError(res, 404, err.code);
       return;
     }
     if (err instanceof ConflictError) {
-      sendApiError(res, 409, err.code, err.message);
+      sendApiError(res, 409, err.code);
       return;
     }
     // Request-body failures (malformed JSON, bad or truncated gzip, unsupported charset) are client errors.
@@ -375,16 +378,16 @@ export function createApp(options: CreateAppOptions): Express {
     const clientStatus =
       typeof err === 'object' && err !== null && 'status' in err ? (err as { status?: unknown }).status : undefined;
     if (clientStatus === 413) {
-      sendApiError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request payload is too large.');
+      sendApiError(res, 413, 'PAYLOAD_TOO_LARGE');
       return;
     }
     if (typeof clientStatus === 'number' && clientStatus >= 400 && clientStatus < 500) {
-      sendApiError(res, 400, 'VALIDATION_ERROR', 'Request body could not be read.');
+      sendApiError(res, 400, 'VALIDATION_ERROR');
       return;
     }
     // Log the stack only: enumerable properties of unknown errors may include request data.
     console.error('Unhandled API error:', err instanceof Error ? (err.stack ?? err.message) : typeof err);
-    sendApiError(res, 500, 'INTERNAL_ERROR', 'Internal server error.');
+    sendApiError(res, 500, 'INTERNAL_ERROR');
   });
 
   return app;

@@ -191,7 +191,13 @@ test('missing upstream text, images and identifiers do not erase local metadata'
 test('automatic refresh preserves orphan marks and does not silently replace known episode identities', () => {
   const local = season(1, [1]);
   const { repo, title, refresh, decide } = setup([local]);
-  repo.putProgress(title.id, 'p1', { watched: { s1e1: 123, s9e9: 456 } });
+  // An orphan mark can only come from older data or a backup; the API no longer accepts one.
+  const db = (repo as unknown as { db: import('node:sqlite').DatabaseSync }).db;
+  db.prepare('INSERT OR REPLACE INTO progress (title_id, playthrough_id, data) VALUES (?, ?, ?)').run(
+    title.id,
+    'p1',
+    JSON.stringify({ watched: { s1e1: 123, s9e9: 456 } }),
+  );
   const replacement = season(1, [99]);
   replacement.episodes[0].airDate = local.episodes[0].airDate;
   refresh([replacement]);

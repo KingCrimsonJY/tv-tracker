@@ -47,10 +47,16 @@ export const PlaythroughHistory: React.FC<PlaythroughHistoryProps> = ({
             const isSinglePlaythrough = sorted.length === 1;
             const isRewatchInProgress = !isCompleted && sorted.length > 1;
 
+            // A finished viewing shows when it ran from and to; one that started and ended on the same day
+            // shows that day once.
+            const started = formatRowDate(pt.startedAt);
+            const finished = pt.completedAt != null ? formatRowDate(pt.completedAt) : null;
             const dateLabel =
-              isCompleted && pt.completedAt != null
-                ? t.detail.playthroughs.finishedOn(formatRowDate(pt.completedAt))
-                : t.detail.playthroughs.startedOn(formatRowDate(pt.startedAt));
+              finished === null
+                ? t.detail.playthroughs.startedOn(started)
+                : finished === started
+                  ? t.detail.playthroughs.finishedOn(finished)
+                  : t.detail.playthroughs.watchedFromTo(started, finished);
 
             const menuItemLabel = isSinglePlaythrough
               ? t.detail.playthroughs.clearWatchHistory

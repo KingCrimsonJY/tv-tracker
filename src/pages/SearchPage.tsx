@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SearchField, Button, Skeleton, toast } from '@heroui/react';
 import { Link2, PlusCircle } from 'lucide-react';
 import { useTracker } from '../context/TrackerContext';
+import { selectLists, selectTitles } from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { searchTmdbApi, TmdbSearchItem } from '../data/api';
 import { SearchResults } from '../features/search/SearchResults';
 import { LinkImportDialog } from '../features/search/LinkImportDialog';
 import type { ManualSeed } from '../features/search/linkImportModel';
 import { ManualItemDialog } from '../features/search/ManualItemDialog';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
 
 // Recent results survive opening a title and coming back, so Back shows the list without a refetch.
@@ -21,8 +24,11 @@ const rememberSearch = (key: string, results: TmdbSearchItem[]) => {
 
 export const SearchPage: React.FC = () => {
   const navigate = useNavigate();
-  const { titles, lists, addTitleFromTmdb } = useTracker((state) => [state.titles, state.lists]);
+  const { addTitleFromTmdb } = useTracker();
+  const titles = useTrackerState(selectTitles);
+  const lists = useTrackerState(selectLists);
   const { t, locale, translateError } = useI18n();
+  usePageTitle(t.search.title);
 
   // Mirrored into ?q= so browser Back from a result returns to the same search.
   const [query, setQuery] = useSearchQueryParam('q');
@@ -77,10 +83,14 @@ export const SearchPage: React.FC = () => {
     };
   }, [query, searchLang, translateError]);
 
-  const existingTmdbKeys = new Set(
-    Object.values(titles)
-      .filter((item) => item.source === 'tmdb' && item.sourceId !== null)
-      .map((item) => `${item.mediaType}:${item.sourceId}`),
+  const libraryIds = useMemo(
+    () =>
+      new Map(
+        Object.values(titles)
+          .filter((item) => item.source === 'tmdb' && item.sourceId !== null)
+          .map((item) => [`${item.mediaType}:${item.sourceId}`, item.id]),
+      ),
+    [titles],
   );
 
   const handleAddTmdb = useCallback(
@@ -157,12 +167,10 @@ export const SearchPage: React.FC = () => {
       ) : (
         <SearchResults
           results={results}
-          existingTmdbKeys={existingTmdbKeys}
-          titles={titles}
+          libraryIds={libraryIds}
           lists={listArray}
           addingKey={addingKey}
           onAdd={handleAddTmdb}
-          onOpenExisting={(id) => navigate(`/title/${id}`)}
         />
       )}
 

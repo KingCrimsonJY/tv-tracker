@@ -14,6 +14,7 @@ import {
   toast,
 } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
+import { isImageReference } from '../../domain/images';
 import { MediaType } from '../../domain/types';
 import type { ManualSeed } from './linkImportModel';
 import { useI18n } from '../../i18n';
@@ -26,7 +27,7 @@ interface ManualItemDialogProps {
 }
 
 export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOpenChange, initialSeed, onCreated }) => {
-  const { createCustomOrLinkTitle } = useTracker(() => null);
+  const { createCustomOrLinkTitle } = useTracker();
   const { t, translateError } = useI18n();
 
   const [title, setTitle] = useState('');
@@ -60,13 +61,10 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
     }
   }, [isOpen, initialSeed]);
 
-  const invalidYear = year !== '' && (!Number.isInteger(Number(year)) || Number(year) < 1800 || Number(year) > 2200);
-  const invalidRuntime =
-    runtime !== '' && (!Number.isFinite(Number(runtime)) || Number(runtime) < 0 || Number(runtime) > 100000);
-  const invalidCount =
-    mediaType !== 'movie' &&
-    (!Number.isInteger(Number(episodeCount)) || Number(episodeCount) < 0 || Number(episodeCount) > 2000);
-  const invalid = invalidYear || invalidRuntime || invalidCount;
+  // The number fields clamp to their range when they lose focus (HeroUI NumberField), so only the poster
+  // address can be invalid here.
+  const invalidPoster = !isImageReference(posterUrl);
+  const invalid = invalidPoster;
 
   const handleSave = async () => {
     if (!title.trim() || invalid || saving) return;
@@ -82,10 +80,9 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
         overview: overview.trim(),
         uploader: initialSeed?.uploader ?? null,
         episodeCount: mediaType === 'movie' ? 0 : epCount,
-        episodes:
-          mediaType !== 'movie' && initialSeed?.episodes && initialSeed.episodes.length === epCount
-            ? initialSeed.episodes
-            : undefined,
+        // Parsed episodes keep their names and source ids when the count is changed: a smaller count keeps
+        // the first ones, a larger count adds unnamed episodes after them.
+        episodes: mediaType !== 'movie' && epCount > 0 ? initialSeed?.episodes : undefined,
         source: initialSeed?.source ?? 'custom',
         sourceUrl: initialSeed?.sourceUrl ?? null,
       });
@@ -155,7 +152,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
                 minValue={1800}
                 maxValue={2200}
                 formatOptions={{ useGrouping: false }}
-                isInvalid={invalidYear}
               >
                 <Label>{t.search.manual.yearLabel}</Label>
                 <NumberField.Group>
@@ -163,7 +159,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
                   <NumberField.Input />
                   <NumberField.IncrementButton />
                 </NumberField.Group>
-                <FieldError>{t.search.manual.invalidYear}</FieldError>
               </NumberField>
               <NumberField
                 value={runtime === '' ? NaN : Number(runtime)}
@@ -171,7 +166,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
                 minValue={0}
                 maxValue={100000}
                 formatOptions={{ useGrouping: false }}
-                isInvalid={invalidRuntime}
               >
                 <Label>{t.search.manual.runtimeLabel}</Label>
                 <NumberField.Group>
@@ -179,13 +173,13 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
                   <NumberField.Input />
                   <NumberField.IncrementButton />
                 </NumberField.Group>
-                <FieldError>{t.search.manual.invalidRuntime}</FieldError>
               </NumberField>
             </div>
 
-            <TextField value={posterUrl} onChange={setPosterUrl}>
+            <TextField value={posterUrl} onChange={setPosterUrl} isInvalid={invalidPoster}>
               <Label>{t.search.manual.posterUrlLabel}</Label>
               <Input placeholder={t.search.manual.posterUrlPlaceholder} type="url" />
+              <FieldError>{t.app.invalidImageUrl}</FieldError>
             </TextField>
 
             {mediaType !== 'movie' && (
@@ -195,7 +189,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
                 minValue={0}
                 maxValue={2000}
                 formatOptions={{ useGrouping: false }}
-                isInvalid={invalidCount}
               >
                 <Label>{t.search.manual.episodeCountLabel}</Label>
                 <NumberField.Group>
@@ -203,7 +196,6 @@ export const ManualItemDialog: React.FC<ManualItemDialogProps> = ({ isOpen, onOp
                   <NumberField.Input />
                   <NumberField.IncrementButton />
                 </NumberField.Group>
-                <FieldError>{t.search.manual.invalidCount}</FieldError>
               </NumberField>
             )}
 

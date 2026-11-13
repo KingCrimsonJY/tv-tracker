@@ -1,8 +1,6 @@
 import { normalizeTmdbImages } from '../../src/domain/images.ts';
-import { migrateImages } from './imageMigration.ts';
-import { completeSupersededPlaythroughs } from './supersededPlaythroughs.ts';
 import { fillEpisodeMetadataBatch, enrichmentDue, claimEnrichment } from './enrichmentRepo.ts';
-import { runMigration002InTx, runMigration003InTx, runMigration004InTx } from './legacyMigrations.ts';
+import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './migrations.ts';
 import { appendPlaylistEpisodes } from './linkMetadataRepo.ts';
 import { previewStructure, decideStructure, convertToManual } from './structureRepo.ts';
 import { readSeasons, refreshMetadata } from './metadataRepo.ts';
@@ -24,13 +22,15 @@ import type {
   WatchListDoc,
   ZhenjiExportV2,
 } from '../../src/domain/types.ts';
+import type { BatchAction } from '../../src/domain/batch.ts';
 import { backupDatabase, createSafetyBackup, todayDateStr, writeDailyExport } from './backup.ts';
+import { applyTitleBatch } from './batchRepo.ts';
 import { exportData, getState, importData } from './importExportRepo.ts';
 import { deleteList, deleteListEntry, patchList, patchListEntry, putList, putListEntry } from './listsRepo.ts';
-import { deleteProgress, patchProgress, putProgress } from './progressRepo.ts';
 import {
   createSession,
   deleteAllSessions,
+  deleteExpiredSessions,
   deleteSession,
   getSettings,
   getStoredPasswordHash,
@@ -50,9 +50,10 @@ export class DataDirPermissionError extends Error {
     const uid = typeof process.getuid === 'function' ? process.getuid() : 'unknown';
     const message = [
       `Error: DATA_DIR "${dataDir}" is not writable by the current process (uid=${uid}).`,
-      `If ./data did not exist before the first "docker compose up", Docker created it owned by root.`,
-      `Fix it on the host before starting the container:`,
-      `  mkdir -p data && sudo chown 1000:1000 data`,
+      `Give that user write access to the directory, then start again. In a container the app runs as uid 1000:`,
+      `  Docker:           mkdir -p data && sudo chown 1000:1000 data`,
+      `  Rootless Podman:  add --userns=keep-id:uid=1000,gid=1000 (and :Z on the volume under SELinux)`,
+      `See docs/deployment.md.`,
     ].join('\n');
     super(message, { cause });
     this.name = 'DataDirPermissionError';
@@ -82,7 +83,6 @@ export class TrackerRepository {
   private readonly db: DatabaseSync;
   private readonly isMemory: boolean;
   private readonly dataDir: string | null;
-  private readonly migrationsDir: string;
   private readonly ctx: DbContext;
 
   constructor(options: RepositoryOptions = {}) {
@@ -92,7 +92,6 @@ export class TrackerRepository {
 
     const dbPath = options.dbPath || (resolvedDataDir ? path.join(resolvedDataDir, 'tracker.db') : ':memory:');
     this.isMemory = dbPath === ':memory:';
-    this.migrationsDir = options.migrationsDir || path.resolve(import.meta.dirname, 'migrations');
 
     if (!this.isMemory && this.dataDir) {
       assertDataDirWritable(this.dataDir);
@@ -109,13 +108,12 @@ export class TrackerRepository {
       db: this.db,
       isMemory: this.isMemory,
       dataDir: this.dataDir,
-      migrationsDir: this.migrationsDir,
       runInTransaction: <T>(fn: () => T) => this.runInTransaction(fn),
       bumpVersionInTx: () => this.bumpVersionInTx(),
       getVersion: () => this.getVersion(),
     };
 
-    this.applyMigrations();
+    this.applyMigrations(options.migrateTo ?? LATEST_SCHEMA_VERSION);
   }
 
   public close(): void {
@@ -127,45 +125,25 @@ export class TrackerRepository {
     return Number(row?.user_version ?? 0);
   }
 
-  private applyMigrations(): void {
-    if (!fs.existsSync(this.migrationsDir)) return;
-
+  private applyMigrations(target: number): void {
     const currentVersion = this.getUserVersion();
-    const files = fs
-      .readdirSync(this.migrationsDir)
-      .filter((f) => /^\d+_.*\.sql$/.test(f))
-      .sort();
-
-    const pending = files
-      .map((filename) => {
-        const match = filename.match(/^(\d+)_/);
-        const version = match ? Number.parseInt(match[1], 10) : 0;
-        return { filename, version };
-      })
-      .filter((m) => m.version > currentVersion);
-
+    if (currentVersion > LATEST_SCHEMA_VERSION) {
+      // Written by a newer release: running old code against it could corrupt data it does not understand.
+      this.db.close();
+      throw new Error(
+        `Database schema version ${currentVersion} is newer than this release supports (${LATEST_SCHEMA_VERSION}). ` +
+          'Update the app, or restore a backup made by this release.',
+      );
+    }
+    const pending = MIGRATIONS.filter((m) => m.version > currentVersion && m.version <= target);
     if (pending.length === 0) return;
 
-    if (!this.isMemory && this.dataDir && currentVersion > 0) {
-      this.createSafetyBackup('pre-migration');
-    }
+    if (currentVersion > 0) this.createSafetyBackup('pre-migration');
 
     for (const migration of pending) {
-      const sqlPath = path.join(this.migrationsDir, migration.filename);
-      const sqlContent = fs.readFileSync(sqlPath, 'utf-8');
       this.runInTransaction(() => {
-        this.db.exec(sqlContent);
-        if (migration.version === 2) {
-          runMigration002InTx(this.db);
-        }
-        if (migration.version === 3) {
-          runMigration003InTx(this.db);
-        }
-        if (migration.version === 8) migrateImages(this.db);
-        if (migration.version === 10) completeSupersededPlaythroughs(this.db);
-        if (migration.version === 4) {
-          runMigration004InTx(this.db);
-        }
+        if (migration.sql) this.db.exec(migration.sql);
+        migration.run?.(this.db);
         this.db.exec(`PRAGMA user_version = ${migration.version};`);
       });
     }
@@ -215,7 +193,8 @@ export class TrackerRepository {
     return writeDailyExport(this.ctx, () => this.exportData(), dateStr);
   }
 
-  public runDailyMaintenance(dateStr = todayDateStr()): void {
+  public runDailyMaintenance(dateStr = todayDateStr(), now = Date.now()): void {
+    deleteExpiredSessions(this.ctx, now);
     this.backupDatabase(dateStr);
     this.writeDailyExport(dateStr);
   }
@@ -305,28 +284,8 @@ export class TrackerRepository {
     return applyTitleAtomicAction(this.ctx, titleId, input);
   }
 
-  public putProgress(
-    titleId: string,
-    playthroughId: string,
-    input: { watched: Record<string, number>; movieWatchedAt?: number },
-  ): StateMutationResult {
-    return putProgress(this.ctx, titleId, playthroughId, input);
-  }
-
-  public patchProgress(
-    titleId: string,
-    playthroughId: string,
-    patch: {
-      set?: Record<string, number>;
-      unset?: string[];
-      movieWatchedAt?: number | null;
-    },
-  ): StateMutationResult {
-    return patchProgress(this.ctx, titleId, playthroughId, patch);
-  }
-
-  public deleteProgress(titleId: string, playthroughId: string): StateMutationResult {
-    return deleteProgress(this.ctx, titleId, playthroughId);
+  public applyTitleBatch(titleIds: readonly string[], action: BatchAction): StateMutationResult {
+    return applyTitleBatch(this.ctx, titleIds, action);
   }
 
   public putList(id: string, listInput: Omit<WatchListDoc, 'id'>): StateMutationResult {

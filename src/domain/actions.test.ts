@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test as registerTest } from 'vitest';
 import {
-  cancelRewatch,
   computeTitleState,
   deletePlaythrough,
   markUpToEpisode,
@@ -92,7 +91,7 @@ registerTest('3. Rewatch start and cancel restores previous playthrough', () => 
   assert.equal(rewatchingState.playthroughNumber, 2);
   assert.equal(rewatchingState.completedPlaythroughCount, 1);
 
-  const cancelled = cancelRewatch(
+  const cancelled = undoLatestPlaythrough(
     {
       ...title,
       playthroughs: started.playthroughs,

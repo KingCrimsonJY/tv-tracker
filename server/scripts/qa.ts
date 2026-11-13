@@ -1,5 +1,5 @@
 import express from 'express';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -9,6 +9,8 @@ import { generateSessionToken, hashPassword, SESSION_TTL_MS } from '../auth.ts';
 import { TrackerRepository } from '../db/repository.ts';
 import { seedPerfFixture, PERF_FIRST_TITLE, PERF_LONG_TITLE } from './perf-fixture.ts';
 import type { SeasonDoc } from '../../src/domain/types.ts';
+import { en } from '../../src/i18n/messages/en.ts';
+import { zhCN } from '../../src/i18n/messages/zh-CN.ts';
 
 const runDir = mkdtempSync(path.join(tmpdir(), 'zhenji-qa-'));
 const output = path.resolve(process.env.QA_OUTPUT_DIR || path.join(runDir, 'screenshots'));
@@ -28,13 +30,40 @@ const source: SeasonDoc[] = Array.from({ length: 5 }, (_, index) => ({
   })),
 }));
 repo.refreshMetadata(title.id, { title, seasons: source });
-repo.patchProgress(PERF_LONG_TITLE, 'p1', {
-  set: Object.fromEntries(Array.from({ length: 120 }, (_, index) => ['s1e' + (index + 1), Date.now()])),
+repo.applyTitleAtomicAction(PERF_LONG_TITLE, {
+  progress: {
+    playthroughId: 'p1',
+    set: Object.fromEntries(Array.from({ length: 120 }, (_, index) => ['s1e' + (index + 1), Date.now()])),
+  },
 });
+for (const [id, pinned] of [
+  ['qa_pinned', true],
+  ['qa_target', false],
+] as const) {
+  repo.putList(id, {
+    name: id === 'qa_pinned' ? 'Pinned picks' : 'Batch target',
+    kind: 'collection',
+    pinned,
+    rank: id === 'qa_pinned' ? 'a1' : 'a2',
+    collectionSort: 'added',
+    createdAt: Date.now(),
+  });
+}
 repo.setStoredPasswordHash(hashPassword('qa-only-not-a-user-password'));
 const { token, tokenHash } = generateSessionToken();
 repo.createSession(tokenHash, Date.now(), Date.now() + SESSION_TTL_MS);
-const app = createApp({ repo, isProduction: true });
+// Link import is answered from the bundled yt-dlp fixture, so the run needs no network.
+const ytdlpFixture = JSON.stringify(
+  JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'fixtures/ytdlp-3b1b-youtube.json'), 'utf8')),
+);
+const app = createApp({
+  repo,
+  isProduction: true,
+  linkDeps: {
+    lookupFn: async () => [{ address: '93.184.216.34' }],
+    execFn: async (_file, args) => ({ stdout: args.includes('--version') ? '2026.01.01' : ytdlpFixture, stderr: '' }),
+  },
+});
 app.use('/perf-assets', express.static(path.resolve('public')));
 app.use(express.static(path.resolve('dist')));
 app.get('*', (_req, res) => res.sendFile(path.resolve('dist/index.html')));
@@ -52,6 +81,37 @@ const observe = (page: Page) => {
     if (message.type() === 'error') errors.push(message.text());
   });
 };
+/**
+ * Every layout the shell has: phone (bottom tab bar, below 640px), tablet (navigation rail, 640-1023px)
+ * and desktop (sidebar, from 1024px), two sizes each.
+ */
+const VIEWPORTS = [
+  { width: 320, height: 844 },
+  { width: 390, height: 844 },
+  { width: 768, height: 1024 },
+  { width: 820, height: 1180 },
+  { width: 1280, height: 900 },
+  { width: 1440, height: 900 },
+] as const;
+type Viewport = { width: number; height: number };
+type Locale = 'en' | 'zh-CN';
+const messages = (locale: Locale) => (locale === 'en' ? en : zhCN);
+const formFactor = ({ width }: Viewport) => (width < 640 ? 'phone' : width < 1024 ? 'tablet' : 'desktop');
+
+async function openPage(viewport: Viewport): Promise<Page> {
+  const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
+  await context.addCookies([{ name: 'zhenji_session', value: token, url: baseUrl, httpOnly: true, sameSite: 'Lax' }]);
+  const page = await context.newPage();
+  observe(page);
+  return page;
+}
+const inViewport = (box: { x: number; y: number; width: number; height: number } | null, viewport: Viewport) =>
+  box !== null &&
+  box.x >= 0 &&
+  box.y >= 0 &&
+  box.x + box.width <= viewport.width + 1 &&
+  box.y + box.height <= viewport.height + 1;
+
 const capture = async (page: Page, name: string) => {
   await page.waitForTimeout(150);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), name + ' overflows');
@@ -59,22 +119,383 @@ const capture = async (page: Page, name: string) => {
   await page.screenshot({ path: path.join(output, file), animations: 'disabled' });
   screenshots.push(file);
 };
+/** Each layout shows exactly one navigation, and everything the sidebar offers is reachable from it. */
+async function verifyShell(page: Page, viewport: Viewport, locale: Locale, prefix: string) {
+  const t = messages(locale);
+  const layout = formFactor(viewport);
+  await page.goto(baseUrl + '/library');
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  const sidebar = page.getByRole('complementary', { name: t.app.desktopNavAria });
+  const rail = page.getByRole('complementary', { name: t.app.tabletNavAria });
+  const tabBar = page.getByRole('navigation', { name: t.app.mobileNavAria });
+  assert.deepEqual(
+    [await tabBar.isVisible(), await rail.isVisible(), await sidebar.isVisible()],
+    [layout === 'phone', layout === 'tablet', layout === 'desktop'],
+    prefix + ' shows the wrong navigation',
+  );
+  await capture(page, prefix + '-library');
+
+  const pinnedHref = '/lists/qa_pinned';
+  if (layout === 'desktop') {
+    assert(await sidebar.locator(`a[href="${pinnedHref}"]`).isVisible(), 'Sidebar lacks the pinned list');
+  } else if (layout === 'tablet') {
+    for (const name of [t.nav.pinnedListsHeader, t.settings.title, t.app.signOut]) {
+      const control = rail.getByRole(name === t.settings.title ? 'link' : 'button', { name, exact: true });
+      assert(inViewport(await control.boundingBox(), viewport), `Rail control "${name}" is off screen`);
+    }
+    // Pinned lists open from the rail as real links: the app must not reload.
+    await page.evaluate(() => Object.assign(window, { qaMarker: true }));
+    await rail.getByRole('button', { name: t.nav.pinnedListsHeader, exact: true }).click();
+    const item = page.getByRole('menuitem', { name: 'Pinned picks' });
+    assert.equal(await item.getAttribute('href'), pinnedHref);
+    await capture(page, prefix + '-rail-pinned');
+    await item.click();
+    await page.waitForURL(baseUrl + pinnedHref);
+    await page.getByRole('heading', { level: 1, name: 'Pinned picks' }).waitFor();
+    assert.equal(await page.evaluate(() => 'qaMarker' in window), true, 'Rail navigation reloaded the app');
+  } else {
+    await page.goto(baseUrl + '/');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    assert(await page.locator(`main a[href="${pinnedHref}"]`).first().isVisible(), 'Home lacks the pinned list');
+    assert(inViewport(await tabBar.boundingBox(), viewport), 'Tab bar is off screen');
+  }
+}
+
+/** A phone held sideways gets the rail with very little height: it must scroll instead of clipping. */
+async function verifyShortLandscapeRail() {
+  const viewport = { width: 844, height: 390 };
+  const page = await openPage(viewport);
+  await page.goto(baseUrl + '/library');
+  const signOut = page.getByRole('complementary', { name: en.app.tabletNavAria }).getByRole('button', {
+    name: en.app.signOut,
+    exact: true,
+  });
+  await signOut.scrollIntoViewIfNeeded();
+  assert(inViewport(await signOut.boundingBox(), viewport), 'Rail sign-out is unreachable in landscape');
+  await capture(page, 'landscape-rail');
+  await page.context().close();
+}
+
+/**
+ * Library multi-select end to end, with a second device watching: selection by pointer and keyboard, the
+ * action bar's position in each layout, and one atomic request and one synced event per batch.
+ */
+async function verifyBatchManagement(viewport: Viewport, locale: Locale) {
+  const t = messages(locale);
+  const text = t.library.batch;
+  const layout = formFactor(viewport);
+  const [page, other] = await Promise.all([openPage(viewport), openPage(viewport)]);
+  await Promise.all([page, other].map((p) => p.goto(baseUrl + '/library')));
+  await Promise.all([page, other].map((p) => p.locator('.poster-grid a').first().waitFor()));
+  await other.waitForTimeout(400);
+  const requests: Array<{ method: string; path: string }> = [];
+  for (const p of [page, other])
+    p.on('request', (request) => requests.push({ method: request.method(), path: new URL(request.url()).pathname }));
+  const total = await page.locator('.poster-grid a').count();
+  const ids = await page
+    .locator('.poster-grid a')
+    .evaluateAll((links) => links.slice(0, 4).map((link) => (link.getAttribute('href') ?? '').slice(7)));
+
+  const toggleMode = page.getByRole('button', { name: text.select, exact: true });
+  const done = page.getByRole('button', { name: text.done, exact: true });
+  const toolbar = page.getByRole('toolbar', { name: text.toolbarAria });
+  const count = toolbar.getByRole('status');
+  const cards = page.getByRole('group', { name: text.gridAria }).getByRole('checkbox');
+  const action = (name: string) => toolbar.getByRole('button', { name, exact: true });
+
+  await toggleMode.click();
+  await toolbar.waitFor();
+  // The same button now leaves the mode, and keyboard focus stays on it.
+  assert(await done.evaluate((button) => button === document.activeElement), 'Focus was lost entering selection');
+  assert.equal(await count.innerText(), text.selectedCount(0));
+  assert(await action(text.delete).isDisabled(), 'Batch actions must be disabled with nothing selected');
+  // The checkboxes arrive with the grid's deferred render, which a slow machine finishes later.
+  await cards.nth(total - 1).waitFor({ state: 'attached' });
+  assert.equal(await cards.count(), total);
+
+  // The bar stays inside the content area and never covers the phone tab bar.
+  const bar = await toolbar.boundingBox();
+  assert(bar && inViewport(bar, viewport), 'Batch toolbar is off screen at ' + viewport.width);
+  assert(bar.x >= (layout === 'desktop' ? 256 : layout === 'tablet' ? 80 : 0), 'Batch toolbar overlaps the navigation');
+  if (layout === 'phone') {
+    const tabBar = await page.getByRole('navigation', { name: t.app.mobileNavAria }).boundingBox();
+    assert(tabBar && bar.y + bar.height <= tabBar.y, 'Batch toolbar covers the tab bar');
+  }
+
+  // Pointer, then keyboard only.
+  await cards.nth(0).click({ force: true });
+  await cards.nth(1).focus();
+  await page.keyboard.press('Space');
+  assert.equal(await count.innerText(), text.selectedCount(2));
+  // The grid follows the selection in a deferred render; wait for it rather than for a fixed time.
+  const checked = page.getByRole('group', { name: text.gridAria }).getByRole('checkbox', { checked: true });
+  await checked.nth(1).waitFor({ state: 'attached' });
+  assert.deepEqual(
+    [await cards.nth(0).isChecked(), await cards.nth(1).isChecked(), await cards.nth(2).isChecked()],
+    [true, true, false],
+  );
+  await capture(page, ['batch', locale, viewport.width].join('-'));
+  await page.keyboard.press('Control+a');
+  assert.equal(await count.innerText(), text.selectedCount(total));
+  await page.getByRole('button', { name: text.deselectAll, exact: true }).click();
+  assert.equal(await count.innerText(), text.selectedCount(0));
+  await page.getByRole('button', { name: text.selectAll, exact: true }).click();
+  assert.equal(await count.innerText(), text.selectedCount(total));
+  await page.keyboard.press('Escape');
+  await toolbar.waitFor({ state: 'hidden' });
+  assert.equal(await page.locator('.poster-grid a').count(), total, 'Leaving selection must restore the links');
+
+  const select = async (indexes: number[]) => {
+    await toggleMode.click();
+    for (const index of indexes) await cards.nth(index).click({ force: true });
+    assert.equal(await count.innerText(), text.selectedCount(indexes.length));
+  };
+  const batchRequests = () => requests.filter((r) => r.method === 'POST' && r.path === '/api/titles/batch').length;
+
+  // Status: one request, shown on the other device from the single event.
+  await select([0, 1, 2]);
+  await action(text.setStatus).click();
+  await page.getByRole('menuitem', { name: text.status.paused, exact: true }).click();
+  await toolbar.waitFor({ state: 'hidden' });
+  await page.getByText(text.statusDone(3), { exact: true }).waitFor();
+  for (const id of ids.slice(0, 3)) {
+    assert.equal(repo.getTitle(id)?.manualState, 'paused');
+    await other.locator(`a[href="/title/${id}"]`).getByText(t.status.paused, { exact: true }).waitFor();
+  }
+  assert.equal(batchRequests(), 1);
+
+  // Add to a list from the picker.
+  await select([0, 1, 2]);
+  await action(text.addToList).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Batch target' }).click();
+  await toolbar.waitFor({ state: 'hidden' });
+  await page.getByText(text.addedToList(3, 'Batch target'), { exact: true }).waitFor();
+  assert.deepEqual(
+    (repo.getState().entriesByList.qa_target ?? []).map((entry) => entry.titleId),
+    ids.slice(0, 3),
+  );
+  assert.equal(batchRequests(), 2);
+
+  // Delete needs a confirmation and removes the titles everywhere.
+  await select([3]);
+  await action(text.delete).click();
+  // Toasts are alertdialogs as well; pick the confirmation by its heading.
+  const confirm = page.getByRole('alertdialog').filter({ hasText: text.deleteTitle(1) });
+  await confirm.getByText(text.deleteTitle(1), { exact: true }).waitFor();
+  assert.notEqual(repo.getTitle(ids[3]), null, 'Nothing may be deleted before confirming');
+  // Escape cancels the confirmation and deletes nothing.
+  await page.keyboard.press('Escape');
+  await confirm.waitFor({ state: 'hidden' });
+  assert.notEqual(repo.getTitle(ids[3]), null, 'Escape must cancel the deletion');
+  await action(text.delete).click();
+  await confirm.waitFor();
+  await confirm.getByRole('button', { name: text.delete, exact: true }).click();
+  await toolbar.waitFor({ state: 'hidden' });
+  assert.equal(repo.getTitle(ids[3]), null);
+  await other.locator(`a[href="/title/${ids[3]}"]`).waitFor({ state: 'detached' });
+  assert.equal(await page.locator('.poster-grid a').count(), total - 1);
+  assert.equal(batchRequests(), 3);
+  assert.equal(requests.filter((r) => r.path === '/api/state').length, 0, 'A batch must sync without refetching state');
+
+  // Undo the pause and empty the list so the next layout starts from the same library.
+  for (const entry of repo.getState().entriesByList.qa_target ?? []) repo.deleteListEntry('qa_target', entry.id);
+  repo.applyTitleBatch(ids.slice(0, 3), { type: 'status', status: 'active', todayStr: '2000-01-01', now: Date.now() });
+  await Promise.all([page, other].map((p) => p.context().close()));
+}
+
+const LONG = 'W'.repeat(150);
+const BROKEN_IMAGE = '/qa-broken-image.jpg';
+
+/** A hand-made title built to stress layout: unbroken 150-character names and an image that cannot load. */
+function seedLongTitle() {
+  assert(title);
+  const day = (iso: string) => new Date(iso + 'T12:00:00').getTime();
+  repo.putTitle('qa_long', {
+    title: {
+      ...title,
+      id: 'qa_long',
+      source: 'custom',
+      sourceId: null,
+      names: { original: LONG, zh: LONG, en: LONG },
+      posterPath: baseUrl + BROKEN_IMAGE,
+      backdropPath: baseUrl + BROKEN_IMAGE,
+      upstreamChange: null,
+      playthroughs: [
+        { id: 'p1', number: 1, startedAt: day('2024-01-05'), completedAt: day('2024-02-10') },
+        { id: 'p2', number: 2, startedAt: day('2024-03-01') },
+      ],
+      activePlaythroughId: 'p2',
+    },
+    seasons: [
+      {
+        seasonNumber: 1,
+        name: null,
+        episodes: local[0].episodes.slice(0, 3).map((episode) => ({ ...episode, name: { zh: LONG, en: LONG } })),
+      },
+    ],
+    progress: { p2: { playthroughId: 'p2', watched: {} } },
+  });
+}
+
+/**
+ * Activate an entry of the open title menu. On phones it is a button in a drawer. Elsewhere it is a menu item
+ * in a popover over a scroll-locked page, where a pointer click makes Playwright scroll the page to "reach"
+ * it and the popover never settles, so the item is activated from the keyboard as a keyboard user would.
+ */
+async function chooseMenuEntry(page: Page, label: string) {
+  const item = page.getByRole('menuitem', { name: label, exact: true });
+  const button = page.getByRole('dialog').getByRole('button', { name: label, exact: true });
+  await item.or(button).first().waitFor();
+  if (await item.count()) await item.press('Enter');
+  else await button.click();
+}
+
+/** Open an entry of the title menu (a drawer on phones, a dropdown elsewhere) and return the dialog it opens. */
+async function openTitleMenuEntry(page: Page, locale: Locale, label: string, heading: string) {
+  await page
+    .getByRole('button', { name: messages(locale).detail.moreActionsAria, exact: true })
+    .filter({ visible: true })
+    .click();
+  await chooseMenuEntry(page, label);
+  // The phone drawer is a dialog too and is still closing; pick the one with the expected heading.
+  const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: heading, exact: true }) });
+  await dialog.waitFor();
+  return dialog;
+}
+
+/**
+ * Long unbroken text and a failing image must not break the title page or its dialogs, the tab is named
+ * after the screen, a finished viewing shows its date range, and the edit dialog refuses values it would
+ * otherwise have rewritten silently.
+ */
+async function verifyTitleRobustness(viewport: Viewport, locale: Locale) {
+  const t = messages(locale);
+  const page = await openPage(viewport);
+  // Answer the image with something that is not an image: the load fails without a network error.
+  await page.route('**' + BROKEN_IMAGE, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/jpeg', body: 'x' }),
+  );
+  await page.goto(baseUrl + '/title/qa_long');
+  await page.getByRole('heading', { level: 1, name: LONG }).waitFor();
+  await page.waitForTimeout(300);
+  assert.equal(await page.title(), LONG + ' · ' + t.app.name);
+  const broken = await page.evaluate(
+    () => [...document.images].filter((image) => image.complete && image.naturalWidth === 0).length,
+  );
+  assert.equal(broken, 0, 'A failed image is shown as a broken-image icon');
+  assert(
+    await page
+      .getByText(/\d.{0,2}\s–\s.*\d/)
+      .first()
+      .isVisible(),
+    'A finished viewing must show when it started and ended',
+  );
+  await capture(page, ['long-title', locale, viewport.width].join('-'));
+
+  const resume = await openTitleMenuEntry(page, locale, t.detail.menu.recordResumeTime, t.detail.resumeModal.title);
+  await resume.locator('button[aria-haspopup="listbox"]').click();
+  await page.getByRole('listbox').waitFor();
+  await capture(page, ['long-resume', locale, viewport.width].join('-'));
+  await page.keyboard.press('Escape');
+  await page.getByRole('listbox').waitFor({ state: 'hidden' });
+  await resume.getByRole('button', { name: t.app.close, exact: true }).click();
+  await resume.waitFor({ state: 'hidden' });
+
+  const edit = await openTitleMenuEntry(page, locale, t.detail.menu.editMetadata, t.detail.editModal.title);
+  const save = edit.getByRole('button', { name: t.app.save, exact: true });
+  const original = edit.getByRole('textbox', { name: t.detail.editModal.originalNameLabel });
+  await original.fill('');
+  await edit.getByText(t.detail.editModal.originalNameRequired, { exact: true }).waitFor();
+  assert(await save.isDisabled(), 'An empty original name must not be saved');
+  await original.fill(LONG);
+  const poster = edit.getByRole('textbox', { name: t.detail.editModal.posterPathLabel });
+  await poster.fill('not-a-valid-url');
+  await edit.getByText(t.app.invalidImageUrl, { exact: true }).waitFor();
+  assert(await save.isDisabled(), 'An invalid poster address must not be saved');
+  await capture(page, ['long-edit', locale, viewport.width].join('-'));
+  await page.keyboard.press('Escape');
+  assert.equal(repo.getTitle('qa_long')?.names.original, LONG);
+  await page.context().close();
+}
+
+/** Flows that need the server: a silent event stream, an honest empty state, and link import with refresh. */
+async function verifyRecoveryAndImport() {
+  const viewport = VIEWPORTS[1];
+  const page = await openPage(viewport);
+
+  // The event stream answers 200 and delivers nothing: the app must notice and say so, then recover.
+  await page.route('**/api/events', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }),
+  );
+  await page.goto(baseUrl + '/library');
+  await page.getByText(en.app.offlineTitle, { exact: true }).waitFor({ timeout: 20000 });
+  await page.unroute('**/api/events');
+  await page.getByRole('button', { name: en.app.offlineRetry, exact: true }).click();
+  await page.getByRole('heading', { level: 1, name: en.library.title }).waitFor();
+  assert.equal(await page.title(), en.library.title + ' · ' + en.app.name);
+
+  // Searching the library for something it does not contain is "no match", not "already in this list".
+  await page.goto(baseUrl + '/lists/qa_target');
+  await page.getByRole('button', { name: en.lists.addTitlesButtonShort, exact: true }).first().click();
+  await page.getByRole('dialog').getByRole('searchbox').fill('zzz-no-such-title');
+  await page.getByRole('dialog').getByText(en.lists.noLibraryMatches, { exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+
+  // Import a parsed playlist with fewer episodes than were parsed: the kept ones stay named and linked.
+  await page.goto(baseUrl + '/search');
+  await page.getByRole('button', { name: en.search.tabLinkImport, exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('textbox')
+    .fill('https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab');
+  await page.getByRole('button', { name: en.search.linkImport.parseButton, exact: true }).click();
+  const submit = page.getByRole('button', { name: en.search.manual.submitButton, exact: true });
+  await submit.waitFor();
+  const count = page.getByRole('dialog').getByRole('textbox', { name: en.search.manual.episodeCountLabel });
+  const parsed = Number(await count.inputValue());
+  assert(parsed > 5, 'The fixture playlist should have more than five entries');
+  await count.fill('5');
+  await count.blur();
+  await submit.click();
+  await page.waitForURL(/\/title\/url_/);
+  const id = new URL(page.url()).pathname.split('/').pop() ?? '';
+  const episodes = repo.getSeasons(id).flatMap((season) => season.episodes);
+  assert.equal(episodes.length, 5);
+  assert(
+    episodes.every((episode) => episode.name && episode.sourceVideoId),
+    'Parsed episode metadata was lost',
+  );
+
+  // Refreshing brings back the rest and reports it exactly once.
+  await page.locator('h1').filter({ hasNotText: en.search.title }).waitFor();
+  await openRefresh(page);
+  const added = en.detail.menu.refreshPlaylistAddedToast(String(parsed - 5));
+  await page.getByText(added, { exact: true }).first().waitFor();
+  await page.waitForTimeout(600);
+  assert.equal(await page.getByText(added, { exact: true }).count(), 1, 'The refresh result was announced twice');
+  assert.equal(repo.getSeasons(id).flatMap((season) => season.episodes).length, parsed);
+  repo.deleteTitle(id);
+  await page.context().close();
+}
+
+async function openRefresh(page: Page) {
+  await page.getByRole('button', { name: en.detail.moreActionsAria, exact: true }).filter({ visible: true }).click();
+  await chooseMenuEntry(page, en.detail.menu.refreshPlaylist);
+}
+
 try {
   for (const locale of ['en', 'zh-CN'] as const) {
-    repo.patchSettings({ uiLang: locale });
-    for (const width of [320, 390, 1280]) {
-      const context = await browser.newContext({
-        viewport: { width, height: width === 1280 ? 900 : 844 },
-        serviceWorkers: 'block',
-      });
-      await context.addCookies([
-        { name: 'zhenji_session', value: token, url: baseUrl, httpOnly: true, sameSite: 'Lax' },
-      ]);
-      const page = await context.newPage();
-      observe(page);
+    // English runs in the dark theme and Chinese in the light one; the swapped pairs follow below.
+    const theme = locale === 'en' ? 'dark' : 'light';
+    repo.patchSettings({ uiLang: locale, theme });
+    for (const viewport of VIEWPORTS) {
+      const { width } = viewport;
+      const page = await openPage(viewport);
+      const context = page.context();
       const prefix = locale + '-' + width;
       await page.goto(baseUrl + '/title/tmdb_movie_1288');
       await page.getByRole('heading', { level: 1 }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme);
       assert.equal(
         await page.getByText(locale === 'en' ? 'Source and season structure' : '来源与季结构', { exact: true }).count(),
         0,
@@ -103,6 +524,7 @@ try {
       await page.locator('#episode-s1e151').waitFor();
       assert.equal(await page.locator('[id^="episode-"]').count(), 50);
       assert.equal(await page.locator('#episode-s1e101').count(), 0);
+      await verifyShell(page, viewport, locale, prefix);
       await context.close();
       console.log('Verified ' + prefix);
     }
@@ -118,11 +540,10 @@ try {
     collectionSort: 'manual',
     createdAt: Date.now(),
   });
-  for (const width of [320, 390, 1280]) {
-    const context = await browser.newContext({ viewport: { width, height: 844 }, serviceWorkers: 'block' });
-    await context.addCookies([{ name: 'zhenji_session', value: token, url: baseUrl, httpOnly: true, sameSite: 'Lax' }]);
-    const page = await context.newPage();
-    observe(page);
+  for (const viewport of VIEWPORTS) {
+    const { width } = viewport;
+    const page = await openPage(viewport);
+    const context = page.context();
     await page.goto(baseUrl + '/lists/qa_long_list');
     await page.getByRole('heading', { level: 1 }).waitFor();
     await capture(page, 'long-list-name-' + width);
@@ -134,7 +555,45 @@ try {
   }
   repo.deleteList('qa_long_list');
 
-  repo.patchSettings({ uiLang: 'en' });
+  // The other half of the language x theme matrix, once per layout.
+  for (const locale of ['en', 'zh-CN'] as const) {
+    const theme = locale === 'en' ? 'light' : 'dark';
+    repo.patchSettings({ uiLang: locale, theme });
+    for (const viewport of [VIEWPORTS[1], VIEWPORTS[3], VIEWPORTS[4]]) {
+      const page = await openPage(viewport);
+      for (const route of ['/', '/library', '/lists', '/settings']) {
+        await page.goto(baseUrl + route);
+        await page.getByRole('heading', { level: 1 }).waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme);
+        await capture(page, [locale, theme, viewport.width, route.slice(1) || 'home'].join('-'));
+      }
+      await page.context().close();
+    }
+  }
+
+  for (const [index, viewport] of [VIEWPORTS[0], VIEWPORTS[1], VIEWPORTS[3], VIEWPORTS[4]].entries()) {
+    const locale: Locale = index % 2 ? 'zh-CN' : 'en';
+    repo.patchSettings({ uiLang: locale, theme: index % 2 ? 'light' : 'dark' });
+    await verifyBatchManagement(viewport, locale);
+    console.log('Verified batch management at ' + viewport.width + ' (' + locale + ')');
+  }
+
+  seedLongTitle();
+  for (const [viewport, locale] of [
+    [VIEWPORTS[0], 'en'],
+    [VIEWPORTS[3], 'zh-CN'],
+    [VIEWPORTS[5], 'en'],
+  ] as const) {
+    repo.patchSettings({ uiLang: locale, theme: locale === 'en' ? 'dark' : 'light' });
+    await verifyTitleRobustness(viewport, locale);
+    console.log('Verified long names and failing images at ' + viewport.width + ' (' + locale + ')');
+  }
+  repo.deleteTitle('qa_long');
+
+  repo.patchSettings({ uiLang: 'en', theme: 'dark' });
+  await verifyRecoveryAndImport();
+  console.log('Verified offline detection, empty states and link import');
+  await verifyShortLandscapeRail();
   const contexts = await Promise.all(
     [0, 1].map(async () => {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
@@ -209,6 +668,12 @@ try {
     backupReplacement: 'passed',
     imeSearchInput: 'passed',
     longListName: 'passed',
+    navigationShell: 'passed',
+    batchManagement: 'passed',
+    titleRobustness: 'passed',
+    offlineDetection: 'passed',
+    linkImportPreview: 'passed',
+    viewports: VIEWPORTS.map((viewport) => viewport.width),
   };
   writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify(report));

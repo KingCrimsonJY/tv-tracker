@@ -1,3 +1,4 @@
+import type { BatchAction } from '../domain/batch.ts';
 import type {
   AppSettingsDoc,
   AppStateSnapshot,
@@ -105,26 +106,20 @@ async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
   const isJson = contentType.includes('application/json');
 
   if (!res.ok) {
-    let message = `Request failed (HTTP ${res.status})`;
+    // The server answers errors with a stable `code` (and the offending `field` for validation); the UI
+    // translates the code, so no server text is ever shown.
     let code: string | undefined;
     let field: string | undefined;
     if (isJson) {
       try {
-        const body = (await res.json()) as {
-          code?: string;
-          message?: string;
-          error?: string;
-          field?: string;
-        };
-        if (body.code) code = body.code;
-        if (body.field) field = body.field;
-        if (body.message) message = body.message;
-        else if (body.error) message = body.error;
+        const body = (await res.json()) as { code?: string; field?: string };
+        code = body.code;
+        field = body.field;
       } catch {
-        // ignore parse error
+        // A truncated error body still reports the HTTP status below.
       }
     }
-    throw new ApiError(res.status, message, code, field);
+    throw new ApiError(res.status, code ?? `HTTP ${res.status}`, code, field);
   }
 
   if (!isJson) {
@@ -225,6 +220,14 @@ export async function postTitleActionApi(id: string, payload: TitleAtomicActionI
 export async function deleteTitleApi(id: string): Promise<StateMutationResult> {
   return apiJson<StateMutationResult>(`/api/titles/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+  });
+}
+
+/** One atomic write for many titles; see `applyTitleBatch` on the server. */
+export async function batchTitlesApi(titleIds: readonly string[], action: BatchAction): Promise<StateMutationResult> {
+  return apiJson<StateMutationResult>('/api/titles/batch', {
+    method: 'POST',
+    body: JSON.stringify({ titleIds, action }),
   });
 }
 

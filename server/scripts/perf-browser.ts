@@ -163,14 +163,82 @@ export async function measureBrowser(baseUrl: string, token: string) {
       writeFileSync(process.env.PERF_PROFILE, JSON.stringify(profile));
     }
     const toggleRequests = requests.slice(requestStart).filter((request) => request.url.includes('/api/'));
+    const toggleLongTaskMs = await longestTask(toggleStart);
+
+    // Library batch management. Inside the measured steps only CSS selectors are used: Playwright's role
+    // selectors compute accessible names for the whole page, which would itself show up as a long task.
+    console.log('Measuring library batch management...');
+    await page.getByRole('link', { name: 'Library', exact: true }).click();
+    await page.locator('.poster-grid a').first().waitFor();
+    await settled(page);
+    const measureStep = async (run: () => Promise<unknown>) => {
+      const start = await timestamp();
+      await run();
+      await settled(page);
+      return longestTask(start);
+    };
+    const modeButton = page.locator('main header button').last();
+    const toolbar = page.locator('[role="toolbar"]');
+    const statusButton = toolbar.locator('button').first();
+    // The checkbox label covers the card; pointer input is used throughout, as on a phone.
+    const cards = page.locator('.poster-grid label');
+    const selectAllButton = page.locator('main header button').first();
+    const selectedCount = async () => Number((await toolbar.locator('[role="status"]').innerText()).replace(/\D/g, ''));
+    const enterSelection = async () => {
+      await modeButton.click();
+      await toolbar.waitFor();
+    };
+    const openStatusMenu = async () => {
+      await statusButton.click();
+      await page.locator('[role="menu"]').waitFor();
+    };
+    /** Menu order follows BATCH_STATUSES: watched, unwatched, paused, dropped, active. */
+    const applyStatus = (position: number) => async () => {
+      await page.locator('[role="menuitem"]').nth(position).click();
+      await toolbar.waitFor({ state: 'hidden' });
+      await waitForStateQuiet();
+    };
+
+    const batchEnterLongTaskMs = await measureStep(enterSelection);
+    const batchPickLongTaskMs = await measureStep(() => cards.first().click());
+    const batchSelectAllLongTaskMs = await measureStep(() => selectAllButton.click());
+    const libraryTitles = await selectedCount();
+
+    // A realistic batch: a few dozen titles out of the library.
+    await selectAllButton.click();
+    for (let index = 0; index < 48; index++) await cards.nth(index).click();
+    await settled(page);
+    const batchTitles = await selectedCount();
+    const batchRequestStart = requests.length;
+    const batchMenuLongTaskMs = await measureStep(openStatusMenu);
+    const batchApplyLongTaskMs = await measureStep(applyStatus(2));
+    const batchRequests = requests.slice(batchRequestStart).filter((request) => request.url.includes('/api/'));
+    // The worst case: the same action on every title in the library.
+    await enterSelection();
+    await selectAllButton.click();
+    await openStatusMenu();
+    await settled(page);
+    const batchApplyAllLongTaskMs = await measureStep(applyStatus(3));
     return {
+      libraryTitles,
+      batchTitles,
+      batchApplyAllLongTaskMs,
+      batchMenuLongTaskMs,
+      batchEnterLongTaskMs,
+      batchPickLongTaskMs,
+      batchSelectAllLongTaskMs,
+      batchApplyLongTaskMs,
+      batchPosts: batchRequests.filter((request) => request.method === 'POST').length,
+      batchStateGets: batchRequests.filter(
+        (request) => request.method === 'GET' && new URL(request.url).pathname === '/api/state',
+      ).length,
       homeInteractiveMs,
       homeJsGzipBytes,
       libraryScrollLongTaskMs,
       longTitleOpenMs,
       longTitleLongTaskMs,
       episodeRows,
-      toggleLongTaskMs: await longestTask(toggleStart),
+      toggleLongTaskMs,
       toggleTasks: await page.evaluate(
         (start) => window.perfLongTasks.filter((task) => task.start >= start),
         toggleStart,

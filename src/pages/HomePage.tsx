@@ -5,7 +5,17 @@ import { Check, ChevronRight, Film, ListOrdered, Plus, Settings } from 'lucide-r
 import { Button, ProgressBar, Skeleton } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { PosterCard } from '../components/PosterCard';
+import { InstallAppButton } from '../components/InstallAppButton';
 import { useTracker } from '../context/TrackerContext';
+import {
+  selectEntriesByList,
+  selectLists,
+  selectProgressByTitle,
+  selectSeasonsByTitle,
+  selectSettings,
+  selectTitles,
+} from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { compareRank, computeListProgress, sortListEntries } from '../domain/ordering';
 import { activeProgressOf, NO_SEASONS } from '../domain/stableRefs';
 import {
@@ -17,31 +27,20 @@ import {
   resolveDisplayTitle,
   watchProgressPercent,
 } from '../domain/progress';
-import type { AppStateSnapshot, HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
+import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
-
-const selectHomeData = (state: AppStateSnapshot) => [
-  state.titles,
-  state.seasonsByTitle,
-  state.progressByTitle,
-  state.lists,
-  state.entriesByList,
-  state.settings,
-];
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export const HomePage: React.FC = () => {
-  const {
-    loadingData,
-    titles,
-    seasonsByTitle,
-    progressByTitle,
-    lists,
-    entriesByList,
-    settings,
-    markEpisodeWatched,
-    markWholeTitle,
-  } = useTracker(selectHomeData);
+  const { loadingData, markEpisodeWatched, markWholeTitle } = useTracker();
+  const titles = useTrackerState(selectTitles);
+  const seasonsByTitle = useTrackerState(selectSeasonsByTitle);
+  const progressByTitle = useTrackerState(selectProgressByTitle);
+  const lists = useTrackerState(selectLists);
+  const entriesByList = useTrackerState(selectEntriesByList);
+  const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
+  usePageTitle();
 
   const allTitles = Object.values(titles);
   const defaultLang = settings.defaultTitleLang;
@@ -325,6 +324,8 @@ export const HomePage: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>{t.library.addMediaButton}</span>
           </ButtonLink>
+          {/* The sidebar and the rail carry this on wider screens. */}
+          <InstallAppButton compact size="sm" className="sm:hidden" />
           <ButtonLink to="/settings" variant="secondary" size="sm" isIconOnly aria-label={t.settings.title}>
             <Settings className="w-4 h-4" />
           </ButtonLink>

@@ -55,7 +55,9 @@ export const AddTitlesDialog: React.FC<AddTitlesDialogProps> = ({
             </SearchField>
 
             {filtered.length === 0 ? (
-              <p className="text-center text-sm text-muted py-8">{t.lists.allTitlesAdded}</p>
+              <p className="text-center text-sm text-muted py-8">
+                {query.trim() ? t.lists.noLibraryMatches : t.lists.libraryEmpty}
+              </p>
             ) : (
               <div className="space-y-2">
                 {filtered.map((title) => {

@@ -1,86 +1,84 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Chip, Dropdown, Label } from '@heroui/react';
 import { Plus, Check, ListPlus } from 'lucide-react';
+import { ButtonLink } from '../../components/ButtonLink';
 import { MediaImage } from '../../components/MediaImage';
 import { TmdbSearchItem } from '../../data/api';
 import { pickPoster, resolveDisplayTitle } from '../../domain/progress';
-import { WatchListDoc, TitleDoc } from '../../domain/types';
+import { WatchListDoc } from '../../domain/types';
 import { useI18n } from '../../i18n';
 
 interface SearchResultsProps {
   results: TmdbSearchItem[];
-  existingTmdbKeys: Set<string>;
-  titles: Record<string, TitleDoc>;
+  /** Library title id by `mediaType:sourceId`, for results that are already in the library. */
+  libraryIds: ReadonlyMap<string, string>;
   lists: WatchListDoc[];
   addingKey: string | null;
   onAdd: (hit: TmdbSearchItem, targetListId?: string) => void;
-  onOpenExisting: (titleId: string) => void;
 }
 
-export const SearchResults: React.FC<SearchResultsProps> = ({
-  results,
-  existingTmdbKeys,
-  titles,
-  lists,
-  addingKey,
-  onAdd,
-  onOpenExisting,
-}) => {
+export const SearchResults: React.FC<SearchResultsProps> = ({ results, libraryIds, lists, addingKey, onAdd }) => {
   const { t, locale } = useI18n();
 
   return (
     <div className="space-y-2.5">
       {results.map((hit) => {
         const key = `${hit.mediaType}:${hit.sourceId}`;
-        const inLibrary = existingTmdbKeys.has(key);
-        const existingDoc = inLibrary
-          ? Object.values(titles).find(
-              (item) => item.source === 'tmdb' && item.sourceId === hit.sourceId && item.mediaType === hit.mediaType,
-            )
-          : undefined;
+        const libraryHref = libraryIds.has(key) ? `/title/${libraryIds.get(key)}` : null;
         const isAdding = addingKey === key;
 
         const { primary: mainTitle, secondary: originalSub } = resolveDisplayTitle(hit.names, null, 'auto', locale);
         const posterSrc = pickPoster(hit, locale);
+
+        const summary = (
+          <>
+            <div className="w-12 h-18 rounded-lg overflow-hidden bg-surface-secondary shrink-0">
+              <MediaImage
+                src={posterSrc}
+                alt={mainTitle}
+                aspect="poster"
+                mediaType={hit.mediaType}
+                className="w-full h-full"
+                compact
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-sm sm:text-base text-foreground truncate">{mainTitle}</div>
+              {originalSub && <div className="text-xs text-muted truncate">{originalSub}</div>}
+              <div className="flex items-center gap-2 mt-1">
+                <Chip size="sm" variant="soft">
+                  {hit.mediaType === 'movie' ? t.mediaType.movie : t.mediaType.tv}
+                </Chip>
+                {hit.year && <span className="text-xs text-muted">{hit.year}</span>}
+              </div>
+            </div>
+          </>
+        );
 
         return (
           <div
             key={key}
             className="flex items-center justify-between gap-4 p-3 rounded-xl bg-surface border border-border hover:border-muted/50 transition-colors"
           >
-            <div
-              className={`flex items-center gap-3.5 min-w-0 flex-1 ${existingDoc ? 'cursor-pointer' : ''}`}
-              onClick={() => existingDoc && onOpenExisting(existingDoc.id)}
-            >
-              <div className="w-12 h-18 rounded-lg overflow-hidden bg-surface-secondary shrink-0">
-                <MediaImage
-                  src={posterSrc}
-                  alt={mainTitle}
-                  aspect="poster"
-                  mediaType={hit.mediaType}
-                  className="w-full h-full"
-                  compact
-                />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm sm:text-base text-foreground truncate">{mainTitle}</div>
-                {originalSub && <div className="text-xs text-muted truncate">{originalSub}</div>}
-                <div className="flex items-center gap-2 mt-1">
-                  <Chip size="sm" variant="soft">
-                    {hit.mediaType === 'movie' ? t.mediaType.movie : t.mediaType.tv}
-                  </Chip>
-                  {hit.year && <span className="text-xs text-muted">{hit.year}</span>}
-                </div>
-              </div>
-            </div>
+            {libraryHref ? (
+              <Link
+                to={libraryHref}
+                className="flex items-center gap-3.5 min-w-0 flex-1 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {summary}
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">{summary}</div>
+            )}
 
             <div className="flex items-center gap-1.5 shrink-0">
-              {inLibrary ? (
-                <Button size="sm" variant="tertiary" onPress={() => existingDoc && onOpenExisting(existingDoc.id)}>
+              {libraryHref ? (
+                <ButtonLink to={libraryHref} size="sm" variant="tertiary">
                   <Check className="w-4 h-4 text-success" />
                   {t.search.addedToLibrary}
-                </Button>
+                </ButtonLink>
               ) : (
                 <>
                   <Button size="sm" variant="primary" isDisabled={isAdding} onPress={() => onAdd(hit)}>

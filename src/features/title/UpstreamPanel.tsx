@@ -1,26 +1,25 @@
 import { TmdbSourcePicker } from './TmdbSourcePicker';
 import { resolveLocalizedText } from '../../domain/ordering';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Button, Card, Modal, toast } from '@heroui/react';
 import { useTracker } from '../../context/TrackerContext';
+import { useTrackerState } from '../../data/useTrackerState';
 import { previewStructureApi } from '../../data/api';
 import type { StructurePreview } from '../../domain/structure';
-import type { TitleDoc } from '../../domain/types';
+import type { AppStateSnapshot, TitleDoc } from '../../domain/types';
 import { useI18n } from '../../i18n';
 
 export function UpstreamPanel({ title }: { title: TitleDoc }) {
   const { t, locale, translateError } = useI18n();
-  const { resolveStructure, changeTitleSource, progressByTitle } = useTracker(
-    (state) => state.progressByTitle[title.id],
+  const { resolveStructure, changeTitleSource } = useTracker();
+  const progress = useTrackerState(
+    useCallback((state: AppStateSnapshot) => state.progressByTitle[title.id], [title.id]),
   );
   const [preview, setPreview] = useState<StructurePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [pickingSource, setPickingSource] = useState(false);
 
-  const archived = Object.values(progressByTitle[title.id] || {}).reduce(
-    (sum, p) => sum + (p.archivedWatched?.length || 0),
-    0,
-  );
+  const archived = Object.values(progress ?? {}).reduce((sum, p) => sum + (p.archivedWatched?.length || 0), 0);
   if (!title.upstreamChange && !title.sourceUnavailable && !archived) return null;
   const run = async (action: () => Promise<void>) => {
     if (busy) return;

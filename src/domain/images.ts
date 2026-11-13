@@ -3,6 +3,17 @@ export function tmdbFilePath(value: string | null | undefined): string | null {
   if (!value) return null;
   return value.match(tmdbUrl)?.[1] || value;
 }
+/** What a poster field may hold: nothing, an http(s) address, or a TMDB file path such as `/abc.jpg`. */
+export function isImageReference(value: string): boolean {
+  const text = value.trim();
+  if (!text || /^\/[^/\s?#]+\.(?:jpg|jpeg|png|webp)$/i.test(text)) return true;
+  try {
+    return ['http:', 'https:'].includes(new URL(text).protocol);
+  } catch {
+    return false;
+  }
+}
+
 /** Normalize image fields in titles, seasons, archived marks and legacy backup payloads. */
 export function normalizeTmdbImages<T>(value: T): T {
   if (Array.isArray(value)) return value.map(normalizeTmdbImages) as T;

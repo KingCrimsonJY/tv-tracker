@@ -18,25 +18,32 @@ import {
 } from '@heroui/react';
 import { MediaImage } from '../components/MediaImage';
 import { useTracker } from '../context/TrackerContext';
+import {
+  selectEntriesByList,
+  selectLists,
+  selectProgressByTitle,
+  selectSeasonsByTitle,
+  selectSettings,
+  selectTitles,
+} from '../data/selectors';
+import { useTrackerState } from '../data/useTrackerState';
 import { compareRank, computeListProgress, sortListEntries } from '../domain/ordering';
 import { pickPoster, resolveDisplayTitle } from '../domain/progress';
-import type { AppStateSnapshot, ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
+import type { ListEntryDoc, ListKind, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { withPendingSpinner } from '../components/pendingContent';
 
-const selectListsData = (state: AppStateSnapshot) => [
-  state.titles,
-  state.seasonsByTitle,
-  state.progressByTitle,
-  state.lists,
-  state.entriesByList,
-  state.settings,
-];
-
 export const ListsPage: React.FC = () => {
-  const { loadingData, titles, seasonsByTitle, progressByTitle, lists, entriesByList, settings, createList } =
-    useTracker(selectListsData);
+  const { loadingData, createList } = useTracker();
+  const titles = useTrackerState(selectTitles);
+  const seasonsByTitle = useTrackerState(selectSeasonsByTitle);
+  const progressByTitle = useTrackerState(selectProgressByTitle);
+  const lists = useTrackerState(selectLists);
+  const entriesByList = useTrackerState(selectEntriesByList);
+  const settings = useTrackerState(selectSettings);
   const { locale, t } = useI18n();
+  usePageTitle(t.lists.title);
   const navigate = useNavigate();
 
   const [createOpen, setCreateOpen] = useState(false);

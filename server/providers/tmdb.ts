@@ -5,7 +5,7 @@ import {
   normalizeLocalizedSeasonName,
 } from '../../src/domain/progress.ts';
 import { extractGenreIdsFromNames } from '../../src/domain/genres.ts';
-import type { EpisodeMeta, Ratings, SeasonDoc, TitleDoc } from '../../src/domain/types.ts';
+import type { EpisodeMeta, Ratings, SeasonDoc, TitleDoc, TmdbSearchItem } from '../../src/domain/types.ts';
 import { en } from '../../src/i18n/messages/en.ts';
 import { zhCN } from '../../src/i18n/messages/zh-CN.ts';
 
@@ -83,68 +83,40 @@ export async function fetchTmdbGenres(
   return { zh: zhMap, en: enMap };
 }
 
-export interface SearchResultDto {
-  sourceId: string;
-  mediaType: 'movie' | 'tv';
-  names: { zh: string; en?: string; original: string };
-  titleZh: string;
-  titleEn?: string;
-  titleOriginal: string;
-  year: number | null;
-  releaseDate: string | null;
-  posterPath: string | null;
-  posterUrl: string | null;
-  overview: string;
-}
-
 export async function searchTmdb(
   query: string,
   lang: 'zh-CN' | 'en-US' = 'zh-CN',
   options: TmdbFetchOptions = {},
-): Promise<SearchResultDto[]> {
-  const fetchFn = options.fetchFn || fetch;
+): Promise<TmdbSearchItem[]> {
   const raw = await fetchTmdbRawJson(
     '/search/multi',
-    {
-      query,
-      language: lang,
-      include_adult: 'false',
-      page: '1',
-    },
-    fetchFn,
+    { query, language: lang, include_adult: 'false', page: '1' },
+    options.fetchFn || fetch,
   );
-  const data = tmdbSearchResponseSchema.parse(raw);
-
-  return (data.results || [])
+  const isEn = lang === 'en-US';
+  return (tmdbSearchResponseSchema.parse(raw).results || [])
     .filter(
       (r): r is z.infer<typeof tmdbSearchItemSchema> & { media_type: 'movie' | 'tv' } =>
         r.media_type === 'movie' || r.media_type === 'tv',
     )
     .slice(0, 20)
     .map((r) => {
-      const mediaType = r.media_type;
-      const localizedTitle = (mediaType === 'movie' ? r.title : r.name) || '';
-      const titleOriginal = (mediaType === 'movie' ? r.original_title : r.original_name) || localizedTitle;
-      const dateStr = (mediaType === 'movie' ? r.release_date : r.first_air_date) || '';
-      const year = dateStr ? parseInt(dateStr.slice(0, 4), 10) || null : null;
-      const posterPath = tmdbImagePath(r.poster_path);
-      const resolvedLocalized = localizedTitle || titleOriginal;
-      const isEn = lang === 'en-US';
-
+      const isMovie = r.media_type === 'movie';
+      const original = (isMovie ? r.original_title : r.original_name) || (isMovie ? r.title : r.name) || '';
+      const localized = (isMovie ? r.title : r.name) || original;
+      const releaseDate = (isMovie ? r.release_date : r.first_air_date) || null;
+      const sourceId = String(r.id);
       return {
-        sourceId: String(r.id),
-        mediaType,
-        names: isEn
-          ? { zh: resolvedLocalized, en: resolvedLocalized, original: titleOriginal }
-          : { zh: resolvedLocalized, original: titleOriginal },
-        titleZh: resolvedLocalized,
-        ...(isEn ? { titleEn: resolvedLocalized } : {}),
-        titleOriginal,
-        year,
-        releaseDate: dateStr || null,
-        posterPath,
-        posterUrl: posterPath,
-        overview: r.overview || '',
+        id: `tmdb_${r.media_type}_${sourceId}`,
+        sourceId,
+        mediaType: r.media_type,
+        // Search returns one language: it fills the slot the client asked for.
+        names: isEn ? { zh: localized, en: localized, original } : { zh: localized, original },
+        year: releaseDate ? parseInt(releaseDate.slice(0, 4), 10) || null : null,
+        releaseDate,
+        posterPath: tmdbImagePath(r.poster_path),
+        backdropPath: null,
+        overview: isEn ? { en: r.overview || '' } : { zh: r.overview || '' },
       };
     });
 }
@@ -181,16 +153,24 @@ export async function fetchTmdbTitleDetails(
   const enTrans =
     translations.find((t) => t.iso_639_1 === 'en' && t.iso_3166_1 === 'US') ||
     translations.find((t) => t.iso_639_1 === 'en');
-  const zhTrans =
-    translations.find((t) => t.iso_639_1 === 'zh' && t.iso_3166_1 === 'CN' && (t.data?.title || t.data?.name)) ||
-    translations.find((t) => t.iso_639_1 === 'zh' && (t.data?.title || t.data?.name));
+  // Simplified Chinese first, then the other Chinese editions in order of how close they read to it.
+  const zhTrans = ['CN', 'SG', 'HK', 'TW']
+    .map((region) =>
+      translations.find(
+        (t) => t.iso_639_1 === 'zh' && t.iso_3166_1 === region && Boolean(t.data?.title || t.data?.name),
+      ),
+    )
+    .find(Boolean);
 
   const originalName =
     (mediaType === 'movie' ? detail.original_title : detail.original_name) || detail.title || detail.name || 'Untitled';
   const primaryZh = (mediaType === 'movie' ? detail.title : detail.name) || '';
   const transZh = zhTrans?.data?.title || zhTrans?.data?.name || '';
+  // Without a zh-CN title TMDB answers with the original one. For a foreign work another Chinese edition is
+  // then the better name; for a work whose original language is Chinese, the original already is the name.
+  const originalIsChinese = /^(?:zh|cn)$/i.test(detail.original_language ?? '');
   const zhName =
-    primaryZh && primaryZh !== originalName
+    primaryZh && (primaryZh !== originalName || originalIsChinese)
       ? primaryZh
       : transZh && transZh !== originalName
         ? transZh

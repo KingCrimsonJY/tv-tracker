@@ -80,21 +80,27 @@ export function createSession(ctx: DbContext, tokenHash: string, now: number, ex
   });
 }
 
+/** Sliding expiry is refreshed at most this often, so reads do not turn into a database write per request. */
+const SESSION_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+
 export function verifyAndTouchSession(ctx: DbContext, tokenHash: string, now: number, newExpiresAt: number): boolean {
-  const row = ctx.db.prepare('SELECT expires_at FROM sessions WHERE token_hash = ?').get(tokenHash) as
-    { expires_at: number } | undefined;
-
+  const row = ctx.db.prepare('SELECT last_seen_at, expires_at FROM sessions WHERE token_hash = ?').get(tokenHash) as
+    { last_seen_at: number; expires_at: number } | undefined;
   if (!row) return false;
-
   if (row.expires_at <= now) {
     ctx.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash);
     return false;
   }
-
-  ctx.db
-    .prepare('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?')
-    .run(now, newExpiresAt, tokenHash);
+  if (now - row.last_seen_at >= SESSION_TOUCH_INTERVAL_MS) {
+    ctx.db
+      .prepare('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?')
+      .run(now, newExpiresAt, tokenHash);
+  }
   return true;
+}
+
+export function deleteExpiredSessions(ctx: DbContext, now: number): void {
+  ctx.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now);
 }
 
 export function deleteSession(ctx: DbContext, tokenHash: string): void {

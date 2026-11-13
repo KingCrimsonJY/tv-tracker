@@ -1,3 +1,8 @@
+# Works with `docker compose` and `podman compose`. Image names are fully qualified because Podman has no
+# default registry. The data directory must be writable by uid 1000 inside the container:
+#   Docker:           mkdir -p data && sudo chown 1000:1000 data
+#   Rootless Podman:  mkdir -p data && podman unshare chown 1000:1000 data
+# See docs/deployment.md.
 services:
   zhenji:
     build: .
@@ -10,12 +15,14 @@ services:
       - PORT=3000
       - DATA_DIR=/data
     ports:
+      # Loopback only: publish it through a tunnel or a reverse proxy that terminates HTTPS.
       - '127.0.0.1:8080:3000'
     volumes:
-      - ./data:/data
+      # :Z relabels the directory for this container on SELinux hosts and is ignored elsewhere.
+      - ./data:/data:Z
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: docker.io/cloudflare/cloudflared:latest
     container_name: zhenji-cloudflared
     profiles:
       - cloudflare
@@ -27,7 +34,7 @@ services:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
 
   tailscale:
-    image: tailscale/tailscale:latest
+    image: docker.io/tailscale/tailscale:latest
     container_name: zhenji-tailscale
     profiles:
       - tailscale
@@ -40,4 +47,4 @@ services:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=true
     volumes:
-      - ./data/tailscale:/var/lib/tailscale
+      - ./data/tailscale:/var/lib/tailscale:Z

@@ -1,7 +1,12 @@
 import { assertSupportedLinkType } from './linkScope.ts';
 import { z } from 'zod';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
-import { safeFetchFollowingRedirects, readResponseText, type SafeFetchOptions } from '../security/ssrf.ts';
+import {
+  safeFetchFollowingRedirects,
+  readResponseText,
+  UnsafeUrlError,
+  type SafeFetchOptions,
+} from '../security/ssrf.ts';
 import { LinkImportError } from './linkErrors.ts';
 import { isBilibiliUrl } from './linkUrls.ts';
 
@@ -44,10 +49,16 @@ const archiveSchema = z.object({
   pubdate: z.number().optional(),
   pubtime: z.number().optional(),
 });
+const listMetaSchema = z.object({
+  mid: id.optional(),
+  name: z.string(),
+  description: nullableText,
+  cover: nullableText,
+});
 const archivePageSchema = z.object({
   archives: z.array(archiveSchema).optional(),
   page: z.object({ total: z.number(), page_size: z.number().optional(), size: z.number().optional() }).optional(),
-  meta: z.object({ name: z.string(), description: nullableText, cover: nullableText }).optional(),
+  meta: listMetaSchema.optional(),
   has_more: z.boolean().optional(),
 });
 
@@ -245,60 +256,102 @@ export async function resolveBilibiliMetadata(
 
   const space = /^\/(\d+)\/(?:lists\/(\d+)|channel\/(collectiondetail|seriesdetail))\/?$/.exec(url.pathname);
   if (space && url.hostname === 'space.bilibili.com') {
-    const series = space[3] === 'seriesdetail' || url.searchParams.get('type') === 'series';
+    const mid = space[1];
     const sid = space[2] || url.searchParams.get('sid') || '';
-    const endpoint = series ? '/x/series/archives' : '/x/polymer/web-space/seasons_archives_list';
-    const pageSize = 100;
-    const entries: LinkImportEpisodeSeed[] = [];
-    const seen = new Set<string>();
-    let result: LinkImportResult | null = null;
-    let total = 0;
-    let received = 0;
-    // Providers may clamp the requested page size. Bound requests independently.
-    for (let page = 1; page <= 100; page++) {
-      const params: Record<string, string> = series
-        ? { mid: space[1], series_id: sid, pn: String(page), ps: String(pageSize) }
-        : { mid: space[1], season_id: sid, page_num: String(page), page_size: String(pageSize) };
-      const data = archivePageSchema.parse(await api(endpoint, params));
-      const items = data.archives ?? [];
-      if (page === 1) {
-        total = data.page?.total ?? items.length;
-        if (total > MAX_EPISODES)
-          throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
-        let meta = data.meta;
-        if (series) {
-          meta = z
-            .object({ meta: z.object({ name: z.string(), description: nullableText }) })
-            .parse(await api('/x/series/series', { series_id: sid })).meta;
-        }
-        result = base(input, meta?.name || '');
-        if (!result.title) throw new LinkImportError('LINK_PARSE_FAILED', 'Playlist title is missing.');
-        result.kind = 'playlist';
-        result.posterUrl = cover(meta?.cover || items[0]?.pic);
-        result.overview = (meta?.description || '').slice(0, 2000);
+    if (!/^\d+$/.test(sid)) throw new LinkImportError('LINK_PARSE_FAILED', 'Playlist id is missing.');
+    const type = url.searchParams.get('type');
+    const declared: SpaceListKind | null =
+      space[3] === 'seriesdetail' || type === 'series'
+        ? 'series'
+        : space[3] === 'collectiondetail' || type === 'season'
+          ? 'season'
+          : null;
+    // Collections and series have separate id spaces, and neither endpoint checks the uploader: an id that
+    // belongs to someone else's list of the other kind still answers. Try the declared kind first, then the
+    // other one, and accept only a list owned by the uploader in the link.
+    const kinds: SpaceListKind[] = declared === 'series' ? ['series', 'season'] : ['season', 'series'];
+    let failure: unknown;
+    for (const kind of kinds) {
+      try {
+        const list = await loadSpaceList(api, kind, mid, sid);
+        if (list) return list;
+      } catch (err) {
+        // A definite answer for the declared kind (for example a real but empty collection) is final.
+        if (kind === declared || err instanceof UnsafeUrlError) throw err;
+        failure ??= err;
       }
-      const previousCount = entries.length;
-      received += items.length;
-      for (const item of items) {
-        const videoId = item.bvid || item.bv_id || item.id;
-        if (!videoId || seen.has(videoId)) continue;
-        seen.add(videoId);
-        entries.push({
-          sourceVideoId: videoId,
-          name: item.title.slice(0, 300),
-          runtime: minutes(item.duration),
-          airDate: date(item.pubdate ?? item.pubtime),
-        });
-      }
-      if (entries.length > MAX_EPISODES)
-        throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
-      if (!items.length || entries.length === previousCount || (received >= total && !data.has_more)) break;
     }
-    if (!result || !entries.length)
-      throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
-    result.episodes = entries;
-    if (entries.length < total) result.warning = 'LINK_METADATA_INCOMPLETE';
-    return result;
+    throw failure ?? new LinkImportError('LINK_UNAVAILABLE', 'The playlist does not belong to this uploader.');
   }
   return null;
+}
+
+type SpaceListKind = 'season' | 'series';
+type BilibiliApi = (endpoint: string, params?: Record<string, string>) => Promise<unknown>;
+
+/**
+ * Load one uploader list (collection = "season", or series). Returns null when the id exists but belongs to
+ * another uploader, so the caller can try the other kind instead of importing a stranger's videos.
+ */
+async function loadSpaceList(
+  api: BilibiliApi,
+  kind: SpaceListKind,
+  mid: string,
+  sid: string,
+): Promise<LinkImportResult | null> {
+  const source = 'https://space.bilibili.com/' + mid + '/lists/' + sid + '?type=' + kind;
+  let seriesMeta: z.infer<typeof listMetaSchema> | undefined;
+  if (kind === 'series') {
+    seriesMeta = z.object({ meta: listMetaSchema }).parse(await api('/x/series/series', { series_id: sid })).meta;
+    if (seriesMeta.mid !== undefined && seriesMeta.mid !== mid) return null;
+  }
+  const pageSize = 100;
+  const entries: LinkImportEpisodeSeed[] = [];
+  const seen = new Set<string>();
+  let result: LinkImportResult | null = null;
+  let total = 0;
+  let received = 0;
+  // Providers may clamp the requested page size. Bound requests independently.
+  for (let page = 1; page <= 100; page++) {
+    const params: Record<string, string> =
+      kind === 'series'
+        ? { mid, series_id: sid, pn: String(page), ps: String(pageSize) }
+        : { mid, season_id: sid, page_num: String(page), page_size: String(pageSize) };
+    const data = archivePageSchema.parse(
+      await api(kind === 'series' ? '/x/series/archives' : '/x/polymer/web-space/seasons_archives_list', params),
+    );
+    const items = data.archives ?? [];
+    if (page === 1) {
+      const meta = seriesMeta ?? data.meta;
+      if (kind === 'season' && meta?.mid !== undefined && meta.mid !== mid) return null;
+      total = data.page?.total ?? items.length;
+      if (total > MAX_EPISODES) throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+      result = base(source, meta?.name || '');
+      if (!result.title) throw new LinkImportError('LINK_PARSE_FAILED', 'Playlist title is missing.');
+      result.kind = 'playlist';
+      result.posterUrl = cover(meta?.cover || items[0]?.pic || items[0]?.cover);
+      result.overview = (meta?.description || '').slice(0, 2000);
+    }
+    const previousCount = entries.length;
+    received += items.length;
+    for (const item of items) {
+      const videoId = item.bvid || item.bv_id || item.id;
+      if (!videoId || seen.has(videoId)) continue;
+      seen.add(videoId);
+      entries.push({
+        sourceVideoId: videoId,
+        name: item.title.slice(0, 300),
+        runtime: minutes(item.duration),
+        airDate: date(item.pubdate ?? item.pubtime),
+      });
+    }
+    if (entries.length > MAX_EPISODES)
+      throw new LinkImportError('LINK_PLAYLIST_TOO_LARGE', 'Playlist exceeds 2000 entries.');
+    if (!items.length || entries.length === previousCount || (received >= total && !data.has_more)) break;
+  }
+  if (!result || !entries.length)
+    throw new LinkImportError('LINK_EMPTY_PLAYLIST', 'The playlist is empty or inaccessible.');
+  result.episodes = entries;
+  if (entries.length < total) result.warning = 'LINK_METADATA_INCOMPLETE';
+  return result;
 }

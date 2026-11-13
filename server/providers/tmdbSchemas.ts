@@ -40,6 +40,7 @@ export const tmdbImageItemSchema = z.object({
 
 export const tmdbDetailResponseSchema = z.object({
   id: z.number().optional(),
+  original_language: z.string().optional(),
   title: z.string().optional(),
   name: z.string().optional(),
   original_title: z.string().optional(),

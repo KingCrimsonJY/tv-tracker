@@ -107,9 +107,8 @@ describe('TrackerRepository (in-memory SQLite)', () => {
     expect(m1.version).toBe(1);
 
     // Patch progress: set s1e2 & s1e3, unset s1e1
-    const m2 = repo.patchProgress(title.id, 'p1', {
-      set: { s1e2: 2000, s1e3: 3000 },
-      unset: ['s1e1'],
+    const m2 = repo.applyTitleAtomicAction(title.id, {
+      progress: { playthroughId: 'p1', set: { s1e2: 2000, s1e3: 3000 }, unset: ['s1e1'] },
     });
     expect(m2.version).toBe(2);
     expect(m2.upserts.progressByTitle?.[title.id]?.p1).toEqual({
