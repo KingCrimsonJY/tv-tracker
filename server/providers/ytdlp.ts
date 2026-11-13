@@ -7,6 +7,7 @@ import { isGenericEpisodeLabel } from '../../src/domain/airing.ts';
 import type { LinkImportEpisodeSeed, LinkImportResult } from '../../src/domain/types.ts';
 import { LinkImportError } from './linkErrors.ts';
 import { isBangumiUrl } from './linkUrls.ts';
+import { sharedEgressProxyUrl } from '../security/egressProxy.ts';
 import { assertSafePublicUrl, type DnsLookupFn } from '../security/ssrf.ts';
 
 export const YTDLP_TIMEOUT_MS = 30_000;
@@ -155,10 +156,12 @@ export function getYtdlpBinaryPath(customPathOrOptions?: string | GetYtdlpBinary
   return 'yt-dlp';
 }
 
-export function buildYtdlpArgs(url: string): string[] {
+/** `proxyUrl` is the egress proxy every request yt-dlp makes is sent through; see `egressProxy.ts`. */
+export function buildYtdlpArgs(url: string, proxyUrl?: string | null): string[] {
   const cookiesFile = process.env.YTDLP_COOKIES_FILE?.trim();
   return [
     ...(cookiesFile ? ['--cookies', cookiesFile] : []),
+    ...(proxyUrl ? ['--proxy', proxyUrl] : []),
     '--ignore-config',
     '--no-cache-dir',
     '--playlist-end',
@@ -370,6 +373,8 @@ export interface RunYtdlpOptions {
   execFn?: YtdlpExecFn;
   timeoutMs?: number;
   forceImport?: boolean;
+  /** Overrides the shared egress proxy; null runs yt-dlp without one. */
+  egressProxyUrl?: string | null;
 }
 
 export async function resolveWithYtdlp(rawUrl: string, options: RunYtdlpOptions = {}): Promise<LinkImportResult> {
@@ -378,8 +383,10 @@ export async function resolveWithYtdlp(rawUrl: string, options: RunYtdlpOptions 
   const binaryPath = getYtdlpBinaryPath(options.binaryPath);
   const execFn = options.execFn ?? defaultYtdlpExec;
   const timeout = options.timeoutMs ?? YTDLP_TIMEOUT_MS;
+  // The link was checked above, but yt-dlp follows redirects and fetches further pages by itself.
+  const proxyUrl = options.egressProxyUrl !== undefined ? options.egressProxyUrl : await sharedEgressProxyUrl();
 
-  const { stdout } = await execFn(binaryPath, buildYtdlpArgs(safeUrl.toString()), {
+  const { stdout } = await execFn(binaryPath, buildYtdlpArgs(safeUrl.toString(), proxyUrl), {
     timeout,
     maxBuffer: YTDLP_MAX_BUFFER_BYTES,
   });

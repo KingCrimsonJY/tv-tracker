@@ -271,17 +271,24 @@ export async function resolveBilibiliMetadata(
     // other one, and accept only a list owned by the uploader in the link.
     const kinds: SpaceListKind[] = declared === 'series' ? ['series', 'season'] : ['season', 'series'];
     let failure: unknown;
+    let ownedByAnother = false;
     for (const kind of kinds) {
       try {
         const list = await loadSpaceList(api, kind, mid, sid);
         if (list) return list;
+        ownedByAnother = true;
       } catch (err) {
         // A definite answer for the declared kind (for example a real but empty collection) is final.
         if (kind === declared || err instanceof UnsafeUrlError) throw err;
         failure ??= err;
       }
     }
-    throw failure ?? new LinkImportError('LINK_UNAVAILABLE', 'The playlist does not belong to this uploader.');
+    // The id is a real list of another uploader. yt-dlp does not compare the uploader either, so handing the
+    // link to it would import a stranger's videos.
+    if (ownedByAnother || !failure) {
+      throw new LinkImportError('LINK_UNAVAILABLE', 'The playlist does not belong to this uploader.', { final: true });
+    }
+    throw failure;
   }
   return null;
 }

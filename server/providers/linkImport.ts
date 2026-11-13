@@ -200,6 +200,7 @@ async function resolveNormalizedMetadata(
     if (err instanceof UnsafeUrlError) throw err;
     nativeFailure = classifyLinkFailure(err);
     if (
+      nativeFailure.final ||
       [
         'LINK_EMPTY_PLAYLIST',
         'LINK_PLAYLIST_TOO_LARGE',

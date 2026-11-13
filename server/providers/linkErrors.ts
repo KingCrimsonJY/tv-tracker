@@ -2,9 +2,12 @@ import type { ServerErrorCode } from '../../src/domain/types.ts';
 
 export class LinkImportError extends Error {
   public readonly code: ServerErrorCode;
-  constructor(code: ServerErrorCode, message: string) {
+  /** The source itself gave this answer, so no other resolver may be asked to import the link instead. */
+  public readonly final: boolean;
+  constructor(code: ServerErrorCode, message: string, options: { final?: boolean } = {}) {
     super(message);
     this.code = code;
+    this.final = options.final ?? false;
     this.name = 'LinkImportError';
   }
 }

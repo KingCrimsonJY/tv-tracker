@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { resolveBilibiliMetadata } from './bilibili.ts';
+import { resolveLinkMetadata } from './linkImport.ts';
 import { normalizeLinkUrl } from './linkUrls.ts';
 import type { FetchFn } from '../security/ssrf.ts';
 
@@ -104,5 +105,30 @@ describe('Bilibili uploader lists', () => {
     const { deps } = fakeBilibili();
     const result = await resolveBilibiliMetadata('https://space.bilibili.com/88461692/lists/1528929?type=season', deps);
     expect(result?.sourceUrl).toBe('https://space.bilibili.com/88461692/lists/1528929?type=series');
+  });
+});
+
+describe('a list owned by another uploader is never handed to yt-dlp', () => {
+  // yt-dlp reads the same endpoints, which do not compare the uploader: it would return the stranger's list.
+  test('when both id spaces answer with other owners', async () => {
+    const { deps } = fakeBilibili({ seasonOwner: '222', seriesOwner: '333' });
+    const execFn = vi.fn();
+    await expect(
+      resolveLinkMetadata('https://space.bilibili.com/111/lists/456?type=season', { ...deps, execFn }),
+    ).rejects.toMatchObject({ code: 'LINK_UNAVAILABLE' });
+    expect(execFn).not.toHaveBeenCalled();
+  });
+
+  test('when the collection is someone else’s and the series lookup fails', async () => {
+    const { deps } = fakeBilibili({ seasonOwner: '222' });
+    const fetchFn: FetchFn = (input, init) =>
+      new URL(input).pathname.includes('/series/')
+        ? Promise.resolve(Response.json({ code: -404, message: 'not found' }))
+        : deps.fetchFn(input, init);
+    const execFn = vi.fn();
+    await expect(
+      resolveLinkMetadata('https://space.bilibili.com/111/lists/457?type=season', { ...deps, fetchFn, execFn }),
+    ).rejects.toMatchObject({ code: 'LINK_UNAVAILABLE' });
+    expect(execFn).not.toHaveBeenCalled();
   });
 });
