@@ -17,6 +17,8 @@ test.each([
   ['https://youtube.com/playlist?list=WL', 'LINK_WATCH_LATER_UNSUPPORTED'],
   ['https://space.bilibili.com/123/video', 'LINK_FEED_UNSUPPORTED'],
   ['https://space.bilibili.com/123', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123?business=space', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/@creator/shorts', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/channel/UCabc/videos', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/user/creator', 'LINK_FEED_UNSUPPORTED'],

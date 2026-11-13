@@ -77,6 +77,8 @@ computes again. Do not call `toLocalDateString()` in render or leave the day out
 - A snapshot read that fails is repeated with a growing delay until one succeeds (`src/data/reconcile.ts`).
   The event stream staying alive is not a reason to stop: its heartbeats carry no version.
 - Backup import replaces the state on every device. Merge semantics must not resurrect deleted entities.
+- A title is in a list at most once, and the server is what guarantees it: every device makes up the id of
+  the entry it adds, so an add for a title already listed is answered with the list as it stands.
 
 ### Progress and playthroughs
 
@@ -136,7 +138,8 @@ Zhenji tracks works that can be finished, not feeds.
   uploader. A list is accepted only when the owner the API reports is the uploader in the link; otherwise the
   other kind is tried. The stored source is the canonical `…/lists/<id>?type=season|series`. A list that
   belongs to someone else is a final answer (`LinkImportError.final`) and is never handed to yt-dlp, which
-  reads the same endpoints. When the API itself fails and yt-dlp stands in, its list is held to the same
+  reads the same endpoints. The old player address `…/medialist/play/<uploader>?business_id=<id>` is rewritten
+  to that list address first, so it is read and checked the same way. When the API itself fails and yt-dlp stands in, its list is held to the same
   condition: the `uploader_id` it reports must be the uploader in the link.
 - The Open Graph fallback follows redirects, so the page it lands on is checked against the unsupported
   kinds again before anything is read from it.

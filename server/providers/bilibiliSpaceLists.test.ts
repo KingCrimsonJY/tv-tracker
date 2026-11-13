@@ -162,3 +162,31 @@ describe('yt-dlp standing in for a rate-limited Bilibili API', () => {
     await expect(resolve('946974', undefined)).rejects.toMatchObject({ code: 'LINK_UNAVAILABLE' });
   });
 });
+
+describe('the old player address of an uploader list', () => {
+  const legacy = (mid: string, business = 'space_series') =>
+    `https://www.bilibili.com/medialist/play/${mid}?business=${business}&business_id=1528929&from=share`;
+
+  test('becomes the list address, declaring the kind only for a series', async () => {
+    expect(await normalizeLinkUrl(legacy('88461692'), { lookupFn })).toBe(
+      'https://space.bilibili.com/88461692/lists/1528929?type=series',
+    );
+    expect(await normalizeLinkUrl(legacy('88461692', 'space_collection'), { lookupFn })).toBe(
+      'https://space.bilibili.com/88461692/lists/1528929',
+    );
+  });
+
+  test('imports the list of the uploader it names and refuses one that belongs to someone else', async () => {
+    const { deps } = fakeBilibili();
+    const execFn = vi.fn();
+    await expect(resolveLinkMetadata(legacy('88461692'), { ...deps, execFn })).resolves.toMatchObject({
+      title: 'Deep Learning',
+      sourceUrl: 'https://space.bilibili.com/88461692/lists/1528929?type=series',
+    });
+    // yt-dlp, given this address as it is, returns the series whoever the uploader in it is.
+    await expect(resolveLinkMetadata(legacy('946974'), { ...deps, execFn })).rejects.toMatchObject({
+      code: 'LINK_UNAVAILABLE',
+    });
+    expect(execFn).not.toHaveBeenCalled();
+  });
+});

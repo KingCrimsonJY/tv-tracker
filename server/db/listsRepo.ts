@@ -102,18 +102,26 @@ export function putListEntry(
       throw new NotFoundError(`Title not found: ${entryInput.titleId}`, 'TITLE_NOT_FOUND');
     }
 
-    const entryDoc: ListEntryDoc = { ...entryInput, id: entryId };
-    ctx.db
-      .prepare(
-        `INSERT INTO list_entries (id, list_id, title_id, rank, data)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           list_id = excluded.list_id,
-           title_id = excluded.title_id,
-           rank = excluded.rank,
-           data = excluded.data`,
-      )
-      .run(entryId, listId, entryDoc.titleId, entryDoc.rank, serializeEntryData(entryDoc));
+    // A title is in a list at most once. Each device makes up the id of the entry it adds, so two devices
+    // adding the same title, or one device repeating an add whose reply was lost, send different entries.
+    // The later one is answered with the list as it stands instead of being stored next to the first.
+    const alreadyListed = ctx.db
+      .prepare('SELECT 1 FROM list_entries WHERE list_id = ? AND title_id = ? AND id <> ?')
+      .get(listId, entryInput.titleId, entryId);
+    if (!alreadyListed) {
+      const entryDoc: ListEntryDoc = { ...entryInput, id: entryId };
+      ctx.db
+        .prepare(
+          `INSERT INTO list_entries (id, list_id, title_id, rank, data)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             list_id = excluded.list_id,
+             title_id = excluded.title_id,
+             rank = excluded.rank,
+             data = excluded.data`,
+        )
+        .run(entryId, listId, entryDoc.titleId, entryDoc.rank, serializeEntryData(entryDoc));
+    }
 
     const entries = getEntriesForListInTx(ctx, listId);
     const version = ctx.bumpVersionInTx();

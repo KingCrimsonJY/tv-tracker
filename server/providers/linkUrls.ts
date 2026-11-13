@@ -29,6 +29,17 @@ function canonicalizeLinkUrl(input: URL): URL {
       url.pathname = `/${collection[1]}/lists/${sid}`;
       url.searchParams.delete('sid');
     }
+    // The old player address of an uploader list. Sent to yt-dlp as it is, the uploader in it is never
+    // compared with the list's owner; as a list address it is read like any other. Its `business` names the
+    // id space reliably only for a series, so nothing else is declared.
+    const legacy = /^\/medialist\/play\/(\d+)\/?$/.exec(url.pathname);
+    const legacyId = url.searchParams.get('business_id');
+    if (legacy && legacyId && /^\d+$/.test(legacyId)) {
+      const series = url.searchParams.get('business') === 'space_series';
+      url.hostname = 'space.bilibili.com';
+      url.pathname = `/${legacy[1]}/lists/${legacyId}`;
+      url.search = series ? '?type=series' : '';
+    }
     url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
     // Share tracking parameters may contain identifiers; retain only content selectors.
     const keep = new Set(['p', 'bvid', 'aid', 'sid', 'type', 'fid', 'business', 'business_id']);
