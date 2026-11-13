@@ -178,7 +178,7 @@ journalctl -u zhenji | grep "First-run setup code"          # systemd
 
 打开页面，输入设置码并设置至少 10 位的密码。设置完成后该接口永久关闭；连续输错设置码或密码会被限流 15 分钟。
 
-**忘记密码**：交互式生成新的密码哈希（不接受命令行参数，避免密码进入 shell 历史），把输出的 `APP_PASSWORD_HASH="scrypt:..."` 写入 `.env` 后重启。`.env` 中的哈希优先于数据库里的旧密码。
+**忘记密码**：交互式生成新的密码哈希（不接受命令行参数，避免密码进入 shell 历史），把输出的 `APP_PASSWORD_HASH="scrypt:..."` 写入 `.env` 后重启。`.env` 中的哈希优先于数据库里的旧密码。密码变更后的首次启动会让所有设备的登录失效，需要用新密码重新登录。
 
 ```bash
 docker compose exec -it zhenji npm run set-password    # 或 podman exec -it zhenji …，或直接 npm run set-password
@@ -209,9 +209,11 @@ docker compose --profile cloudflare up -d      # 或 podman compose --profile cl
 
 ```bash
 docker compose --profile tailscale up -d
-docker compose exec tailscale tailscale serve --bg http://zhenji:3000     # 仅 tailnet 内访问
-docker compose exec tailscale tailscale funnel --bg http://zhenji:3000    # 需要公网访问时
+docker compose exec tailscale tailscale serve --bg http://127.0.0.1:3000     # 仅 tailnet 内访问
+docker compose exec tailscale tailscale funnel --bg http://127.0.0.1:3000    # 需要公网访问时
 ```
+
+`tailscale serve` 只能转发到本机地址，所以 compose 中的 `tailscale` 容器通过 `network_mode: service:zhenji` 与应用共用网络命名空间，目标地址写 `127.0.0.1:3000`（容器内端口，不是宿主机的 8080）。设备在 tailnet 中的名字由 `TS_HOSTNAME=zhenji` 决定。
 
 ### 自己的反向代理
 
@@ -266,14 +268,15 @@ docker compose start zhenji
 
 ## 9. 排错
 
-| 现象                                              | 原因与处理                                                                                                                                                                                                      |
-| :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 启动即退出，日志提示 `DATA_DIR … is not writable` | 数据目录不属于容器内的 uid 1000。Docker：`sudo chown 1000:1000 data`；Rootless Podman：加 `--userns=keep-id:uid=1000,gid=1000`，或 `podman unshare chown 1000:1000 data`。                                      |
-| Podman 下 `Permission denied`，但属主正确         | SELinux 标签。给卷加 `:Z`。                                                                                                                                                                                     |
-| Podman 构建时报 `short-name … did not resolve`    | 使用了旧版 Dockerfile。当前版本的镜像名均为完整名称。                                                                                                                                                           |
-| 密码正确但登录后又回到登录页                      | 通过 `http://局域网IP` 访问，浏览器丢弃了 `Secure` Cookie。改用 HTTPS 或 `localhost`。                                                                                                                          |
-| 其他设备不实时更新                                | 反向代理缓冲了 `/api/events`。关闭对该路径的缓冲。                                                                                                                                                              |
-| 链接导入提示无法解析或被限制                      | 数据中心 IP 常被视频站点拦截，家庭宽带效果最好；需要登录的内容可用 `YTDLP_COOKIES_FILE` 指定自己的 Cookie 文件。使用 fake-ip 模式代理时，域名会解析到保留地址而被 SSRF 防护拒绝，请为相关域名改用真实 IP 解析。 |
-| 启动日志提示数据库版本比当前版本新                | 运行的是旧版本代码。升级，或恢复旧版本留下的快照。                                                                                                                                                              |
+| 现象                                              | 原因与处理                                                                                                                                                                                                                                                                                                                                                       |
+| :------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 启动即退出，日志提示 `DATA_DIR … is not writable` | 数据目录不属于容器内的 uid 1000。Docker：`sudo chown 1000:1000 data`；Rootless Podman：加 `--userns=keep-id:uid=1000,gid=1000`，或 `podman unshare chown 1000:1000 data`。                                                                                                                                                                                       |
+| Podman 下 `Permission denied`，但属主正确         | SELinux 标签。给卷加 `:Z`。                                                                                                                                                                                                                                                                                                                                      |
+| Podman 构建时报 `short-name … did not resolve`    | 使用了旧版 Dockerfile。当前版本的镜像名均为完整名称。                                                                                                                                                                                                                                                                                                            |
+| 密码正确但登录后又回到登录页                      | 通过 `http://局域网IP` 访问，浏览器丢弃了 `Secure` Cookie。改用 HTTPS 或 `localhost`。                                                                                                                                                                                                                                                                           |
+| 其他设备不实时更新                                | 反向代理缓冲了 `/api/events`。关闭对该路径的缓冲。                                                                                                                                                                                                                                                                                                               |
+| 链接导入提示无法解析或被限制                      | 数据中心 IP 常被视频站点拦截，家庭宽带效果最好；需要登录的内容可用 `YTDLP_COOKIES_FILE` 指定自己的 Cookie 文件。使用 fake-ip 模式代理时，域名会解析到保留地址而被 SSRF 防护拒绝，请为相关域名改用真实 IP 解析；这项检查同样作用于 yt-dlp 发出的每一个请求（含跳转）。如果为服务进程设置了 `HTTPS_PROXY` / `ALL_PROXY`，yt-dlp 改走该代理，出站范围由该代理决定。 |
+| 启动即退出，或导入备份时提示无法写入安全备份      | 升级数据库或导入前要先在 `data/backups` 留一份副本，写不进去就不会继续。检查磁盘剩余空间与该目录的权限后重试，原有数据不受影响。                                                                                                                                                                                                                                 |
+| 启动日志提示数据库版本比当前版本新                | 运行的是旧版本代码。升级，或恢复旧版本留下的快照。                                                                                                                                                                                                                                                                                                               |
 
 家用主机长期运行时，记得关闭自动休眠（`sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`）。
