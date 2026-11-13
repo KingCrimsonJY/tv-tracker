@@ -123,6 +123,13 @@ export async function scrapeOpenGraph(
       },
     );
 
+    // A short link may land on something that is refused when given directly: a channel, a live room.
+    try {
+      assertSupportedLinkType(finalUrl);
+    } catch (err) {
+      await response.body?.cancel();
+      throw err;
+    }
     if (!response.ok) {
       await response.body?.cancel();
       throw new Error(`HTTP ${response.status}`);
@@ -200,6 +207,7 @@ async function resolveNormalizedMetadata(
     if (err instanceof UnsafeUrlError) throw err;
     nativeFailure = classifyLinkFailure(err);
     if (
+      nativeFailure.final ||
       [
         'LINK_EMPTY_PLAYLIST',
         'LINK_PLAYLIST_TOO_LARGE',
@@ -223,6 +231,7 @@ async function resolveNormalizedMetadata(
   } catch (err) {
     if (err instanceof UnsafeUrlError) throw err;
     failure = classifyLinkFailure(err);
+    if (failure.final) throw failure;
     if (
       nativeFailure &&
       (['LINK_UNAVAILABLE', 'LINK_LOGIN_REQUIRED'].includes(nativeFailure.code) ||
@@ -264,6 +273,7 @@ async function resolveNormalizedMetadata(
     };
   } catch (err) {
     if (err instanceof UnsafeUrlError) throw err;
+    if (err instanceof LinkImportError && /_UNSUPPORTED$/.test(err.code)) throw err;
     throw failure;
   }
 }

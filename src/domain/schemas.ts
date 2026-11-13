@@ -57,6 +57,14 @@ export const playthroughSchema: z.ZodType<Playthrough> = z.object({
   completedAt: z.number().nonnegative().optional(),
 });
 
+/** Every write names a playthrough by id, so two with the same id would make one of them unreachable. */
+const playthroughListSchema = z
+  .array(playthroughSchema)
+  .min(1)
+  .refine((list) => new Set(list.map((p) => p.id)).size === list.length, {
+    message: 'Playthrough ids must be unique',
+  });
+
 export const resumePointSchema: z.ZodType<ResumePoint> = z.object({
   episodeKey: z.string().min(1).nullable(),
   seconds: z.number().min(0),
@@ -123,7 +131,7 @@ const baseTitleFields = {
   externalIds: externalIdsSchema,
   ratings: ratingsBlockSchema,
   manualState: manualStateSchema,
-  playthroughs: z.array(playthroughSchema).min(1),
+  playthroughs: playthroughListSchema,
   activePlaythroughId: z.string().min(1),
   resume: resumePointSchema.nullable(),
   metaFetchedAt: z.number().nonnegative(),
@@ -180,7 +188,7 @@ export const patchTitleRequestSchema = z.object(titlePatchFields).strict();
 const titleActionPatchSchema = z
   .object({
     ...titlePatchFields,
-    playthroughs: z.array(playthroughSchema).min(1).optional(),
+    playthroughs: playthroughListSchema.optional(),
     activePlaythroughId: z.string().min(1).optional(),
   })
   .strict();
@@ -270,24 +278,60 @@ export const batchTitlesRequestSchema = z
   })
   .strict();
 
-export const putTitleRequestSchema = z.union([
-  z.object({
-    title: titleDocSchema,
-    seasons: z.array(seasonDocSchema).optional(),
-    progress: z.union([progressDocSchema, z.record(z.string(), progressDocSchema)]).optional(),
-  }),
-  z
-    .object({
-      id: z.string().min(1).optional(),
-      ...baseTitleFields,
+/**
+ * PUT /api/titles/:id creates a title together with its seasons and progress. The progress must belong to
+ * what is created: a playthrough of the title, and marks for episodes in the seasons sent. Marks without an
+ * episode exist only in older data and backups, which are imported, not created.
+ */
+export const putTitleRequestSchema = z
+  .union([
+    z.object({
+      title: titleDocSchema,
       seasons: z.array(seasonDocSchema).optional(),
       progress: z.union([progressDocSchema, z.record(z.string(), progressDocSchema)]).optional(),
-    })
-    .refine((doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId), {
-      message: 'activePlaythroughId must exist in playthroughs',
-      path: ['activePlaythroughId'],
     }),
-]);
+    z
+      .object({
+        id: z.string().min(1).optional(),
+        ...baseTitleFields,
+        seasons: z.array(seasonDocSchema).optional(),
+        progress: z.union([progressDocSchema, z.record(z.string(), progressDocSchema)]).optional(),
+      })
+      .refine((doc) => doc.playthroughs.some((p) => p.id === doc.activePlaythroughId), {
+        message: 'activePlaythroughId must exist in playthroughs',
+        path: ['activePlaythroughId'],
+      }),
+  ])
+  .superRefine((request, ctx) => {
+    const playthroughs = new Set(('title' in request ? request.title : request).playthroughs.map((p) => p.id));
+    const episodes = new Set((request.seasons ?? []).flatMap((season) => season.episodes.map((e) => e.key)));
+    const progress = request.progress;
+    // The same reading of the two accepted shapes as the route: one document (v1 clients) or a map.
+    const docs: Array<[string, ProgressDoc]> =
+      progress === undefined
+        ? []
+        : 'watched' in progress && typeof progress.playthroughId === 'string'
+          ? [[progress.playthroughId, progress as ProgressDoc]]
+          : Object.entries(progress as Record<string, ProgressDoc>);
+    for (const [playthroughId, doc] of docs) {
+      if (!playthroughs.has(playthroughId)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Progress for a playthrough the title does not have',
+          path: ['progress', playthroughId],
+        });
+      }
+      for (const key of Object.keys(doc.watched)) {
+        if (!episodes.has(key)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Mark for an episode the title does not have',
+            path: ['progress', playthroughId, 'watched', key],
+          });
+        }
+      }
+    }
+  });
 
 export const putSeasonsRequestSchema = z.union([
   z.array(seasonDocSchema),
@@ -348,9 +392,9 @@ export const putListEntryRequestSchema = z.object({
   ...baseListEntryFields,
 });
 
+/** An entry stays the entry of its title: changing it would be a way to list a title twice. */
 export const patchListEntryRequestSchema = z
   .object({
-    titleId: z.string().min(1).optional(),
     rank: z.string().min(1).optional(),
     note: z.string().optional(),
     addedAt: z.number().nonnegative().optional(),
@@ -427,4 +471,19 @@ export const exportV1Schema = z.object({
   entriesByList: z.record(z.string(), z.array(listEntryDocSchema)).default({}),
 });
 
-export const importPayloadSchema = z.union([exportV2Schema, exportV1Schema]);
+/** Entry ids are unique across the whole library, so a file that reuses one is answered as invalid input. */
+export const importPayloadSchema = z.union([exportV2Schema, exportV1Schema]).superRefine((payload, ctx) => {
+  const seen = new Set<string>();
+  for (const [listId, entries] of Object.entries(payload.entriesByList)) {
+    entries.forEach((entry, index) => {
+      if (seen.has(entry.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'List entry id is used twice',
+          path: ['entriesByList', listId, index, 'id'],
+        });
+      }
+      seen.add(entry.id);
+    });
+  }
+});

@@ -46,6 +46,10 @@ computed by pure functions in `src/domain` from those facts, the episode air dat
 date. Never persist a derived status, never write a placeholder date, and never show an internal key
 (`s2e5`, a title id) in the interface.
 
+Nothing in the stored state changes at midnight, so a component that derives anything from the day reads it
+with `useToday()` (`src/hooks/useToday.ts`) and passes it on as `todayStr`; a page left open overnight then
+computes again. Do not call `toLocalDateString()` in render or leave the day out of a memo's dependencies.
+
 ### One write = one transaction = one version = one event
 
 - Each mutation runs in a single `BEGIN IMMEDIATE` transaction, increments the global `version` exactly once
@@ -70,22 +74,39 @@ date. Never persist a derived status, never write a placeholder date, and never 
 - A mutation is applied directly only when it is the next version; a gap, a new server epoch, a backup
   replacement or the SSE handshake noticing a missed event triggers a full snapshot read. Out-of-order and
   duplicate replies must not roll anything back.
+- A snapshot read that fails is repeated with a growing delay until one succeeds (`src/data/reconcile.ts`).
+  The event stream staying alive is not a reason to stop: its heartbeats carry no version.
 - Backup import replaces the state on every device. Merge semantics must not resurrect deleted entities.
+- A title is in a list at most once, and the server is what guarantees it: every device makes up the id of
+  the entry it adds, so an add for a title already listed is answered with the list as it stands, and an
+  entry's title and list cannot be changed (PUT and PATCH). Duplicates from before this rule, in the
+  database or in a backup being imported, are kept as they are: dropping one could lose its note.
 
 ### Progress and playthroughs
 
 - Every progress or playthrough write goes through `POST /api/titles/:id/actions` and names the active
   playthrough it was computed from (`expectedActivePlaythroughId`). The server rejects a stale one, any
-  structural change without it, a removal that does not delete the matching progress, and progress written
-  to anything but the resulting active playthrough.
+  structural change without it, a removal that does not delete the matching progress, an added playthrough
+  other than the one made active or added together with a removal (either way a list that still names a
+  viewing deleted elsewhere), and progress written to anything but the resulting active playthrough.
 - `PATCH /api/titles/:id` cannot change the playthroughs, the active playthrough or the source, and
   `PUT /api/titles/:id` only creates: neither may become a way around the check above or replace a title that
   already has progress.
+- Playthrough ids are unique within a title. Creating a title (`PUT /api/titles/:id`) accepts progress only
+  for its own playthroughs and episodes. The episodes of a TMDB title change only through a refresh;
+  `PUT /api/titles/:id/seasons` is for titles the user maintains.
 - A watched mark is written only for an episode the title has. A client working from an outdated structure
   gets `STRUCTURE_CONFLICT` and reloads. Marks without an episode exist only in older data and backups, where
   they are kept.
 - Starting a viewing completes the one it replaces. Playthroughs are never overwritten and progress is never
   orphaned. Unaired episodes cannot be marked; watched ones can always be unmarked.
+- Marking a whole title watched keeps the dates already recorded, a film's included, and does nothing while
+  nothing is released (`canMarkWholeTitleWatched`): pausing or dropping a title does not make an upcoming
+  film or an unaired series markable, on its page or in a batch.
+- Clearing a viewing (`replaceWatched`, or unmarking the whole title) also drops its `archivedWatched`
+  marks, so nothing returns when a removed episode comes back.
+- The server checks that an episode exists, not that it has aired: "aired" depends on the device's local
+  day, which a single-episode write does not carry.
 - Library batches go through `POST /api/titles/batch`: at most 1000 titles, all or nothing, titles deleted
   elsewhere skipped. The client sends its local date, which must be a real calendar day, so "aired" means
   the same on the server.
@@ -102,6 +123,7 @@ TMDB, Bilibili and YouTube are references that change or disappear.
   and a choice between keeping the local structure and adopting upstream.
 - Adopting migrates watched marks by stable episode id, then by air date and order. Marks that match nothing
   are archived with their episode and return when it does. Watch history is never silently deleted.
+- A poster the user sets by hand clears the source's localized `posters`, which are otherwise shown first.
 - A title with a locked structure only accepts additions: episodes still unmatched after every pass and dated
   on or after the latest local air date are appended to the last season; older or undated ones wait for review.
 - A title whose source is gone is marked unavailable: everything is kept, automatic refresh stops, and the
@@ -119,7 +141,15 @@ Zhenji tracks works that can be finished, not feeds.
   warning; a generic page never refreshes structured metadata. Timestamps become dates in Asia/Shanghai.
 - Bilibili collections ("season") and series have separate id spaces and their endpoints do not check the
   uploader. A list is accepted only when the owner the API reports is the uploader in the link; otherwise the
-  other kind is tried. The stored source is the canonical `…/lists/<id>?type=season|series`.
+  other kind is tried. The stored source is the canonical `…/lists/<id>?type=season|series`. A list that
+  belongs to someone else is a final answer (`LinkImportError.final`) and is never handed to yt-dlp, which
+  reads the same endpoints. The old player address `…/medialist/play/<uploader>?business_id=<id>` is rewritten
+  to that list address first, so it is read and checked the same way. Normalization recognises an address
+  only after the host and language prefix are settled, and never drops a parameter that tells a refused kind
+  (favorites) apart before the scope check has run. When the API itself fails and yt-dlp stands in, its list is held to the same
+  condition: the `uploader_id` it reports must be the uploader in the link.
+- The Open Graph fallback follows redirects, so the page it lands on is checked against the unsupported
+  kinds again before anything is read from it.
 - Bangumi links search TMDB and offer the matches; without a match, or when the user insists, the link itself
   is imported. Bilibili-only works stay importable.
 - YouTube playlists import at once; missing titles and durations are filled in the background with backoff
@@ -129,6 +159,12 @@ Zhenji tracks works that can be finished, not feeds.
 
 - Outbound requests for user-supplied links go through `server/security/ssrf.ts`: http(s) only, no
   credentials, every redirect hop re-validated, and the address checked again at connection time.
+- yt-dlp follows redirects and fetches further pages on its own, so it always runs behind the loopback proxy
+  in `server/security/egressProxy.ts`, which holds every connection it opens to the same rule, and with an
+  environment that names no proxy exceptions (`egressProxyEnv`). Only when the operator sets `HTTP_PROXY`,
+  `HTTPS_PROXY` or `ALL_PROXY` does yt-dlp use that proxy instead.
+- Sessions belong to the password they were opened under: a start with a different password hash (a reset
+  through `APP_PASSWORD_HASH`) ends all of them.
 - One password (scrypt, constant-time compare), a one-time setup code, hashed session tokens, `HttpOnly`
   `SameSite=Lax` cookies that are `Secure` in production, an Origin check on cookie-authenticated writes, and
   rate limiting of wrong passwords and wrong setup codes per client and globally.
@@ -142,11 +178,13 @@ Zhenji tracks works that can be finished, not feeds.
   directories and refuse to touch it.
 - `server/db/migrations.ts` is the ordered list of schema and data changes. A shipped step is immutable and
   versions are contiguous; fix a mistake with a new step, and make data steps safe to repeat. A database
-  newer than the code is refused, not modified. A safety backup is taken before migrating or importing.
+  newer than the code is refused, not modified. A safety backup is taken before migrating or importing; if it
+  cannot be written, the migration or import does not happen.
 - Importing replaces the library, so the payload must be a backup: a v2 envelope, or a v1 object with
   `titles`. Anything else, such as `{}`, is rejected.
 - The v2 export envelope is stable, and v1 and early v2 backups must keep importing
-  (`docs/data-format.md`). Keep that document true when a stored field changes.
+  (`docs/data-format.md`). Keep that document true when a stored field changes. An import issues a new
+  `episodeDetailsVersion` for every title, so no client keeps episode details cached from before it.
 
 ## 4. Interface
 
@@ -227,8 +265,11 @@ except maps keyed by domain ids such as statuses and error codes). No CJK litera
 
 - Three supported ways to run the same code: Docker, Podman (including rootless) and plain Node.js.
   `docs/deployment.md` describes all three and must stay true.
-- Image names in the Dockerfile and the compose file are fully qualified. The container runs as uid 1000;
-  only `DATA_DIR` is written at runtime.
+- Image names in the Dockerfile and the compose file are fully qualified. The container runs as uid 1000 and
+  writes `DATA_DIR` at runtime, plus `/opt/yt-dlp`, which the image hands to that user on purpose: the daily
+  `yt-dlp -U` is what keeps link import working when a site changes.
+- The compose `tailscale` service shares the app's network namespace, because `tailscale serve` only
+  proxies to the machine it runs on.
 - `npm start` serves the production build without `NODE_ENV`. The PWA manifest is defined in
   `vite.config.ts`, not under `public/`.
 - CI runs format, lint, tests, build and QA, then builds the image and starts it with Docker and with

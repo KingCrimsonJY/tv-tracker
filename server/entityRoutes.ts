@@ -98,6 +98,11 @@ export function registerEntityRoutes(
     route((req, res) => {
       const parsed = putSeasonsRequestSchema.parse(req.body);
       const seasons = Array.isArray(parsed) ? parsed : parsed.seasons;
+      // The episodes of a TMDB title change only through a refresh, which keeps or archives watched marks and
+      // asks before removing anything. Titles the user maintains (links, hand-made) set their episodes here.
+      if (repo.getTitle(param(req, 'id'))?.source === 'tmdb') {
+        throw new ConflictError('TMDB episodes change only through a refresh', 'STRUCTURE_CONFLICT');
+      }
       res.json(broadcastMutation(repo.replaceSeasons(param(req, 'id'), seasons)));
     }),
   );

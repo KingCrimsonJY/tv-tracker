@@ -147,15 +147,18 @@ export const TrackerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       engineRef.current?.snapshot(snapshot);
       setServerUnreachable(false);
       setLoadingData(false);
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthenticated(false);
         resetState();
         setLoadingData(false);
-        return;
+        return true;
       }
       setServerUnreachable(true);
       setLoadingData(false);
+      // Not read: the reconciler asks again, so a single failed read cannot leave this device behind.
+      return false;
     }
   }, [resetState]);
 

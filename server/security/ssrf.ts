@@ -17,8 +17,33 @@ export type DnsLookupFn = (hostname: string) => Promise<Array<{ address: string 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 const defaultLookupFn: DnsLookupFn = (h) => dns.lookup(h, { all: true, verbatim: true });
-// Resolve and validate inside the socket lookup itself: a second DNS answer
-// cannot redirect a previously validated public hostname into the local network.
+
+/**
+ * A socket `lookup` that hands out public addresses only. Resolving and validating inside the lookup itself
+ * means a second DNS answer cannot move a hostname that was public when checked into the local network.
+ */
+export function createPublicOnlyLookup(lookupFn: DnsLookupFn = defaultLookupFn): net.LookupFunction {
+  return (hostname, options, callback) => {
+    lookupFn(hostname).then(
+      (records) => {
+        if (!records.length || records.some((record) => isPrivateOrReservedIp(record.address))) {
+          callback(new UnsafeUrlError('Connection resolved to a restricted address'), '');
+          return;
+        }
+        const resolved = records.map((record) => ({ address: record.address, family: net.isIP(record.address) }));
+        const candidates = options.family ? resolved.filter((record) => record.family === options.family) : resolved;
+        if (!candidates.length) {
+          callback(new UnsafeUrlError('No address for requested IP family', 'UNRESOLVABLE_HOST'), '');
+          return;
+        }
+        callback(null, options.all ? candidates : candidates[0].address, candidates[0].family);
+      },
+      (err) => callback(err, ''),
+    );
+  };
+}
+const publicOnlyLookup = createPublicOnlyLookup();
+
 const defaultFetchFn: FetchFn = async (input, init = {}) => {
   const url = await assertSafePublicUrl(input);
   return new Promise<Response>((resolve, reject) => {
@@ -28,25 +53,7 @@ const defaultFetchFn: FetchFn = async (input, init = {}) => {
         method: init.method || 'GET',
         headers: Object.fromEntries(new Headers(init.headers).entries()),
         signal: init.signal ?? undefined,
-        lookup: (hostname, options, callback) => {
-          dns.lookup(hostname, { all: true, verbatim: true }).then(
-            (records) => {
-              if (!records.length || records.some((record) => isPrivateOrReservedIp(record.address))) {
-                callback(new UnsafeUrlError('Connection resolved to a restricted address'), '');
-                return;
-              }
-              const candidates = options.family
-                ? records.filter((record) => record.family === options.family)
-                : records;
-              if (!candidates.length) {
-                callback(new UnsafeUrlError('No address for requested IP family', 'UNRESOLVABLE_HOST'), '');
-                return;
-              }
-              callback(null, options.all ? candidates : candidates[0].address, candidates[0].family);
-            },
-            (err) => callback(err, ''),
-          );
-        },
+        lookup: publicOnlyLookup,
       },
       (incoming) => {
         try {

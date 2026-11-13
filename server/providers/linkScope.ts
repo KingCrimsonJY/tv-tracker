@@ -1,8 +1,12 @@
 import { LinkImportError } from './linkErrors.ts';
+import { legacyUploaderList } from './linkUrls.ts';
 
 export function assertSupportedLinkType(input: string): void {
   const url = new URL(input);
   const host = url.hostname.toLowerCase();
+  // Bilibili serves the same pages behind a language prefix. A link stored without going through the link
+  // resolver (a title created directly) still has it, and must be judged by the page behind it.
+  if (host.endsWith('bilibili.com')) url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
   const path = url.pathname;
   const reject = (
     code:
@@ -19,6 +23,8 @@ export function assertSupportedLinkType(input: string): void {
       url.searchParams.get('business') === 'space_fav'
     )
       reject('LINK_FAVORITES_UNSUPPORTED');
+    // The old player address that is not a series or a collection plays whatever an uploader has posted.
+    if (/^\/medialist\/play\/\d+\/?$/.test(path) && !legacyUploaderList(url)) reject('LINK_FEED_UNSUPPORTED');
     if (
       host === 'space.bilibili.com' &&
       !/^\/\d+\/(?:lists\/\d+|channel\/(?:collectiondetail|seriesdetail))\/?$/.test(path)

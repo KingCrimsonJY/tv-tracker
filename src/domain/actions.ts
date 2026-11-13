@@ -5,7 +5,7 @@ import {
   makeEpisodeKey,
   toLocalDateString,
 } from './airing.ts';
-import { computeTitleState } from './status.ts';
+import { computeTitleState, isUnreleasedMovie } from './status.ts';
 import type { ManualState, Playthrough, ProgressDoc, ResumePoint, SeasonDoc, TitleDoc } from './types.ts';
 
 export * from './playthroughs.ts';
@@ -21,7 +21,7 @@ export interface MutationResult {
 export type ActionTitleInput = Pick<
   TitleDoc,
   'source' | 'mediaType' | 'showStatus' | 'manualState' | 'resume' | 'playthroughs' | 'activePlaythroughId'
-> & { runtimeMin?: number | null };
+> & { runtimeMin?: number | null; releaseDate?: string | null };
 
 export interface ActionOptions {
   includeSpecials?: boolean;
@@ -260,6 +260,35 @@ export function markUpToEpisode(
   };
 }
 
+const tracksEpisodes = (title: Pick<TitleDoc, 'mediaType'>, seasons: SeasonDoc[]): boolean =>
+  title.mediaType === 'tv' || (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
+
+/**
+ * Whether there is anything to mark: a film that has been released, or at least one episode that has aired.
+ * Pausing or dropping a title does not change the answer.
+ */
+export function canMarkWholeTitleWatched(
+  title: Pick<ActionTitleInput, 'source' | 'mediaType' | 'showStatus' | 'releaseDate'>,
+  seasons: SeasonDoc[],
+  options: Pick<ActionOptions, 'includeSpecials' | 'todayStr'> = {},
+): boolean {
+  const { includeSpecials = false, todayStr = toLocalDateString() } = options;
+  if (!tracksEpisodes(title, seasons)) return !isUnreleasedMovie(title, todayStr);
+  return (
+    getCountableEpisodes(seasons, {
+      includeSpecials,
+      todayStr,
+      treatAllAsAired: title.source === 'custom' || title.source === 'url',
+      showEnded: isShowEnded(title.showStatus, title.source),
+    }).countable.length > 0
+  );
+}
+
+/**
+ * Mark everything released so far as watched, or clear the viewing. Marking keeps the dates already recorded
+ * and does nothing to a title with nothing released; clearing also forgets the marks set aside for episodes
+ * the source removed, so they cannot come back with the episode.
+ */
 export function markWholeTitleWatched(
   title: ActionTitleInput,
   seasons: SeasonDoc[],
@@ -270,13 +299,24 @@ export function markWholeTitleWatched(
   const { includeSpecials = false, todayStr = toLocalDateString(), now = Date.now() } = options;
   const treatAllAsAired = title.source === 'custom' || title.source === 'url';
   const showEnded = isShowEnded(title.showStatus, title.source);
-  const hasSeasons =
-    title.mediaType === 'tv' || (title.mediaType === 'other' && seasons.some((s) => s.episodes.length > 0));
+  const hasSeasons = tracksEpisodes(title, seasons);
+
+  if (markWatched && !canMarkWholeTitleWatched(title, seasons, { includeSpecials, todayStr })) {
+    return {
+      manualState: title.manualState,
+      resume: title.resume,
+      playthroughs: title.playthroughs,
+      activePlaythroughId: title.activePlaythroughId,
+      progress,
+    };
+  }
+  const { archivedWatched: _archived, ...withoutArchived } = progress;
+  const base: ProgressDoc = markWatched ? progress : withoutArchived;
 
   if (!hasSeasons) {
     const nextProgress: ProgressDoc = {
-      ...progress,
-      ...(markWatched ? { movieWatchedAt: now } : {}),
+      ...base,
+      ...(markWatched ? { movieWatchedAt: progress.movieWatchedAt ?? now } : {}),
     };
     if (!markWatched) delete nextProgress.movieWatchedAt;
     const nextManualState: ManualState = markWatched ? null : title.manualState;
@@ -313,7 +353,7 @@ export function markWholeTitleWatched(
     }
   }
 
-  const nextProgress: ProgressDoc = { ...progress, watched: nextWatched };
+  const nextProgress: ProgressDoc = { ...base, watched: nextWatched };
   const nextManualState: ManualState = markWatched ? null : title.manualState;
   const nextResume: ResumePoint | null = markWatched ? null : title.resume;
 

@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useState } from 'react';
-import { fetchTitleDetailsApi } from '../../data/api';
+import { ApiError, fetchTitleDetailsApi } from '../../data/api';
 import type { SeasonDoc } from '../../domain/types';
 
 interface CacheEntry {
@@ -10,6 +10,23 @@ interface CacheEntry {
   promise: Promise<SeasonDoc[]>;
 }
 const cache = new Map<string, CacheEntry>();
+
+/**
+ * Episode names, stills and overviews of one title. A request that fails for a passing reason (no network,
+ * a 5xx) is repeated a few times: nothing else would ask again while the page stays open, and the page
+ * would keep showing episodes without their names.
+ */
+export async function loadTitleEpisodes(id: string, retryDelaysMs = [2000, 5000, 15_000]): Promise<SeasonDoc[]> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return (await fetchTitleDetailsApi(id)).seasons;
+    } catch (err) {
+      const passing = !(err instanceof ApiError) || err.status >= 500;
+      if (!passing || attempt >= retryDelaysMs.length) throw err;
+      await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+    }
+  }
+}
 const empty: SeasonDoc[] = [];
 export function useTitleEpisodes(id: string | undefined, summary: SeasonDoc[] | undefined, revision = 0): SeasonDoc[] {
   const [loaded, setLoaded] = useState<{ id: string; entry: CacheEntry } | null>(null);
@@ -17,7 +34,7 @@ export function useTitleEpisodes(id: string | undefined, summary: SeasonDoc[] | 
     if (!id || !summary?.length) return;
     let entry = cache.get(id);
     if (!entry || entry.summary !== summary || entry.revision !== revision || Date.now() - entry.loadedAt > 300_000) {
-      const promise = fetchTitleDetailsApi(id).then((response) => response.seasons);
+      const promise = loadTitleEpisodes(id);
       entry = { summary, revision, loadedAt: Date.now(), promise };
       cache.set(id, entry);
       if (cache.size > 30) {

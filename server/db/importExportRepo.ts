@@ -149,6 +149,8 @@ export function importData(
   }
 
   return ctx.runInTransaction(() => {
+    // Every title's episode details are rewritten here, whatever revision the file recorded for them.
+    const detailsVersion = ctx.getVersion() + 1;
     const oldTitleIds = (ctx.db.prepare('SELECT id FROM titles').all() as Array<{ id: string }>).map((r) => r.id);
     const oldListIds = (ctx.db.prepare('SELECT id FROM lists').all() as Array<{ id: string }>).map((r) => r.id);
 
@@ -172,7 +174,7 @@ export function importData(
     const insertTitle = ctx.db.prepare('INSERT INTO titles (id, data, added_at, updated_at) VALUES (?, ?, ?, ?)');
     const titles: Record<string, TitleDoc> = {};
     for (const [id, title] of Object.entries(parsed.titles)) {
-      const titleDoc: TitleDoc = { ...title, id };
+      const titleDoc: TitleDoc = { ...title, id, episodeDetailsVersion: detailsVersion };
       if (parsed.version === 1) {
         if ((titleDoc.source === 'url' || titleDoc.source === 'custom') && titleDoc.overview?.zh) {
           const split = splitUploaderPrefixFromOverview(titleDoc.overview.zh);

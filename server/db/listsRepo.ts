@@ -1,5 +1,5 @@
 import type { ListEntryDoc, StateMutationResult, WatchListDoc } from '../../src/domain/types.ts';
-import { type DbContext, NotFoundError, serializeEntryData, serializeListData } from './types.ts';
+import { ConflictError, type DbContext, NotFoundError, serializeEntryData, serializeListData } from './types.ts';
 
 function getEntriesForListInTx(ctx: DbContext, listId: string): ListEntryDoc[] {
   const rows = ctx.db
@@ -102,18 +102,35 @@ export function putListEntry(
       throw new NotFoundError(`Title not found: ${entryInput.titleId}`, 'TITLE_NOT_FOUND');
     }
 
-    const entryDoc: ListEntryDoc = { ...entryInput, id: entryId };
-    ctx.db
-      .prepare(
-        `INSERT INTO list_entries (id, list_id, title_id, rank, data)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           list_id = excluded.list_id,
-           title_id = excluded.title_id,
-           rank = excluded.rank,
-           data = excluded.data`,
-      )
-      .run(entryId, listId, entryDoc.titleId, entryDoc.rank, serializeEntryData(entryDoc));
+    // Writing an entry again may change its rank or note; it stays the entry of the same title in the same
+    // list. Pointed elsewhere it could list a title twice, or vanish from one list without the devices
+    // showing that list ever hearing of it.
+    const current = ctx.db.prepare('SELECT list_id, title_id FROM list_entries WHERE id = ?').get(entryId) as
+      { list_id: string; title_id: string } | undefined;
+    if (current && (current.list_id !== listId || current.title_id !== entryInput.titleId)) {
+      throw new ConflictError(`List entry ${entryId} belongs to another list or title`, 'CONFLICT_ERROR');
+    }
+
+    // A title is in a list at most once. Each device makes up the id of the entry it adds, so two devices
+    // adding the same title, or one device repeating an add whose reply was lost, send different entries.
+    // The later one is answered with the list as it stands instead of being stored next to the first.
+    const alreadyListed = ctx.db
+      .prepare('SELECT 1 FROM list_entries WHERE list_id = ? AND title_id = ? AND id <> ?')
+      .get(listId, entryInput.titleId, entryId);
+    if (!alreadyListed) {
+      const entryDoc: ListEntryDoc = { ...entryInput, id: entryId };
+      ctx.db
+        .prepare(
+          `INSERT INTO list_entries (id, list_id, title_id, rank, data)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             list_id = excluded.list_id,
+             title_id = excluded.title_id,
+             rank = excluded.rank,
+             data = excluded.data`,
+        )
+        .run(entryId, listId, entryDoc.titleId, entryDoc.rank, serializeEntryData(entryDoc));
+    }
 
     const entries = getEntriesForListInTx(ctx, listId);
     const version = ctx.bumpVersionInTx();

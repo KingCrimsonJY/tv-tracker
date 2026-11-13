@@ -181,8 +181,8 @@ export function replaceSeasons(ctx: DbContext, titleId: string, seasons: SeasonD
 /**
  * Reject progress writes built from a stale view of the playthroughs. Structural changes (start, cancel,
  * clear or delete a playthrough) must name the active playthrough they were computed from, may only remove
- * the playthrough whose progress is deleted in the same request, and progress may only be written to the
- * playthrough that is active once the request is applied.
+ * the playthrough whose progress is deleted in the same request, may only add the playthrough they make
+ * active, and progress may only be written to the playthrough that is active once the request is applied.
  */
 function assertPlaythroughWriteIsCurrent(current: Omit<TitleDoc, 'id'>, input: TitleAtomicActionInput): void {
   const conflict = () => new ConflictError('REWATCH_CONFLICT', 'REWATCH_CONFLICT');
@@ -195,14 +195,21 @@ function assertPlaythroughWriteIsCurrent(current: Omit<TitleDoc, 'id'>, input: T
   const nextActiveId = input.title?.activePlaythroughId ?? current.activePlaythroughId;
   const deletedId = input.progress?.deletePlaythroughId;
   const removedIds = [...currentIds].filter((id) => !nextIds.has(id));
+  const addedIds = [...nextIds].filter((id) => !currentIds.has(id));
   const structural =
-    [...nextIds].some((id) => !currentIds.has(id)) ||
+    addedIds.length > 0 ||
     removedIds.length > 0 ||
     nextActiveId !== current.activePlaythroughId ||
     deletedId !== undefined;
 
   if (structural && expected === undefined) throw conflict();
   if (removedIds.some((id) => id !== deletedId)) throw conflict();
+  // The only playthrough a request may add is the one it starts. Any other is one this client still lists
+  // after another device deleted it; accepting the list would bring it back without its progress.
+  if (addedIds.some((id) => id !== nextActiveId)) throw conflict();
+  // Starting a viewing removes none. A request that adds one while removing another was built from a list
+  // that is no longer current: undoing a rewatch back to a viewing another device has deleted.
+  if (addedIds.length > 0 && (removedIds.length > 0 || deletedId !== undefined)) throw conflict();
   if (deletedId !== undefined && (nextIds.has(deletedId) || deletedId === nextActiveId)) throw conflict();
   const writtenId = input.progress?.playthroughId;
   if (writtenId !== undefined && writtenId !== nextActiveId) throw conflict();

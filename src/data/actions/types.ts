@@ -68,8 +68,18 @@ export function computeProgressDiff(
   set?: Record<string, number>;
   unset?: string[];
   movieWatchedAt?: number | null;
+  replaceWatched?: Record<string, number>;
   hasChanges: boolean;
 } {
+  const movieChanged = prevProgress.movieWatchedAt !== nextProgress.movieWatchedAt;
+  // Marks set aside for removed episodes can only be dropped by replacing the whole set.
+  if (prevProgress.archivedWatched?.length && !nextProgress.archivedWatched?.length) {
+    return {
+      replaceWatched: nextProgress.watched,
+      ...(movieChanged ? { movieWatchedAt: nextProgress.movieWatchedAt ?? null } : {}),
+      hasChanges: true,
+    };
+  }
   const setMap: Record<string, number> = {};
   const unsetList: string[] = [];
   for (const key of new Set([...Object.keys(prevProgress.watched), ...Object.keys(nextProgress.watched)])) {
@@ -78,7 +88,6 @@ export function computeProgressDiff(
     if (after !== undefined) setMap[key] = after;
     else unsetList.push(key);
   }
-  const movieChanged = prevProgress.movieWatchedAt !== nextProgress.movieWatchedAt;
   const hasSet = Object.keys(setMap).length > 0;
   const hasUnset = unsetList.length > 0;
   return {

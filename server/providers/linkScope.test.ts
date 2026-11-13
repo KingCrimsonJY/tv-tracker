@@ -17,6 +17,18 @@ test.each([
   ['https://youtube.com/playlist?list=WL', 'LINK_WATCH_LATER_UNSUPPORTED'],
   ['https://space.bilibili.com/123/video', 'LINK_FEED_UNSUPPORTED'],
   ['https://space.bilibili.com/123', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123?business=space', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123?business=space_channel&business_id=456', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123?business=space_fav&business_id=456', 'LINK_FAVORITES_UNSUPPORTED'],
+  [
+    'https://www.bilibili.com/medialist/play/123?business=space_series&business_id=456&fid=789',
+    'LINK_FAVORITES_UNSUPPORTED',
+  ],
+  [
+    'https://m.bilibili.com/zh-Hant/medialist/play/123?business=space_fav&business_id=456',
+    'LINK_FAVORITES_UNSUPPORTED',
+  ],
   ['https://youtube.com/@creator/shorts', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/channel/UCabc/videos', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/user/creator', 'LINK_FEED_UNSUPPORTED'],
@@ -54,4 +66,21 @@ test.each([
   'https://www.bilibili.com/bangumi/play/ss123',
 ])('keeps supported content URL %s', (url) => {
   expect(() => assertSupportedLinkType(url)).not.toThrow();
+});
+
+test('a short link that lands on a channel page is refused, not imported as a video', async () => {
+  const channel = 'https://www.youtube.com/@creator/videos';
+  const fetchFn = vi.fn(async (input: string) =>
+    input === channel
+      ? new Response('<html><head><meta property="og:title" content="Creator"></head></html>', {
+          headers: { 'content-type': 'text/html' },
+        })
+      : new Response(null, { status: 302, headers: { location: channel } }),
+  );
+  const execFn = vi.fn(async () => {
+    throw new Error('ERROR: Unsupported URL: https://short.example/abc');
+  });
+  await expect(resolveLinkMetadata('https://short.example/abc', { lookupFn, fetchFn, execFn })).rejects.toMatchObject({
+    code: 'LINK_FEED_UNSUPPORTED',
+  });
 });

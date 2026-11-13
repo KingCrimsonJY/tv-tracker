@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createApp } from './server/app.ts';
 import { todayDateStr } from './server/db/backup.ts';
 import { assertDataDirWritable, DataDirPermissionError, TrackerRepository } from './server/db/repository.ts';
+import { SafetyBackupError } from './server/db/types.ts';
 import { getYtdlpBinaryPath, getYtdlpVersion, updateYtdlpBinary } from './server/providers/ytdlp.ts';
 
 // `quiet` keeps dotenv's promotional tip out of the server log.
@@ -23,7 +24,19 @@ async function startServer(): Promise<void> {
     throw err;
   }
 
-  const repo = new TrackerRepository({ dataDir: resolvedDataDir });
+  let repo: TrackerRepository;
+  try {
+    repo = new TrackerRepository({ dataDir: resolvedDataDir });
+  } catch (err) {
+    if (err instanceof SafetyBackupError) {
+      console.error(
+        `${err.message} The database was not upgraded. Free some space or fix the permissions of ` +
+          `${path.join(resolvedDataDir, 'backups')}, then start again.`,
+      );
+      process.exit(1);
+    }
+    throw err;
+  }
   let lastYtdlpUpdateDate = '';
 
   const ytdlpPath = getYtdlpBinaryPath();

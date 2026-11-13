@@ -16,12 +16,29 @@ export function isBangumiUrl(raw: string): boolean {
   }
 }
 
+/**
+ * The old player address of an uploader list: `/medialist/play/<uploader>?business=…&business_id=<id>`.
+ * Favorites use the same path and are told apart by `fid` or `business=space_fav`; they, and any other kind
+ * that is neither a series nor a collection, are not such a list. `business` names the id space reliably
+ * only for a series.
+ */
+export function legacyUploaderList(url: URL): { uploader: string; id: string; series: boolean } | null {
+  const uploader = /^\/medialist\/play\/(\d+)\/?$/.exec(url.pathname)?.[1];
+  const id = url.searchParams.get('business_id') ?? '';
+  const business = url.searchParams.get('business');
+  if (!uploader || !/^\d+$/.test(id) || url.searchParams.has('fid')) return null;
+  if (business !== null && business !== 'space_series' && business !== 'space_collection') return null;
+  return { uploader, id, series: business === 'space_series' };
+}
+
 function canonicalizeLinkUrl(input: URL): URL {
   const url = new URL(input);
   url.hash = '';
   if (isBilibiliUrl(url)) {
     if (url.hostname === 'm.bilibili.com' || url.hostname === 'bilibili.com') url.hostname = 'www.bilibili.com';
     url.protocol = 'https:';
+    // Before any path is recognised: a rule that ran first would miss the address behind the prefix.
+    url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
     const collection = /^\/list\/(\d+)\/?$/.exec(url.pathname);
     const sid = url.searchParams.get('sid');
     if (collection && sid && /^\d+$/.test(sid)) {
@@ -29,7 +46,15 @@ function canonicalizeLinkUrl(input: URL): URL {
       url.pathname = `/${collection[1]}/lists/${sid}`;
       url.searchParams.delete('sid');
     }
-    url.pathname = url.pathname.replace(/^\/(?:zh-Hans|zh-Hant)\//, '/');
+    // Sent to yt-dlp as it is, the uploader in the old address is never compared with the list's owner; as a
+    // list address it is read like any other. Addresses that are not such a list keep every parameter, so
+    // the scope check still sees what they are.
+    const legacy = legacyUploaderList(url);
+    if (legacy) {
+      url.hostname = 'space.bilibili.com';
+      url.pathname = `/${legacy.uploader}/lists/${legacy.id}`;
+      url.search = legacy.series ? '?type=series' : '';
+    }
     // Share tracking parameters may contain identifiers; retain only content selectors.
     const keep = new Set(['p', 'bvid', 'aid', 'sid', 'type', 'fid', 'business', 'business_id']);
     for (const key of [...url.searchParams.keys()]) if (!keep.has(key)) url.searchParams.delete(key);

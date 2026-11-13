@@ -41,9 +41,12 @@ services:
     restart: unless-stopped
     depends_on:
       - zhenji
-    hostname: zhenji
+    # `tailscale serve` only proxies to the machine it runs on, so this container shares the app's network
+    # namespace and reaches it at 127.0.0.1:3000.
+    network_mode: service:zhenji
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_HOSTNAME=zhenji
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=true
     volumes:

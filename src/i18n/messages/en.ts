@@ -193,6 +193,8 @@ export const en: MessageCatalog = {
     SOURCE_UNAVAILABLE: 'The source is unavailable. Your local data has been preserved.',
     REWATCH_CONFLICT: 'Another device changed the active viewing. Your library has been refreshed; try again.',
     CONFLICT_ERROR: 'Data conflict. Please refresh and try again.',
+    BACKUP_FAILED:
+      'The safety backup could not be written, so nothing was changed. Check the free space and permissions of the data directory.',
     VALIDATION_ERROR: 'Invalid request payload',
     VALIDATION_FIELD: (field: string) => `Invalid field: ${field}`,
     PAYLOAD_TOO_LARGE: 'Request payload is too large',

@@ -166,7 +166,14 @@ test('v2 export/import preserves pending structure and archived history; v1 stil
   decide('adopt');
   const backup = repo.exportData();
   repo.importData(backup);
-  expect(repo.exportData(backup.exportedAt)).toEqual(backup);
+  // The episode-details revision is internal and every import issues a new one (docs/data-format.md).
+  const withoutRevision = (data: typeof backup) => ({
+    ...data,
+    titles: Object.fromEntries(
+      Object.entries(data.titles).map(([id, doc]) => [id, { ...doc, episodeDetailsVersion: undefined }]),
+    ),
+  });
+  expect(withoutRevision(repo.exportData(backup.exportedAt))).toEqual(withoutRevision(backup));
   expect(repo.getState().progressByTitle[title.id].p1.archivedWatched).toHaveLength(1);
   repo.importData({ ...backup, version: 1 });
   expect(repo.getTitle(title.id)).toBeTruthy();

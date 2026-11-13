@@ -10,6 +10,15 @@ export class NotFoundError extends Error {
   }
 }
 
+/** The copy taken before an import or a migration could not be written, so nothing was changed. */
+export class SafetyBackupError extends Error {
+  public readonly code: ServerErrorCode = 'BACKUP_FAILED';
+  constructor(kind: string, cause: unknown) {
+    super(`Could not write the ${kind} safety backup; nothing was changed.`, { cause });
+    this.name = 'SafetyBackupError';
+  }
+}
+
 export class ConflictError extends Error {
   public readonly code: ServerErrorCode;
   constructor(message: string, code: ServerErrorCode = 'CONFLICT_ERROR') {

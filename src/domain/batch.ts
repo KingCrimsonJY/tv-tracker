@@ -1,6 +1,5 @@
 import { generateNKeysBetween } from 'fractional-indexing';
 import { markWholeTitleWatched } from './actions.ts';
-import { computeTitleState } from './status.ts';
 import type { ListEntryDoc, ProgressDoc, SeasonDoc, TitleDoc } from './types.ts';
 
 /**
@@ -27,7 +26,7 @@ export interface BatchStatusChange {
 
 /**
  * What `status` turns one title into, or null when the title is already there (or cannot get there: a title
- * that has not been released cannot be marked watched, as on its own page).
+ * with nothing released yet cannot be marked watched, paused or not, as on its own page).
  */
 export function planBatchStatus(
   title: TitleDoc,
@@ -45,13 +44,10 @@ export function planBatchStatus(
   }
 
   const current = progress ?? { playthroughId: title.activePlaythroughId, watched: {} };
-  if (status === 'watched') {
-    const state = computeTitleState(title, seasons, current, options);
-    if (state.status === 'unreleased' || state.status === 'unaired') return null;
-  }
   const next = markWholeTitleWatched(title, seasons, current, status === 'watched', options);
   const progressChanged =
     next.progress.movieWatchedAt !== current.movieWatchedAt ||
+    (next.progress.archivedWatched?.length ?? 0) !== (current.archivedWatched?.length ?? 0) ||
     Object.keys(next.progress.watched).length !== Object.keys(current.watched).length ||
     Object.keys(next.progress.watched).some((key) => current.watched[key] === undefined);
   const titleChanged =
