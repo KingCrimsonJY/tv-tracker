@@ -79,7 +79,8 @@ computes again. Do not call `toLocalDateString()` in render or leave the day out
 - Backup import replaces the state on every device. Merge semantics must not resurrect deleted entities.
 - A title is in a list at most once, and the server is what guarantees it: every device makes up the id of
   the entry it adds, so an add for a title already listed is answered with the list as it stands, and an
-  entry's title cannot be changed.
+  entry's title and list cannot be changed (PUT and PATCH). Duplicates from before this rule, in the
+  database or in a backup being imported, are kept as they are: dropping one could lose its note.
 
 ### Progress and playthroughs
 
@@ -91,6 +92,9 @@ computes again. Do not call `toLocalDateString()` in render or leave the day out
 - `PATCH /api/titles/:id` cannot change the playthroughs, the active playthrough or the source, and
   `PUT /api/titles/:id` only creates: neither may become a way around the check above or replace a title that
   already has progress.
+- Playthrough ids are unique within a title. Creating a title (`PUT /api/titles/:id`) accepts progress only
+  for its own playthroughs and episodes. The episodes of a TMDB title change only through a refresh;
+  `PUT /api/titles/:id/seasons` is for titles the user maintains.
 - A watched mark is written only for an episode the title has. A client working from an outdated structure
   gets `STRUCTURE_CONFLICT` and reloads. Marks without an episode exist only in older data and backups, where
   they are kept.

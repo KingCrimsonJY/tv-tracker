@@ -1,5 +1,5 @@
 import type { ListEntryDoc, StateMutationResult, WatchListDoc } from '../../src/domain/types.ts';
-import { type DbContext, NotFoundError, serializeEntryData, serializeListData } from './types.ts';
+import { ConflictError, type DbContext, NotFoundError, serializeEntryData, serializeListData } from './types.ts';
 
 function getEntriesForListInTx(ctx: DbContext, listId: string): ListEntryDoc[] {
   const rows = ctx.db
@@ -100,6 +100,15 @@ export function putListEntry(
     const titleExists = ctx.db.prepare('SELECT 1 FROM titles WHERE id = ?').get(entryInput.titleId);
     if (!titleExists) {
       throw new NotFoundError(`Title not found: ${entryInput.titleId}`, 'TITLE_NOT_FOUND');
+    }
+
+    // Writing an entry again may change its rank or note; it stays the entry of the same title in the same
+    // list. Pointed elsewhere it could list a title twice, or vanish from one list without the devices
+    // showing that list ever hearing of it.
+    const current = ctx.db.prepare('SELECT list_id, title_id FROM list_entries WHERE id = ?').get(entryId) as
+      { list_id: string; title_id: string } | undefined;
+    if (current && (current.list_id !== listId || current.title_id !== entryInput.titleId)) {
+      throw new ConflictError(`List entry ${entryId} belongs to another list or title`, 'CONFLICT_ERROR');
     }
 
     // A title is in a list at most once. Each device makes up the id of the entry it adds, so two devices

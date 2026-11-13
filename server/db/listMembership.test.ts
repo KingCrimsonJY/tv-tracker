@@ -50,9 +50,9 @@ test('an entry cannot be pointed at another title, which would list that title t
   expect(() => patchListEntryRequestSchema.parse({ titleId: 'tmdb_tv_1' })).toThrow();
   expect(patchListEntryRequestSchema.parse({ rank: 'a3', note: 'next' })).toEqual({ rank: 'a3', note: 'next' });
 
-  // Writing an existing entry with the title of another one changes nothing either.
+  // Writing an existing entry with the title of another one is refused, as is PATCH.
   repo.putListEntry('watchlist', 'entry-1', entry('tmdb_tv_1', 'a0'));
   repo.putListEntry('watchlist', 'entry-2', entry('tmdb_tv_2', 'a1'));
-  repo.putListEntry('watchlist', 'entry-2', entry('tmdb_tv_1', 'a1'));
+  expect(() => repo.putListEntry('watchlist', 'entry-2', entry('tmdb_tv_1', 'a1'))).toThrow('belongs to another');
   expect(titleIdsIn('watchlist')).toEqual(['tmdb_tv_1', 'tmdb_tv_2']);
 });
