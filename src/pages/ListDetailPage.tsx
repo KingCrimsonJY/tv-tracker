@@ -22,6 +22,7 @@ import { CollectionGridSection } from '../features/lists/CollectionGridSection';
 import { AddTitlesDialog } from '../features/lists/AddTitlesDialog';
 import { useI18n } from '../i18n';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useToday } from '../hooks/useToday';
 import { usePendingAction } from '../hooks/usePendingAction';
 import { withPendingSpinner } from '../components/pendingContent';
 
@@ -68,16 +69,18 @@ export const ListDetailPage: React.FC = () => {
     return map;
   }, [sortedEntries, progressByTitle]);
 
+  const today = useToday();
   const titlesWithState = useMemo(() => {
     return sortedEntries.map(({ entry, title }) => {
       const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
       const progress = progressByTitleMap[title.id];
       const state = computeTitleState(title, seasons, progress, {
         includeSpecials: settings.includeSpecials,
+        todayStr: today,
       });
       return { entry, title, seasons, progress, state };
     });
-  }, [sortedEntries, seasonsByTitle, progressByTitleMap, settings.includeSpecials]);
+  }, [sortedEntries, seasonsByTitle, progressByTitleMap, settings.includeSpecials, today]);
 
   if (!list) {
     return (

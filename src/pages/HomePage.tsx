@@ -30,6 +30,7 @@ import {
 import type { HomeSectionId, ListEntryDoc, ProgressDoc, TitleDoc } from '../domain/types';
 import { useI18n } from '../i18n';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useToday } from '../hooks/useToday';
 
 export const HomePage: React.FC = () => {
   const { loadingData, markEpisodeWatched, markWholeTitle } = useTracker();
@@ -45,6 +46,7 @@ export const HomePage: React.FC = () => {
   const allTitles = Object.values(titles);
   const defaultLang = settings.defaultTitleLang;
   const includeSpecials = settings.includeSpecials;
+  const today = useToday();
 
   const progressByTitleMap: Record<string, ProgressDoc | undefined> = {};
   for (const titleDoc of allTitles) {
@@ -54,7 +56,7 @@ export const HomePage: React.FC = () => {
   const enriched = allTitles.map((title) => {
     const seasons = seasonsByTitle[title.id] ?? NO_SEASONS;
     const progress = progressByTitleMap[title.id];
-    const state = computeTitleState(title, seasons, progress, { includeSpecials });
+    const state = computeTitleState(title, seasons, progress, { includeSpecials, todayStr: today });
     return { title, seasons, progress, state };
   });
 

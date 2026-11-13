@@ -23,6 +23,8 @@ import { useI18n } from '../../i18n';
 interface TitleMenuProps {
   title: TitleDoc;
   titleState: ComputedTitleState;
+  /** False while nothing has been released: an upcoming film, or a series before its first episode airs. */
+  canMarkAllWatched: boolean;
   onAddToList: () => void;
   onOpenResume: () => void;
   onMarkWholeWatched: () => void;
@@ -46,6 +48,7 @@ interface MenuEntry {
 export const TitleMenu: React.FC<TitleMenuProps> = ({
   title,
   titleState,
+  canMarkAllWatched,
   onAddToList,
   onOpenResume,
   onMarkWholeWatched,
@@ -65,7 +68,7 @@ export const TitleMenu: React.FC<TitleMenuProps> = ({
   const entries: MenuEntry[] = [
     { id: 'addToList', label: t.detail.menu.addToList, icon: ListPlus, run: onAddToList },
     { id: 'resume', label: t.detail.menu.recordResumeTime, icon: Clock, run: onOpenResume },
-    ...(!finished
+    ...(!finished && canMarkAllWatched
       ? [{ id: 'markAll', label: t.detail.menu.markAllWatched, icon: CheckCheck, run: onMarkWholeWatched }]
       : []),
     ...(title.manualState

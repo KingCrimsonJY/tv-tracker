@@ -14,6 +14,7 @@ import { LibraryCard } from '../features/library/LibraryCard';
 import { useLibrarySelection } from '../features/library/useLibrarySelection';
 import { useI18n } from '../i18n';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useToday } from '../hooks/useToday';
 
 const STATUS_GROUPS: Record<Exclude<StatusFilter, 'all'>, readonly TitleStatusCode[]> = {
   watching: ['watching', 'caught_up'],
@@ -37,6 +38,8 @@ export const LibraryPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
 
+  const today = useToday();
+
   const items = useMemo(() => {
     const displayName = (item: { title: (typeof titles)[string] }) =>
       resolveDisplayTitle(item.title.names, item.title.displayLang, settings.defaultTitleLang, locale).primary;
@@ -49,7 +52,10 @@ export const LibraryPage: React.FC = () => {
       .filter(({ title, seasons, progress }) => {
         if (typeFilter !== 'all' && title.mediaType !== typeFilter) return false;
         if (statusFilter === 'all') return true;
-        const { status } = computeTitleState(title, seasons, progress, { includeSpecials: settings.includeSpecials });
+        const { status } = computeTitleState(title, seasons, progress, {
+          includeSpecials: settings.includeSpecials,
+          todayStr: today,
+        });
         return STATUS_GROUPS[statusFilter].includes(status);
       })
       .sort((a, b) => {
@@ -64,6 +70,7 @@ export const LibraryPage: React.FC = () => {
     progressByTitle,
     settings.includeSpecials,
     settings.defaultTitleLang,
+    today,
     locale,
     statusFilter,
     typeFilter,

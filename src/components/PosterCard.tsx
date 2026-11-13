@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ProgressBar } from '@heroui/react';
 import { computeTitleState, getTitleContinueProgressRatio, pickPoster, resolveDisplayTitle } from '../domain/progress';
 import type { DefaultTitleLang, ProgressDoc, SeasonDoc, TitleDoc } from '../domain/types';
+import { useToday } from '../hooks/useToday';
 import { useI18n } from '../i18n';
 import { MediaImage } from './MediaImage';
 
@@ -29,7 +30,7 @@ export const PosterCardBody: React.FC<PosterCardProps & { isSelected?: boolean }
 }) => {
   const { locale, t } = useI18n();
   const { primary } = resolveDisplayTitle(title.names, title.displayLang, defaultLang, locale);
-  const state = computeTitleState(title, seasons, progress, { includeSpecials });
+  const state = computeTitleState(title, seasons, progress, { includeSpecials, todayStr: useToday() });
   const isWatching = state.status === 'watching';
   const ratio = getTitleContinueProgressRatio(title, seasons, state.progressRatio);
   const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));

@@ -165,6 +165,8 @@ export function createTitleActions(
       year: input.year !== undefined ? input.year : prevTitle.year,
       runtimeMin: input.runtimeMin !== undefined ? input.runtimeMin : prevTitle.runtimeMin,
       posterPath: poster,
+      // A poster the user supplies replaces the localized ones from the source, which are otherwise shown first.
+      posters: poster && poster !== prevTitle.posterPath && prevTitle.posters ? {} : prevTitle.posters,
       backdropPath: prevTitle.source !== 'tmdb' ? poster || prevTitle.backdropPath : prevTitle.backdropPath,
       overview: {
         ...prevTitle.overview,
@@ -175,7 +177,17 @@ export function createTitleActions(
 
     // Only the fields that changed are sent, so an edit never overwrites what another device changed meanwhile.
     const patch: Partial<Omit<TitleDoc, 'id'>> = { updatedAt: now, lastActivityAt: now };
-    const editable = ['mediaType', 'names', 'year', 'runtimeMin', 'posterPath', 'backdropPath', 'overview', 'uploader'];
+    const editable = [
+      'mediaType',
+      'names',
+      'year',
+      'runtimeMin',
+      'posterPath',
+      'posters',
+      'backdropPath',
+      'overview',
+      'uploader',
+    ];
     for (const key of editable as Array<keyof Omit<TitleDoc, 'id'>>) {
       if (JSON.stringify(next[key]) !== JSON.stringify(prevTitle[key])) Object.assign(patch, { [key]: next[key] });
     }

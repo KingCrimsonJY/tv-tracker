@@ -32,6 +32,8 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = React.memo(
     onRecordTime,
   }) => {
     const { t, locale, formatDate } = useI18n();
+    // A still that fails to load leaves the row without a thumbnail, like an episode that has none.
+    const [failedStill, setFailedStill] = React.useState<string | null>(null);
     const resolvedEpTitle =
       resolveLocalizedText(episode.name, locale) || t.detail.seasons.episodeDefaultName(episode.number);
 
@@ -57,13 +59,14 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = React.memo(
         </Checkbox>
 
         {/* Thumbnail on tablet and up */}
-        {episode.stillPath && (
+        {episode.stillPath && failedStill !== episode.stillPath && (
           <div className="hidden sm:block w-28 aspect-video rounded-lg overflow-hidden bg-surface-secondary shrink-0">
             <img
               referrerPolicy="no-referrer"
               {...responsiveImage(episode.stillPath, 'still')}
               alt={resolvedEpTitle}
               className="w-full h-full object-cover"
+              onError={() => setFailedStill(episode.stillPath)}
               loading="lazy"
             />
           </div>

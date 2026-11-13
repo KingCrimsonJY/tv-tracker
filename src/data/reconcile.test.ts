@@ -59,3 +59,43 @@ test('backup replacement removes stale seasons and playthroughs even when the ti
     repo.close();
   }
 });
+
+test('a failed read is repeated until one succeeds, without anything asking again', async () => {
+  vi.useFakeTimers();
+  try {
+    const read = vi
+      .fn<() => Promise<boolean>>()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValue(true);
+    const reconcile = createReconciler(read, () => 1000);
+
+    // The version gap asks once; the read fails (for example a 503 from /api/state).
+    await reconcile();
+    expect(read).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(read).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(read).toHaveBeenCalledTimes(3);
+    // It succeeded: nothing further is scheduled.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(read).toHaveBeenCalledTimes(3);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a request during the wait reads at once and replaces the scheduled retry', async () => {
+  vi.useFakeTimers();
+  try {
+    const read = vi.fn<() => Promise<boolean>>().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const reconcile = createReconciler(read, () => 1000);
+    await reconcile();
+    await reconcile();
+    expect(read).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(read).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});

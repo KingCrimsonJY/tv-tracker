@@ -6,13 +6,14 @@ import { useTracker } from '../../context/TrackerContext';
 import { selectEntriesByList, selectLists, selectSettings } from '../../data/selectors';
 import { useTrackerState } from '../../data/useTrackerState';
 import type { AppStateSnapshot } from '../../domain/types';
-import { toLocalDateString } from '../../domain/airing';
+import { canMarkWholeTitleWatched } from '../../domain/actions';
 import { computeTitleState } from '../../domain/status';
 import { resolveDisplayTitle, resolveOverviewText } from '../../domain/ordering';
 import { resolveTitleGenres } from '../../domain/genres';
 import { TitleMenu } from './TitleMenu';
 import { useI18n } from '../../i18n';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { useToday } from '../../hooks/useToday';
 
 export function useTitleDetail() {
   const params = useParams<{ id?: string; titleId?: string }>();
@@ -56,7 +57,7 @@ export function useTitleDetail() {
         : undefined,
     [title, progressDocs],
   );
-  const today = toLocalDateString();
+  const today = useToday();
 
   const titleState = useMemo(() => {
     if (!title) return null;
@@ -194,6 +195,10 @@ export function useTitleDetail() {
           }
         : undefined,
     onDelete: () => setDeleteConfirmOpen(true),
+    canMarkAllWatched: canMarkWholeTitleWatched(title, seasons, {
+      includeSpecials: settings.includeSpecials,
+      todayStr: today,
+    }),
   });
 
   return {
