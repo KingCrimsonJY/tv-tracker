@@ -19,6 +19,16 @@ test.each([
   ['https://space.bilibili.com/123', 'LINK_FEED_UNSUPPORTED'],
   ['https://www.bilibili.com/medialist/play/123', 'LINK_FEED_UNSUPPORTED'],
   ['https://www.bilibili.com/medialist/play/123?business=space', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123?business=space_channel&business_id=456', 'LINK_FEED_UNSUPPORTED'],
+  ['https://www.bilibili.com/medialist/play/123?business=space_fav&business_id=456', 'LINK_FAVORITES_UNSUPPORTED'],
+  [
+    'https://www.bilibili.com/medialist/play/123?business=space_series&business_id=456&fid=789',
+    'LINK_FAVORITES_UNSUPPORTED',
+  ],
+  [
+    'https://m.bilibili.com/zh-Hant/medialist/play/123?business=space_fav&business_id=456',
+    'LINK_FAVORITES_UNSUPPORTED',
+  ],
   ['https://youtube.com/@creator/shorts', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/channel/UCabc/videos', 'LINK_FEED_UNSUPPORTED'],
   ['https://youtube.com/user/creator', 'LINK_FEED_UNSUPPORTED'],

@@ -190,3 +190,36 @@ describe('the old player address of an uploader list', () => {
     expect(execFn).not.toHaveBeenCalled();
   });
 });
+
+describe('list addresses behind a language prefix', () => {
+  const normalize = (link: string) => normalizeLinkUrl(link, { lookupFn });
+
+  test.each([
+    [
+      'https://www.bilibili.com/zh-Hans/medialist/play/88461692?business=space_series&business_id=1528929',
+      'https://space.bilibili.com/88461692/lists/1528929?type=series',
+    ],
+    [
+      'https://m.bilibili.com/zh-Hant/medialist/play/88461692?business=space_collection&business_id=1528929',
+      'https://space.bilibili.com/88461692/lists/1528929',
+    ],
+    ['https://www.bilibili.com/zh-Hans/list/88461692?sid=1528929', 'https://space.bilibili.com/88461692/lists/1528929'],
+  ])('%s is the same list as without it, and normalizing twice changes nothing', async (link, canonical) => {
+    expect(await normalize(link)).toBe(canonical);
+    expect(await normalize(canonical)).toBe(canonical);
+  });
+
+  test('the uploader in such an address is checked like any other', async () => {
+    const { deps } = fakeBilibili();
+    const execFn = vi.fn();
+    const link = (mid: string) =>
+      `https://www.bilibili.com/zh-Hans/medialist/play/${mid}?business=space_series&business_id=1528929`;
+    await expect(resolveLinkMetadata(link('88461692'), { ...deps, execFn })).resolves.toMatchObject({
+      title: 'Deep Learning',
+    });
+    await expect(resolveLinkMetadata(link('946974'), { ...deps, execFn })).rejects.toMatchObject({
+      code: 'LINK_UNAVAILABLE',
+    });
+    expect(execFn).not.toHaveBeenCalled();
+  });
+});

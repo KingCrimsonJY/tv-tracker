@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { patchListEntryRequestSchema } from '../../src/domain/schemas.ts';
 import { makeBaseTvTitle } from '../../src/domain/testFixtures.ts';
 import { TrackerRepository } from './repository.ts';
 
@@ -43,4 +44,15 @@ test('other titles are still added, a batch and a single add do not double up, a
   repo.putListEntry('watchlist', 'entry-1', { ...entry('tmdb_tv_1', 'a5'), note: 'again' });
   expect(repo.getState().entriesByList.watchlist.find((item) => item.id === 'entry-1')).toMatchObject({ rank: 'a5' });
   expect(titleIdsIn('watchlist').sort()).toEqual(['tmdb_tv_1', 'tmdb_tv_2']);
+});
+
+test('an entry cannot be pointed at another title, which would list that title twice', () => {
+  expect(() => patchListEntryRequestSchema.parse({ titleId: 'tmdb_tv_1' })).toThrow();
+  expect(patchListEntryRequestSchema.parse({ rank: 'a3', note: 'next' })).toEqual({ rank: 'a3', note: 'next' });
+
+  // Writing an existing entry with the title of another one changes nothing either.
+  repo.putListEntry('watchlist', 'entry-1', entry('tmdb_tv_1', 'a0'));
+  repo.putListEntry('watchlist', 'entry-2', entry('tmdb_tv_2', 'a1'));
+  repo.putListEntry('watchlist', 'entry-2', entry('tmdb_tv_1', 'a1'));
+  expect(titleIdsIn('watchlist')).toEqual(['tmdb_tv_1', 'tmdb_tv_2']);
 });

@@ -348,9 +348,9 @@ export const putListEntryRequestSchema = z.object({
   ...baseListEntryFields,
 });
 
+/** An entry stays the entry of its title: changing it would be a way to list a title twice. */
 export const patchListEntryRequestSchema = z
   .object({
-    titleId: z.string().min(1).optional(),
     rank: z.string().min(1).optional(),
     note: z.string().optional(),
     addedAt: z.number().nonnegative().optional(),

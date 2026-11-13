@@ -1,4 +1,5 @@
 import { LinkImportError } from './linkErrors.ts';
+import { legacyUploaderList } from './linkUrls.ts';
 
 export function assertSupportedLinkType(input: string): void {
   const url = new URL(input);
@@ -19,10 +20,8 @@ export function assertSupportedLinkType(input: string): void {
       url.searchParams.get('business') === 'space_fav'
     )
       reject('LINK_FAVORITES_UNSUPPORTED');
-    // The old player address without a list id plays everything an uploader has posted.
-    if (/^\/medialist\/play\/\d+\/?$/.test(path) && !/^\d+$/.test(url.searchParams.get('business_id') ?? '')) {
-      reject('LINK_FEED_UNSUPPORTED');
-    }
+    // The old player address that is not a series or a collection plays whatever an uploader has posted.
+    if (/^\/medialist\/play\/\d+\/?$/.test(path) && !legacyUploaderList(url)) reject('LINK_FEED_UNSUPPORTED');
     if (
       host === 'space.bilibili.com' &&
       !/^\/\d+\/(?:lists\/\d+|channel\/(?:collectiondetail|seriesdetail))\/?$/.test(path)
